@@ -1,0 +1,523 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700;800;900&display=swap');
+
+/* ==========================================================================
+   NEO-BRUTALIST CARTOON DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+  /* Fonts */
+  --font-heading: 'Fredoka', -apple-system, sans-serif;
+  --font-body: 'Nunito', -apple-system, sans-serif;
+  --font-mono: 'Fredoka', monospace;
+
+  /* Bubbly Palette */
+  --bg-app: #e4f9b8; /* Soft Bouncy Lime */
+  --bg-card: #ffffff; /* Clean White */
+  
+  /* Bright Cartoon Accent Colors */
+  --accent-cyan: #3be2b4; /* Aqua Mint */
+  --accent-purple: #c58fff; /* Lilac Violet */
+  --accent-gold: #ffe436; /* Cyber Yellow */
+  --accent-pink: #ff7bb5; /* Bouncy Coral Pink */
+  --accent-green: #7ee034; /* Playful Grass Green */
+
+  /* Text Colors */
+  --text-primary: #000000;
+  --text-secondary: #2c2c2c;
+  --text-muted: #666666;
+
+  /* Brutalism Outlines & Shadows */
+  --outline-thick: 3px solid #000000;
+  --outline-medium: 2px solid #000000;
+  --shadow-flat-sm: 3px 3px 0px #000000;
+  --shadow-flat-md: 6px 6px 0px #000000;
+  --shadow-flat-lg: 10px 10px 0px #000000;
+  
+  /* Corners */
+  --border-radius-sm: 10px;
+  --border-radius-md: 20px;
+  --border-radius-lg: 28px;
+  --border-radius-full: 9999px;
+
+  /* Custom Scrollbar colors */
+  --scrollbar-track: #ffffff;
+  --scrollbar-thumb: #000000;
+
+  /* Global Properties */
+  color-scheme: light;
+  accent-color: var(--accent-pink);
+}
+
+/* ==========================================================================
+   BASE CARTOON STYLES
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  /* Retro Grid Pattern */
+  background-image: 
+    radial-gradient(#000000 1px, transparent 1px),
+    linear-gradient(#d3f095 1.5px, transparent 1.5px),
+    linear-gradient(90deg, #d3f095 1.5px, transparent 1.5px);
+  background-size: 24px 24px, 48px 48px, 48px 48px;
+  background-attachment: fixed;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  padding: 1rem 0;
+}
+
+/* Playful Rounded Scrollbars */
+:root {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-left: var(--outline-medium);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: var(--outline-medium);
+    border-radius: var(--border-radius-full);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-pink);
+  }
+}
+
+/* ==========================================================================
+   NEO-BRUTALIST CARTOON PANELS
+   ========================================================================== */
+
+.glass-panel {
+  background: var(--bg-card);
+  border: var(--outline-thick);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-flat-md);
+  padding: 1.5rem;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+}
+
+.glass-panel:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0px #000000;
+}
+
+.glass-panel.glowing-cyan {
+  background: var(--bg-card);
+}
+.glass-panel.glowing-purple {
+  background: var(--bg-card);
+}
+.glass-panel.glowing-gold {
+  background: var(--bg-card);
+}
+
+/* ==========================================================================
+   BOUNCY BUTTONS & FORMS
+   ========================================================================== */
+
+button.cyber-btn {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--accent-gold);
+  border: var(--outline-thick);
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-flat-sm);
+  transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+}
+
+button.cyber-btn:hover:not(:disabled) {
+  background: #fff;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #000000;
+}
+
+button.cyber-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000000;
+}
+
+button.cyber-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+button.cyber-btn.cyan-fill {
+  background: var(--accent-cyan);
+}
+button.cyber-btn.cyan-fill:hover:not(:disabled) {
+  background: #fff;
+}
+
+button.cyber-btn.purple-fill {
+  background: var(--accent-purple);
+}
+button.cyber-btn.purple-fill:hover:not(:disabled) {
+  background: #fff;
+}
+
+button.cyber-btn.gold-fill {
+  background: var(--accent-gold);
+}
+button.cyber-btn.gold-fill:hover:not(:disabled) {
+  background: #fff;
+}
+
+button.cyber-btn.pink-fill {
+  background: var(--accent-pink);
+  color: #fff;
+}
+button.cyber-btn.pink-fill:hover:not(:disabled) {
+  background: #fff;
+  color: #000;
+}
+
+/* Playful Inputs */
+input.cyber-input {
+  background: #ffffff;
+  border: var(--outline-medium);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+input.cyber-input:focus {
+  outline: none;
+  border-width: 3px;
+  box-shadow: var(--shadow-flat-sm);
+}
+
+/* ==========================================================================
+   BOUNCY ANIMATIONS
+   ========================================================================== */
+
+@keyframes float-bouncy {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1.5deg);
+  }
+}
+
+@keyframes bubble-spawn {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.anim-float {
+  animation: float-bouncy 3.5s ease-in-out infinite;
+}
+
+.anim-pop {
+  animation: bubble-spawn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Screen shake for boss hit */
+@keyframes shake-brutal {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-4px, 2px); }
+  50% { transform: translate(4px, -2px); }
+  75% { transform: translate(-2px, -2px); }
+}
+.anim-shake {
+  animation: shake-brutal 0.3s ease-in-out;
+}
+
+/* Screen flash red */
+@keyframes flash-red {
+  0%, 100% { background-color: var(--bg-card); }
+  50% { background-color: #ffeef2; border-color: var(--accent-pink); }
+}
+.anim-flash {
+  animation: flash-red 0.3s ease-in-out;
+}
+
+/* ==========================================================================
+   ACCESSIBILITY & UTILITIES
+   ========================================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE LAYOUT CLASSES
+   ========================================================================== */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+  flex: 1;
+}
+
+.customizer-grid {
+  display: grid;
+  grid-template-columns: 400px 1.5fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1.75fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.active-room-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.25rem;
+  min-height: 540px;
+  align-items: stretch;
+}
+
+.notes-board-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.8fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.boss-battle-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 1rem;
+}
+
+.skill-tree-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1rem;
+  min-height: 300px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .customizer-grid {
+    grid-template-columns: 1fr;
+  }
+  .notes-board-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .lobby-grid {
+    grid-template-columns: 1fr;
+  }
+  .active-room-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .boss-battle-grid {
+    grid-template-columns: 1fr;
+  }
+  .skill-tree-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Custom visual character customizer overlays */
+@keyframes scan-line-move {
+  0% { top: 0%; }
+  50% { top: 100%; }
+  100% { top: 0%; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+    box-shadow: 0 0 6px var(--pulse-color, #fff), 0 0 12px var(--pulse-color, #fff);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 10px var(--pulse-color, #fff), 0 0 20px var(--pulse-color, #fff);
+  }
+}
+
+@keyframes glitch-flicker {
+  0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% {
+    opacity: 0.99;
+    filter: hue-rotate(0deg) saturate(1);
+  }
+  20%, 21.999%, 63%, 63.999%, 65%, 69.999% {
+    opacity: 0.4;
+    filter: hue-rotate(90deg) saturate(1.5);
+  }
+}
+
+.locked-blur-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px) grayscale(100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  border-radius: var(--border-radius-md);
+  padding: 1.5rem;
+  text-align: center;
+  border: 3px dashed #000;
+}
+
+.silhouette-glow {
+  filter: drop-shadow(0 0 15px rgba(59, 226, 180, 0.7));
+  animation: glitch-flicker 4s infinite;
+}
+
+/* Mobile responsive utility classes */
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+  .show-on-mobile {
+    display: block !important;
+  }
+  .show-flex-on-mobile {
+    display: flex !important;
+  }
+  /* Force single-column grid layouts on mobile */
+  .lobby-grid, .active-room-grid, .notes-board-grid, .dashboard-grid, .boss-battle-grid, .skill-tree-grid {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+    gap: 1rem !important;
+  }
+  /* Reduce padding on mobile body/wrapper */
+  body {
+    padding: 0.5rem !important;
+  }
+  /* Fix buttons size for touch targets (min 44px) */
+  button, .cyber-btn {
+    min-height: 44px;
+    padding: 0.65rem 1rem !important;
+    font-size: 0.85rem !important;
+  }
+  .bottom-nav-btn {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+  /* Inputs touch height optimization */
+  input, select, textarea, .cyber-input {
+    min-height: 44px;
+    font-size: 0.9rem !important;
+  }
+}
+@media (min-width: 769px) {
+  .show-on-mobile {
+    display: none !important;
+  }
+  .show-flex-on-mobile {
+    display: none !important;
+  }
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: #fff;
+  border-top: 3px solid #000;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 99999;
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+}
+.bottom-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
+  font-weight: 900;
+  color: var(--text-muted);
+  cursor: pointer;
+  height: 100%;
+  flex: 1;
+  transition: background 0.15s ease;
+  border-left: 1px solid #eaeaea;
+  gap: 2px;
+}
+.bottom-nav-btn:first-child {
+  border-left: none;
+}
+.bottom-nav-btn.active {
+  color: #000;
+  background: var(--accent-purple);
+  border-left: 2px solid #000;
+  border-right: 2px solid #000;
+}
+.bottom-nav-btn.active:first-child {
+  border-left: none;
+}
+

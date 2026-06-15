@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Community Users (Presence)
+    match /community_users/{userEmailSlug} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Friends lists
+    match /friends_lists/{userEmailSlug} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Study Rooms
+    match /study_rooms/{roomId} {
+      allow read, write: if isAuthenticated();
+      
+      // WebRTC signaling subcollection
+      match /calls/{callId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // Global Notes Board
+    match /notes/{noteId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Channels
+    match /channels/{channelId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Study Groups
+    match /study_groups/{groupId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
