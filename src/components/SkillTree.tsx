@@ -17,7 +17,7 @@ interface SkillNode {
 interface SkillTreeProps {
   unlockedSkills: string[];
   skillPoints: number;
-  onUnlockSkill: (skillId: string, cost: number, rewards: { intelligence?: number; career?: number; creativity?: number }) => void;
+  onUnlockSkill: (skillId: string, cost: number, rewards: { intelligence?: number; career?: number; creativity?: number }, skillName: string) => void;
 }
 
 export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoints, onUnlockSkill }) => {
@@ -89,7 +89,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
 
   const handleUnlockClick = () => {
     if (skillPoints >= selectedNode.cost && isAvailable(selectedNode)) {
-      onUnlockSkill(selectedNode.id, selectedNode.cost, selectedNode.statReward);
+      onUnlockSkill(selectedNode.id, selectedNode.cost, selectedNode.statReward, selectedNode.name);
     }
   };
 
@@ -99,10 +99,10 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
       {/* Header - No double slashes */}
       <div style={{ borderBottom: '2.5px solid #000', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          SKILL TREE ARCHITECTURE
+          ACADEMIC CURRICULUM ROADMAP
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>SKILL POINTS:</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>STUDY POINTS:</span>
           <span style={{ 
             fontFamily: 'var(--font-heading)', 
             fontSize: '0.85rem', 
@@ -186,7 +186,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
                     {unlocked ? '[DONE]' : available ? '[OPEN]' : '[LOCK]'} {node.name.split(' ')[0]}
                   </span>
-                  <span style={{ fontSize: '0.7rem', color: '#000', opacity: 0.6 }}>L.{index + 1}</span>
+                  <span style={{ fontSize: '0.7rem', color: '#000', opacity: 0.6 }}>Lvl {index + 1}</span>
                 </button>
               </React.Fragment>
             );
@@ -205,17 +205,17 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
 
           <div style={{ background: '#f5f5f5', border: '2.5px solid #000', padding: '0.6rem', borderRadius: '10px' }}>
             <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-heading)' }}>
-              UNLOCK BONUSES
+              ACADEMIC BOOSTS
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.8rem', fontWeight: 800, fontFamily: 'var(--font-heading)' }}>
               {selectedNode.statReward.intelligence && (
-                <div style={{ color: 'var(--accent-cyan)' }}>Intelligence: +{selectedNode.statReward.intelligence} XP</div>
+                <div style={{ color: 'var(--accent-cyan)' }}>Analysis &amp; Tech: +{selectedNode.statReward.intelligence} Progress Score</div>
               )}
               {selectedNode.statReward.career && (
-                <div style={{ color: 'var(--accent-pink)' }}>Career: +{selectedNode.statReward.career} XP</div>
+                <div style={{ color: 'var(--accent-pink)' }}>Professional Prep: +{selectedNode.statReward.career} Progress Score</div>
               )}
               {selectedNode.statReward.creativity && (
-                <div style={{ color: 'var(--accent-purple)' }}>Creativity: +{selectedNode.statReward.creativity} XP</div>
+                <div style={{ color: 'var(--accent-purple)' }}>Innovation &amp; Design: +{selectedNode.statReward.creativity} Progress Score</div>
               )}
             </div>
           </div>
@@ -239,7 +239,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
                 cursor: 'not-allowed',
                 width: '100%'
               }}>
-                ✓ UNLOCKED
+                ✓ MASTERED
               </button>
             ) : isAvailable(selectedNode) ? (
               <button 
@@ -252,7 +252,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
                   fontSize: '0.8rem'
                 }}
               >
-                {skillPoints >= selectedNode.cost ? 'UNLOCK SKILL' : 'INSUFFICIENT SP'}
+                {skillPoints >= selectedNode.cost ? 'MASTER TOPIC' : 'INSUFFICIENT SP'}
               </button>
             ) : (
               <button disabled style={{

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, onValue, set, update, get, push } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, get, push, onChildAdded, onChildChanged, onChildRemoved, uploadPdf } from '../firebase';
 
 export const getCustomSubjectsForCourse = (course: string): string[] => {
   const c = course.toLowerCase();
@@ -25,10 +25,41 @@ export const getCustomSubjectsForCourse = (course: string): string[] => {
   return [capitalizedCourse, 'Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'Biology', 'Literature'];
 };
 
-export const downloadPdfContent = async (id: string, fileName: string) => {
+export const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
+  if (idOrUrl.startsWith('mock-pdf-url:')) {
+    const mockId = idOrUrl.split(':')[1];
+    if (isFirebaseConfigured && db) {
+      try {
+        const snap = await get(ref(db, 'pdf_contents/' + mockId));
+        if (snap.exists()) {
+          const dataUrl = snap.val();
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          link.download = fileName;
+          link.click();
+        } else {
+          alert('PDF content not found in database.');
+        }
+      } catch (err) {
+        console.error('Error fetching PDF:', err);
+      }
+    }
+    return;
+  }
+
+  if (idOrUrl.startsWith('http://') || idOrUrl.startsWith('https://')) {
+    const link = document.createElement('a');
+    link.href = idOrUrl;
+    link.target = '_blank';
+    link.download = fileName;
+    link.click();
+    return;
+  }
+
+  // Fallback for older notes:
   if (isFirebaseConfigured && db) {
     try {
-      const snap = await get(ref(db, 'pdf_contents/' + id));
+      const snap = await get(ref(db, 'pdf_contents/' + idOrUrl));
       if (snap.exists()) {
         const dataUrl = snap.val();
         const link = document.createElement('a');
@@ -67,6 +98,7 @@ interface StudyNote {
     name: string;
     size: string;
     dataUrl?: string;
+    url?: string;
   };
 }
 
@@ -77,9 +109,10 @@ interface NotesBoardProps {
   onRewardXp: (xp: number, message: string) => void;
   activeSubView?: 'notes' | 'chat';
   isGuest?: boolean;
+  isAdmin?: boolean;
 }
 
-export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, userCourse, onRewardXp, activeSubView, isGuest }) => {
+export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, userCourse, onRewardXp, activeSubView, isGuest, isAdmin = false }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [mobileFeedTab, setMobileFeedTab] = useState<'feed' | 'create'>('feed');
   const [reconnectKey, setReconnectKey] = useState(0);
@@ -97,7 +130,69 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   const [channels, setChannels] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [presenceUsers, setPresenceUsers] = useState<any[]>([]);
-  const [dmMessages, setDmMessages] = useState<any[]>([]);
+  const [activeChatMessages, setActiveChatMessages] = useState<any[]>([]);
+
+
+  const handleAdminDeleteNote = async (noteId: string) => {
+    if (confirm("Are you sure you want to delete this note as an admin?")) {
+      if (isFirebaseConfigured && db) {
+        await set(ref(db, `shared_notes/${noteId}`), null);
+      }
+    }
+  };
+
+  const handleAdminDeleteChannel = async (chanId: string) => {
+    if (confirm("Are you sure you want to delete this channel as an admin?")) {
+      if (isFirebaseConfigured && db) {
+        await set(ref(db, `community_channels/${chanId}`), null);
+        if (activeItem.type === 'channel' && activeItem.id === chanId) {
+          setActiveItem({ type: 'feed', id: 'global' });
+        }
+      }
+    }
+  };
+
+  const handleAdminDeleteGroup = async (groupId: string) => {
+    if (confirm("Are you sure you want to delete this group as an admin?")) {
+      if (isFirebaseConfigured && db) {
+        await set(ref(db, `community_groups/${groupId}`), null);
+        if (activeItem.type === 'group' && activeItem.id === groupId) {
+          setActiveItem({ type: 'feed', id: 'global' });
+        }
+      }
+    }
+  };
+
+  const handleAdminDeleteMessage = async (msgId: string) => {
+    if (!confirm("Delete this message?")) return;
+    if (!isFirebaseConfigured || !db) return;
+
+    let path = '';
+    if (activeItem.type === 'channel') {
+      path = `community_channels/${activeItem.id}/messages`;
+    } else if (activeItem.type === 'group') {
+      path = `community_groups/${activeItem.id}/messages`;
+    } else if (activeItem.type === 'dm') {
+      const chatId = getDmChatId(userEmail, activeItem.id);
+      path = `private_chats/${chatId}/messages`;
+    }
+
+    if (!path) return;
+
+    try {
+      const snap = await get(ref(db, path));
+      if (snap.exists()) {
+        const val = snap.val();
+        const key = Object.keys(val).find(k => val[k].id === msgId);
+        if (key) {
+          await set(ref(db, `${path}/${key}`), null);
+          setActiveChatMessages(prev => prev.filter(m => m.id !== msgId));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+    }
+  };
   const [isServiceUnavailable] = useState(!isFirebaseConfigured || !db);
 
   // Search & Filters
@@ -223,59 +318,65 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     return () => window.removeEventListener('firestore-reconnect', handleReconnect);
   }, []);
 
-  const isInitialNotes = useRef(true);
-  const channelMsgCounts = useRef<Record<string, number>>({});
-  const groupMsgCounts = useRef<Record<string, number>>({});
   const notesRefVal = useRef<StudyNote[]>([]);
 
   useEffect(() => {
     notesRefVal.current = notes;
   }, [notes]);
 
+  // Load Shared Notes, Channels, Groups, and Presence Users incrementally
   useEffect(() => {
     if (isFirebaseConfigured && db) {
-      // 1. Subscribe to shared notes
-      const notesRef = ref(db, 'shared_notes');
-      const unsubNotes = onValue(notesRef, (snap) => {
-        const val = snap.val() || {};
-        const list: StudyNote[] = Object.keys(val).map(key => val[key]);
-        list.sort((a, b) => b.date.localeCompare(a.date));
+      const mountTime = Date.now();
 
-        // Delta Detection for Real-time Notifications: Note Created / Liked / Commented
-        if (!isInitialNotes.current && list.length > notesRefVal.current.length) {
-          const newNote = list[0];
-          if (newNote && newNote.authorEmail !== userEmail) {
+      // 1. Subscribe to shared notes incrementally
+      const notesRef = ref(db, 'shared_notes');
+      
+      const onNoteAdded = onChildAdded(notesRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setNotes(prev => {
+            if (prev.some(n => n.id === val.id)) return prev;
+            const updated = [...prev, val];
+            updated.sort((a, b) => b.date.localeCompare(a.date));
+            return updated;
+          });
+          const noteTime = val.timestamp || Date.parse(val.date) || 0;
+          if (noteTime > mountTime && val.authorEmail !== userEmail) {
             window.dispatchEvent(new CustomEvent('new-notification', {
               detail: {
                 title: 'New Note Shared',
-                message: `${newNote.author} shared: "${newNote.title}"`,
+                message: `${val.author} shared: "${val.title}"`,
                 type: 'note'
               }
             }));
           }
-        } else if (!isInitialNotes.current && notesRefVal.current.length > 0) {
-          list.forEach(newNote => {
-            const oldNote = notesRefVal.current.find(n => n.id === newNote.id);
+        }
+      });
+
+      const onNoteChanged = onChildChanged(notesRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setNotes(prev => {
+            const oldNote = prev.find(n => n.id === val.id);
             if (oldNote) {
-              // Liked
-              if (newNote.likes > oldNote.likes && newNote.authorEmail === userEmail) {
+              if (val.likes > oldNote.likes && val.authorEmail === userEmail) {
                 window.dispatchEvent(new CustomEvent('new-notification', {
                   detail: {
                     title: 'Your note was liked!',
-                    message: `Someone liked your note: "${newNote.title}"`,
+                    message: `Someone liked your note: "${val.title}"`,
                     type: 'note'
                   }
                 }));
               }
-              // Commented
-              const newComments = newNote.comments || [];
+              const valComments = val.comments || [];
               const oldComments = oldNote.comments || [];
-              if (newComments.length > oldComments.length) {
-                const latestComment = newComments[newComments.length - 1];
+              if (valComments.length > oldComments.length) {
+                const latestComment = valComments[valComments.length - 1];
                 if (latestComment && latestComment.authorEmail !== userEmail) {
                   window.dispatchEvent(new CustomEvent('new-notification', {
                     detail: {
-                      title: newNote.authorEmail === userEmail ? 'New Comment on Your Note' : `New Comment on "${newNote.title}"`,
+                      title: val.authorEmail === userEmail ? 'New Comment on Your Note' : `New Comment on "${val.title}"`,
                       message: `${latestComment.author}: "${latestComment.text}"`,
                       type: 'note'
                     }
@@ -283,75 +384,138 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                 }
               }
             }
+            const updated = prev.map(n => n.id === val.id ? val : n);
+            updated.sort((a, b) => b.date.localeCompare(a.date));
+            return updated;
           });
         }
-        isInitialNotes.current = false;
-        setNotes(list);
       });
 
-      // 2. Subscribe to community channels
-      const channelsRef = ref(db, 'community_channels');
-      const unsubChannels = onValue(channelsRef, (snap) => {
-        const val = snap.val() || {};
-        const list = Object.keys(val).map(key => val[key]);
-
-        // Delta Detection for Channel Messages & Mentions
-        list.forEach(chan => {
-          const prevCount = channelMsgCounts.current[chan.id];
-          const newMessages = Array.isArray(chan.messages) ? chan.messages : Object.values(chan.messages || {});
-          if (prevCount !== undefined && newMessages.length > prevCount) {
-            const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg && lastMsg.senderEmail !== userEmail) {
-              const isMention = lastMsg.text.includes(`@${userName}`) || lastMsg.text.includes(`@${userEmail}`);
-              window.dispatchEvent(new CustomEvent('new-notification', {
-                detail: {
-                  title: isMention ? 'You were mentioned!' : `New Message in #${chan.name}`,
-                  message: `${lastMsg.sender}: ${lastMsg.text}`,
-                  type: isMention ? 'mention' : 'message'
-                }
-              }));
-            }
-          }
-          channelMsgCounts.current[chan.id] = newMessages.length;
-        });
-
-        if (list.length === 0) {
-          initDefaultChannels();
-        } else {
-          setChannels(list);
+      const onNoteRemoved = onChildRemoved(notesRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setNotes(prev => prev.filter(n => n.id !== val.id));
         }
       });
 
-      // 3. Subscribe to study groups
-      const groupsRef = ref(db, 'community_groups');
-      const unsubGroups = onValue(groupsRef, (snap) => {
-        const val = snap.val() || {};
-        const list = Object.keys(val).map(key => val[key]);
+      // 2. Subscribe to community channels incrementally
+      const channelsRef = ref(db, 'community_channels');
+      
+      get(channelsRef).then((snap) => {
+        if (!snap.exists() || !snap.val()) {
+          initDefaultChannels();
+        }
+      });
 
-        // Delta Detection for Group Messages & Mentions
-        list.forEach(g => {
-          const prevCount = groupMsgCounts.current[g.id];
-          const newMessages = Array.isArray(g.messages) ? g.messages : Object.values(g.messages || {});
-          if (prevCount !== undefined && newMessages.length > prevCount) {
-            const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg && lastMsg.senderEmail !== userEmail) {
-              const isMention = lastMsg.text.includes(`@${userName}`) || lastMsg.text.includes(`@${userEmail}`);
-              window.dispatchEvent(new CustomEvent('new-notification', {
-                detail: {
-                  title: isMention ? 'You were mentioned!' : `New Message in ${g.name}`,
-                  message: `${lastMsg.sender}: ${lastMsg.text}`,
-                  type: isMention ? 'mention' : 'message'
-                }
-              }));
+      const onChanAdded = onChildAdded(channelsRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setChannels(prev => {
+            if (prev.some(c => c.id === val.id)) return prev;
+            return [...prev, val];
+          });
+        }
+      });
+
+      const onChanChanged = onChildChanged(channelsRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setChannels(prev => {
+            const oldChan = prev.find(c => c.id === val.id);
+            const valMsgs = Array.isArray(val.messages) ? val.messages : Object.values(val.messages || {});
+            const oldMsgs = oldChan ? (Array.isArray(oldChan.messages) ? oldChan.messages : Object.values(oldChan.messages || {})) : [];
+            
+            if (oldChan && valMsgs.length > oldMsgs.length) {
+              const lastMsg = valMsgs[valMsgs.length - 1];
+              if (lastMsg && lastMsg.senderEmail !== userEmail) {
+                const isMention = lastMsg.text.includes(`@${userName}`) || lastMsg.text.includes(`@${userEmail}`);
+                window.dispatchEvent(new CustomEvent('new-notification', {
+                  detail: {
+                    title: isMention ? 'You were mentioned!' : `New Message in #${val.name}`,
+                    message: `${lastMsg.sender}: ${lastMsg.text}`,
+                    type: isMention ? 'mention' : 'message'
+                  }
+                }));
+              }
             }
-          }
-          groupMsgCounts.current[g.id] = newMessages.length;
-        });
+            return prev.map(c => c.id === val.id ? val : c);
+          });
+        }
+      });
 
-        if (list.length === 0) {
+      const onChanRemoved = onChildRemoved(channelsRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setChannels(prev => prev.filter(c => c.id !== val.id));
+        }
+      });
+
+      // 3. Subscribe to study groups incrementally
+      const groupsRef = ref(db, 'community_groups');
+      
+      get(groupsRef).then((snap) => {
+        if (!snap.exists() || !snap.val()) {
           initDefaultGroups();
-        } else {
-          setGroups(list);
+        }
+      });
+
+      const onGpAdded = onChildAdded(groupsRef, (snap) => {
+        const rawVal = snap.val();
+        if (rawVal) {
+          const val = {
+            id: rawVal.metadata?.id || snap.key,
+            name: rawVal.metadata?.name || '',
+            members: rawVal.members || {},
+            messages: rawVal.messages || {},
+            notes: rawVal.metadata?.notes || [],
+            pdfs: rawVal.metadata?.pdfs || []
+          };
+          setGroups(prev => {
+            if (prev.some(g => g.id === val.id)) return prev;
+            return [...prev, val];
+          });
+        }
+      });
+
+      const onGpChanged = onChildChanged(groupsRef, (snap) => {
+        const rawVal = snap.val();
+        if (rawVal) {
+          const val = {
+            id: rawVal.metadata?.id || snap.key,
+            name: rawVal.metadata?.name || '',
+            members: rawVal.members || {},
+            messages: rawVal.messages || {},
+            notes: rawVal.metadata?.notes || [],
+            pdfs: rawVal.metadata?.pdfs || []
+          };
+          setGroups(prev => {
+            const oldGroup = prev.find(g => g.id === val.id);
+            const valMsgs = Array.isArray(val.messages) ? val.messages : Object.values(val.messages || {});
+            const oldMsgs = oldGroup ? (Array.isArray(oldGroup.messages) ? oldGroup.messages : Object.values(oldGroup.messages || {})) : [];
+            
+            if (oldGroup && valMsgs.length > oldMsgs.length) {
+              const lastMsg = valMsgs[valMsgs.length - 1];
+              if (lastMsg && lastMsg.senderEmail !== userEmail) {
+                const isMention = lastMsg.text.includes(`@${userName}`) || lastMsg.text.includes(`@${userEmail}`);
+                window.dispatchEvent(new CustomEvent('new-notification', {
+                  detail: {
+                    title: isMention ? 'You were mentioned!' : `New Message in ${val.name}`,
+                    message: `${lastMsg.sender}: ${lastMsg.text}`,
+                    type: isMention ? 'mention' : 'message'
+                  }
+                }));
+              }
+            }
+            return prev.map(g => g.id === val.id ? val : g);
+          });
+        }
+      });
+
+      const onGpRemoved = onChildRemoved(groupsRef, (snap) => {
+        const rawVal = snap.val();
+        const groupId = rawVal?.metadata?.id || snap.key;
+        if (groupId) {
+          setGroups(prev => prev.filter(g => g.id !== groupId));
         }
       });
 
@@ -364,78 +528,86 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       });
 
       return () => {
-        unsubNotes();
-        unsubChannels();
-        unsubGroups();
+        onNoteAdded();
+        onNoteChanged();
+        onNoteRemoved();
+        onChanAdded();
+        onChanChanged();
+        onChanRemoved();
+        onGpAdded();
+        onGpChanged();
+        onGpRemoved();
         unsubUsers();
       };
     }
   }, [isFirebaseConfigured, reconnectKey]);
 
-
-  // DM message sync
-  const dmMsgCounts = useRef<Record<string, number>>({});
-
+  // Load messages for current active channel/group/DM on demand incrementally using onChildAdded
   useEffect(() => {
-    if (activeItem.type !== 'dm') {
-      setDmMessages([]);
-      return;
-    }
-    const chatId = getDmChatId(userEmail, activeItem.id);
+    setActiveChatMessages([]); // clear old messages
+    if (!isFirebaseConfigured || !db) return;
+    if (activeItem.type === 'feed') return;
 
-    if (isFirebaseConfigured && db) {
-      const chatRef = ref(db, 'private_chats/' + chatId);
-      const unsub = onValue(chatRef, (snap) => {
-        if (snap.exists()) {
-          const snapVal = snap.val() || {};
-          const msgsVal = snapVal.messages || [];
-          const msgs = Array.isArray(msgsVal) ? msgsVal : Object.values(msgsVal);
-          const prevCount = dmMsgCounts.current[chatId];
-          if (prevCount !== undefined && msgs.length > prevCount) {
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg && lastMsg.senderEmail !== userEmail) {
-              window.dispatchEvent(new CustomEvent('new-notification', {
-                detail: {
-                  title: `Direct Message from ${lastMsg.sender}`,
-                  message: lastMsg.text,
-                  type: 'message'
-                }
-              }));
+    let path = '';
+    if (activeItem.type === 'channel') {
+      path = `community_channels/${activeItem.id}/messages`;
+    } else if (activeItem.type === 'group') {
+      path = `community_groups/${activeItem.id}/messages`;
+    } else if (activeItem.type === 'dm') {
+      const chatId = getDmChatId(userEmail, activeItem.id);
+      path = `private_chats/${chatId}/messages`;
+    }
+
+    if (!path) return;
+
+    const messagesRef = ref(db, path);
+    const mountTime = Date.now();
+    
+    const unsub = onChildAdded(messagesRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setActiveChatMessages(prev => {
+          if (prev.some(m => m.id === val.id)) return prev;
+          return [...prev, val];
+        });
+
+        // Trigger notification for new messages received after mounting
+        if (val.timestamp > mountTime && val.senderEmail !== userEmail) {
+          const isMention = val.text.includes(`@${userName}`) || val.text.includes(`@${userEmail}`);
+          window.dispatchEvent(new CustomEvent('new-notification', {
+            detail: {
+              title: activeItem.type === 'dm' 
+                ? `Direct Message from ${val.sender}` 
+                : (isMention ? 'You were mentioned!' : `New Message in ${activeItem.type === 'channel' ? '#' : ''}${activeItem.id}`),
+              message: val.text,
+              type: isMention ? 'mention' : 'message'
             }
-          }
-          dmMsgCounts.current[chatId] = msgs.length;
-          setDmMessages(msgs);
-        } else {
-          setDmMessages([]);
+          }));
+        }
+      }
+    });
+
+    // Mark DM messages as read if activeItem is a DM
+    if (activeItem.type === 'dm') {
+      const chatId = getDmChatId(userEmail, activeItem.id);
+      get(ref(db, `private_chats/${chatId}/messages`)).then((snap) => {
+        if (snap.exists()) {
+          const val = snap.val();
+          const updates: any = {};
+          Object.entries(val).forEach(([key, msg]: [string, any]) => {
+            if (msg.senderEmail !== userEmail && !msg.read) {
+              updates[`/private_chats/${chatId}/messages/${key}/read`] = true;
+            }
+          });
+          update(ref(db), updates).catch(() => {});
         }
       });
-      return () => unsub();
     }
-  }, [activeItem, userEmail, isFirebaseConfigured, reconnectKey]);
 
-  // Mark DM messages as read when viewing
-  useEffect(() => {
-    if (activeItem.type !== 'dm' || dmMessages.length === 0) return;
-    const chatId = getDmChatId(userEmail, activeItem.id);
-    const unreadMessagesExist = dmMessages.some(msg => msg.senderEmail !== userEmail && !msg.read);
-    
-    if (unreadMessagesExist) {
-      if (isFirebaseConfigured && db) {
-        get(ref(db, 'private_chats/' + chatId + '/messages')).then((snap) => {
-          if (snap.exists()) {
-            const val = snap.val();
-            const updates: any = {};
-            Object.entries(val).forEach(([key, msg]: [string, any]) => {
-              if (msg.senderEmail !== userEmail && !msg.read) {
-                updates[`/private_chats/${chatId}/messages/${key}/read`] = true;
-              }
-            });
-            update(ref(db), updates).catch(() => {});
-          }
-        });
-      }
-    }
-  }, [activeItem, dmMessages, userEmail, isFirebaseConfigured]);
+    return () => {
+      unsub();
+    };
+  }, [activeItem, userEmail, isFirebaseConfigured, reconnectKey]);
 
 
   // DM Typing sync
@@ -463,7 +635,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   // Auto Scroll Chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [dmMessages, channels, groups, activeItem, wsTab]);
+  }, [activeChatMessages, channels, groups, activeItem, wsTab]);
 
   // DB initialization helpers
   const initDefaultChannels = async () => {
@@ -482,12 +654,28 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   const initDefaultGroups = async () => {
     if (!isFirebaseConfigured || !db) return;
     const defaults = [
-      { id: 'group_java', name: 'Java Group', members: [], messages: [], notes: [], pdfs: [] },
-      { id: 'group_python', name: 'Python Club', members: [], messages: [], notes: [], pdfs: [] },
-      { id: 'group_ml', name: 'Machine Learning Club', members: [], messages: [], notes: [], pdfs: [] }
+      { id: 'group_java', name: 'Java Group' },
+      { id: 'group_python', name: 'Python Club' },
+      { id: 'group_ml', name: 'Machine Learning Club' }
     ];
     for (const gp of defaults) {
-      await set(ref(db, 'community_groups/' + gp.id), gp);
+      await set(ref(db, `community_groups/${gp.id}/metadata`), {
+        id: gp.id,
+        name: gp.name,
+        notes: [],
+        pdfs: []
+      });
+      // Initial members is empty
+      await set(ref(db, `community_groups/${gp.id}/members`), {});
+      // Send initial system message
+      const sysMsg = {
+        id: `sys_init_${Date.now()}`,
+        sender: 'System',
+        senderEmail: 'system@roomie.io',
+        text: `Group "${gp.name}" initialized.`,
+        timestamp: Date.now()
+      };
+      await push(ref(db, `community_groups/${gp.id}/messages`), sysMsg);
     }
   };
 
@@ -561,6 +749,15 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     if (!title || !content) return;
 
     const noteId = `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    let pdfUrl = '';
+    if (pdfFile) {
+      try {
+        pdfUrl = await uploadPdf(pdfFile.name, pdfFile.dataUrl, userEmail);
+      } catch (err) {
+        console.error('PDF upload failed:', err);
+      }
+    }
+
     const newNote: StudyNote = {
       id: noteId,
       title,
@@ -571,14 +768,11 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       likes: 0,
       date: new Date().toLocaleDateString(),
       comments: [],
-      pdfAttachment: pdfFile ? { name: pdfFile.name, size: pdfFile.size } : undefined
+      pdfAttachment: pdfFile ? { name: pdfFile.name, size: pdfFile.size, url: pdfUrl } : undefined
     };
 
     if (isFirebaseConfigured && db) {
       try {
-        if (pdfFile) {
-          await set(ref(db, 'pdf_contents/' + noteId), pdfFile.dataUrl);
-        }
         await set(ref(db, 'shared_notes/' + noteId), newNote);
       } catch (err) {
         console.error('Database save note error:', err);
@@ -691,30 +885,37 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   // Custom Group Creation
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGuest) {
+      alert("Guest accounts cannot create study groups.");
+      return;
+    }
     if (!newGroupName.trim()) return;
 
-    const newGp = {
-      id: `group_${Date.now()}`,
-      name: newGroupName,
-      members: [userEmail],
-      messages: [{
-        id: `sys_create_${Date.now()}`,
-        sender: 'System',
-        senderEmail: 'system@lifequest.io',
-        text: `Study group "${newGroupName}" was created by ${userName}.`,
-        timestamp: Date.now()
-      }],
-      notes: [],
-      pdfs: []
+    const groupId = `group_${Date.now()}`;
+    const userSlug = userEmail.replace(/\./g, '_');
+    
+    const initialMessage = {
+      id: `sys_create_${Date.now()}`,
+      sender: 'System',
+      senderEmail: 'system@roomie.io',
+      text: `Study group "${newGroupName}" was created by ${userName}.`,
+      timestamp: Date.now()
     };
 
     if (isFirebaseConfigured && db) {
-      await set(ref(db, 'community_groups/' + newGp.id), newGp);
+      await set(ref(db, `community_groups/${groupId}/metadata`), {
+        id: groupId,
+        name: newGroupName,
+        notes: [],
+        pdfs: []
+      });
+      await set(ref(db, `community_groups/${groupId}/members/${userSlug}`), true);
+      await push(ref(db, `community_groups/${groupId}/messages`), initialMessage);
     }
 
     setNewGroupName('');
     setShowCreateGroupModal(false);
-    setActiveItem({ type: 'group', id: newGp.id });
+    setActiveItem({ type: 'group', id: groupId });
     onRewardXp(50, `Formed new study group "${newGroupName}"!`);
   };
 
@@ -733,7 +934,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     const sysMsg = {
       id: `sys_${Date.now()}`,
       sender: 'System',
-      senderEmail: 'system@lifequest.io',
+      senderEmail: 'system@roomie.io',
       text: `${userName} has ${isMember ? 'left' : 'joined'} the group.`,
       timestamp: Date.now()
     };
@@ -806,6 +1007,15 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     if (!wsTitle || !wsContent) return;
 
     const noteId = `ws_note_${Date.now()}`;
+    let pdfUrl = '';
+    if (wsPdfFile) {
+      try {
+        pdfUrl = await uploadPdf(wsPdfFile.name, wsPdfFile.dataUrl, userEmail);
+      } catch (err) {
+        console.error('PDF upload failed:', err);
+      }
+    }
+
     const newNote = {
       id: noteId,
       title: wsTitle,
@@ -816,21 +1026,18 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       date: new Date().toISOString().split('T')[0],
       likes: 0,
       comments: [],
-      pdfAttachment: wsPdfFile ? { name: wsPdfFile.name, size: wsPdfFile.size } : undefined
+      pdfAttachment: wsPdfFile ? { name: wsPdfFile.name, size: wsPdfFile.size, url: pdfUrl } : undefined
     };
 
     const sysMsg = {
       id: `sys_note_${Date.now()}`,
       sender: 'System',
-      senderEmail: 'system@lifequest.io',
+      senderEmail: 'system@roomie.io',
       text: `${userName} published a workspace note: "${wsTitle}".`,
       timestamp: Date.now()
     };
 
     if (isFirebaseConfigured && db) {
-      if (wsPdfFile) {
-        await set(ref(db, 'pdf_contents/' + noteId), wsPdfFile.dataUrl);
-      }
       if (activeItem.type === 'channel') {
         await push(ref(db, `community_channels/${activeItem.id}/notes`), newNote);
         await push(ref(db, `community_channels/${activeItem.id}/messages`), sysMsg);
@@ -865,25 +1072,31 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     const reader = new FileReader();
     reader.onload = async () => {
       const pdfId = `ws_pdf_${Date.now()}`;
+      let pdfUrl = '';
+      try {
+        pdfUrl = await uploadPdf(file.name, reader.result as string, userEmail);
+      } catch (err) {
+        console.error('PDF upload failed:', err);
+      }
       const newPdf = {
         id: pdfId,
         name: file.name,
         size: (file.size / 1024).toFixed(1) + ' KB',
         uploadedBy: userName,
         uploadedByEmail: userEmail,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        url: pdfUrl
       };
 
       const sysMsg = {
         id: `sys_pdf_${Date.now()}`,
         sender: 'System',
-        senderEmail: 'system@lifequest.io',
+        senderEmail: 'system@roomie.io',
         text: `${userName} uploaded a PDF: "${file.name}".`,
         timestamp: Date.now()
       };
 
       if (isFirebaseConfigured && db) {
-        await set(ref(db, 'pdf_contents/' + pdfId), reader.result as string);
         if (activeItem.type === 'channel') {
           await push(ref(db, `community_channels/${activeItem.id}/pdfs`), newPdf);
           await push(ref(db, `community_channels/${activeItem.id}/messages`), sysMsg);
@@ -939,8 +1152,6 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   const currentGroup = activeItem.type === 'group' ? groups.find(g => g.id === activeItem.id) : null;
   const currentBuddy = activeItem.type === 'dm' ? presenceUsers.find(u => u.email === activeItem.id) : null;
 
-  const currentChannelMessages = currentChannel ? (Array.isArray(currentChannel.messages) ? currentChannel.messages : Object.values(currentChannel.messages || {})) : [];
-  const currentGroupMessages = currentGroup ? (Array.isArray(currentGroup.messages) ? currentGroup.messages : Object.values(currentGroup.messages || {})) : [];
   const currentChannelNotes = currentChannel ? (Array.isArray(currentChannel.notes) ? currentChannel.notes : Object.values(currentChannel.notes || {})) : [];
   const currentGroupNotes = currentGroup ? (Array.isArray(currentGroup.notes) ? currentGroup.notes : Object.values(currentGroup.notes || {})) : [];
   const currentChannelPdfs = currentChannel ? (Array.isArray(currentChannel.pdfs) ? currentChannel.pdfs : Object.values(currentChannel.pdfs || {})) : [];
@@ -1077,27 +1288,49 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
               {channels.map(chan => (
-                <button
-                  key={chan.id}
-                  onClick={() => {
-                    setActiveItem({ type: 'channel', id: chan.id });
-                    setWsTab('chat');
-                  }}
-                  style={{
-                    textAlign: 'left',
-                    width: '100%',
-                    padding: '0.4rem 0.5rem',
-                    border: activeItem.type === 'channel' && activeItem.id === chan.id ? '2px solid #000' : '2px solid transparent',
-                    borderRadius: '8px',
-                    background: activeItem.type === 'channel' && activeItem.id === chan.id ? 'var(--accent-purple)' : 'none',
-                    fontWeight: 800,
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    boxShadow: activeItem.type === 'channel' && activeItem.id === chan.id ? '1.5px 1.5px 0px #000' : 'none'
-                  }}
-                >
-                  # {chan.name}
-                </button>
+                <div key={chan.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <button
+                    onClick={() => {
+                      setActiveItem({ type: 'channel', id: chan.id });
+                      setWsTab('chat');
+                    }}
+                    style={{
+                      textAlign: 'left',
+                      flex: 1,
+                      padding: '0.4rem 0.5rem',
+                      border: activeItem.type === 'channel' && activeItem.id === chan.id ? '2px solid #000' : '2px solid transparent',
+                      borderRadius: '8px',
+                      background: activeItem.type === 'channel' && activeItem.id === chan.id ? 'var(--accent-purple)' : 'none',
+                      fontWeight: 800,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      boxShadow: activeItem.type === 'channel' && activeItem.id === chan.id ? '1.5px 1.5px 0px #000' : 'none'
+                    }}
+                  >
+                    # {chan.name}
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAdminDeleteChannel(chan.id);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'red',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        marginLeft: '0.2rem',
+                        padding: '0.2rem'
+                      }}
+                      title="Delete Channel"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -1128,195 +1361,239 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                 const gpMembers = Array.isArray(gp.members) ? gp.members : (gp.members ? Object.keys(gp.members).map(k => k.replace(/_/g, '.')) : []);
                 const joined = gpMembers.includes(userEmail);
                 return (
-                  <button
-                    key={gp.id}
-                    onClick={() => {
-                      setActiveItem({ type: 'group', id: gp.id });
-                      setWsTab('chat');
-                    }}
-                    style={{
-                      textAlign: 'left',
-                      width: '100%',
-                      padding: '0.4rem 0.5rem',
-                      border: activeItem.type === 'group' && activeItem.id === gp.id ? '2px solid #000' : '2px solid transparent',
-                      borderRadius: '8px',
-                      background: activeItem.type === 'group' && activeItem.id === gp.id ? 'var(--accent-pink)' : 'none',
-                      fontWeight: 800,
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                      boxShadow: activeItem.type === 'group' && activeItem.id === gp.id ? '1.5px 1.5px 0px #000' : 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                      {gp.name}
-                    </span>
-                    <span style={{ fontSize: '0.55rem', background: '#000', color: '#fff', padding: '0.05rem 0.25rem', borderRadius: '4px' }}>
-                      {joined ? 'IN' : gpMembers.length}
-                    </span>
-                  </button>
+                  <div key={gp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <button
+                      onClick={() => {
+                        setActiveItem({ type: 'group', id: gp.id });
+                        setWsTab('chat');
+                      }}
+                      style={{
+                        textAlign: 'left',
+                        flex: 1,
+                        padding: '0.4rem 0.5rem',
+                        border: activeItem.type === 'group' && activeItem.id === gp.id ? '2px solid #000' : '2px solid transparent',
+                        borderRadius: '8px',
+                        background: activeItem.type === 'group' && activeItem.id === gp.id ? 'var(--accent-pink)' : 'none',
+                        fontWeight: 800,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        boxShadow: activeItem.type === 'group' && activeItem.id === gp.id ? '1.5px 1.5px 0px #000' : 'none',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                        {gp.name}
+                      </span>
+                      <span style={{ fontSize: '0.55rem', background: '#000', color: '#fff', padding: '0.05rem 0.25rem', borderRadius: '4px' }}>
+                        {joined ? 'IN' : gpMembers.length}
+                      </span>
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAdminDeleteGroup(gp.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'red',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          fontWeight: 800,
+                          marginLeft: '0.2rem',
+                          padding: '0.2rem'
+                        }}
+                        title="Delete Group"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
           {/* DM / Presence Users Section */}
-          {/* Friends Section */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <div style={{ padding: '0 0.35rem 0.25rem 0.35rem', borderBottom: '2.5px solid #000' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>MY FRIENDS</span>
+          {isGuest ? (
+            <div style={{
+              background: '#ffeef2',
+              border: '2.5px solid #000',
+              borderRadius: '12px',
+              padding: '0.65rem 0.8rem',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: 'var(--accent-pink)',
+              boxShadow: '3px 3px 0px #000',
+              lineHeight: '1.4',
+              marginTop: '0.75rem'
+            }}>
+              <span>🔒 CHAT LOCKED</span>
+              <p style={{ fontSize: '0.65rem', margin: '0.35rem 0 0 0', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Private messaging and classmate chat is restricted for guest accounts. Register to connect!
+              </p>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
-              {presenceUsers
-                .filter(u => u.email !== userEmail && friendsList.includes(u.email))
-                .map(buddy => {
-                  const isOnline = buddy.online;
-                  return (
-                    <div
-                      key={buddy.email}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.2rem 0.35rem',
-                        borderRadius: '8px',
-                        background: activeItem.type === 'dm' && activeItem.id === buddy.email ? 'var(--accent-cyan)' : 'none',
-                        border: activeItem.type === 'dm' && activeItem.id === buddy.email ? '2px solid #000' : '2px solid transparent',
-                        boxShadow: activeItem.type === 'dm' && activeItem.id === buddy.email ? '1.5px 1.5px 0px #000' : 'none'
-                      }}
-                    >
-                      <button
-                        onClick={() => setActiveItem({ type: 'dm', id: buddy.email })}
-                        style={{
-                          textAlign: 'left',
-                          background: 'none',
-                          border: 'none',
-                          fontWeight: 800,
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          flex: 1,
-                          overflow: 'hidden'
-                        }}
-                      >
-                        <span style={{
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          background: isOnline ? 'var(--accent-green)' : '#94a3b8',
-                          border: '1px solid #000',
-                          display: 'inline-block'
-                        }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          ⭐ {buddy.name}
-                        </span>
-                      </button>
-                      {!isGuest && (
-                        <button
-                          onClick={() => handleToggleFriend(buddy.email)}
-                          title="Remove Friend"
+          ) : (
+            <>
+              {/* Friends Section */}
+              <div style={{ marginBottom: '0.75rem' }}>
+                <div style={{ padding: '0 0.35rem 0.25rem 0.35rem', borderBottom: '2.5px solid #000' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>MY FRIENDS</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
+                  {presenceUsers
+                    .filter(u => u.email !== userEmail && friendsList.includes(u.email))
+                    .map(buddy => {
+                      const isOnline = buddy.online;
+                      return (
+                        <div
+                          key={buddy.email}
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            padding: '0 0.2rem',
-                            fontWeight: 900
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.2rem 0.35rem',
+                            borderRadius: '8px',
+                            background: activeItem.type === 'dm' && activeItem.id === buddy.email ? 'var(--accent-cyan)' : 'none',
+                            border: activeItem.type === 'dm' && activeItem.id === buddy.email ? '2px solid #000' : '2px solid transparent',
+                            boxShadow: activeItem.type === 'dm' && activeItem.id === buddy.email ? '1.5px 1.5px 0px #000' : 'none'
                           }}
                         >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              {presenceUsers.filter(u => u.email !== userEmail && friendsList.includes(u.email)).length === 0 && (
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', display: 'block', padding: '0.5rem 0' }}>No friends added yet.</span>
-              )}
-            </div>
-          </div>
+                          <button
+                            onClick={() => setActiveItem({ type: 'dm', id: buddy.email })}
+                            style={{
+                              textAlign: 'left',
+                              background: 'none',
+                              border: 'none',
+                              fontWeight: 800,
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              flex: 1,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <span style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              background: isOnline ? 'var(--accent-green)' : '#94a3b8',
+                              border: '1px solid #000',
+                              display: 'inline-block'
+                            }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              ⭐ {buddy.name}
+                            </span>
+                          </button>
+                          {!isGuest && (
+                            <button
+                              onClick={() => handleToggleFriend(buddy.email)}
+                              title="Remove Friend"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                padding: '0 0.2rem',
+                                fontWeight: 900
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {presenceUsers.filter(u => u.email !== userEmail && friendsList.includes(u.email)).length === 0 && (
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', display: 'block', padding: '0.5rem 0' }}>No friends added yet.</span>
+                  )}
+                </div>
+              </div>
 
-          {/* Classmates Section */}
-          <div>
-            <div style={{ padding: '0 0.35rem 0.25rem 0.35rem', borderBottom: '2.5px solid #000' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>CLASSMATES (ONLINE)</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
-              {presenceUsers
-                .filter(u => u.email !== userEmail && !friendsList.includes(u.email))
-                .map(buddy => {
-                  const isOnline = buddy.online;
-                  return (
-                    <div
-                      key={buddy.email}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.2rem 0.35rem',
-                        borderRadius: '8px',
-                        background: activeItem.type === 'dm' && activeItem.id === buddy.email ? 'var(--accent-cyan)' : 'none',
-                        border: activeItem.type === 'dm' && activeItem.id === buddy.email ? '2px solid #000' : '2px solid transparent',
-                        boxShadow: activeItem.type === 'dm' && activeItem.id === buddy.email ? '1.5px 1.5px 0px #000' : 'none'
-                      }}
-                    >
-                      <button
-                        onClick={() => setActiveItem({ type: 'dm', id: buddy.email })}
-                        style={{
-                          textAlign: 'left',
-                          background: 'none',
-                          border: 'none',
-                          fontWeight: 800,
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          flex: 1,
-                          overflow: 'hidden'
-                        }}
-                      >
-                        <span style={{
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          background: isOnline ? 'var(--accent-green)' : '#94a3b8',
-                          border: '1px solid #000',
-                          display: 'inline-block'
-                        }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {buddy.name}
-                        </span>
-                      </button>
-                      {!isGuest && (
-                        <button
-                          onClick={() => handleToggleFriend(buddy.email)}
-                          title="Add Friend"
+              {/* Classmates Section */}
+              <div>
+                <div style={{ padding: '0 0.35rem 0.25rem 0.35rem', borderBottom: '2.5px solid #000' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>CLASSMATES (ONLINE)</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
+                  {presenceUsers
+                    .filter(u => u.email !== userEmail && !friendsList.includes(u.email))
+                    .map(buddy => {
+                      const isOnline = buddy.online;
+                      return (
+                        <div
+                          key={buddy.email}
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem',
-                            padding: '0 0.2rem',
-                            color: 'var(--accent-purple)',
-                            fontWeight: 900
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.2rem 0.35rem',
+                            borderRadius: '8px',
+                            background: activeItem.type === 'dm' && activeItem.id === buddy.email ? 'var(--accent-cyan)' : 'none',
+                            border: activeItem.type === 'dm' && activeItem.id === buddy.email ? '2px solid #000' : '2px solid transparent',
+                            boxShadow: activeItem.type === 'dm' && activeItem.id === buddy.email ? '1.5px 1.5px 0px #000' : 'none'
                           }}
                         >
-                          ＋
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              {presenceUsers.filter(u => u.email !== userEmail && !friendsList.includes(u.email)).length === 0 && (
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', display: 'block', padding: '0.5rem 0' }}>No other classmates online.</span>
-              )}
-            </div>
-          </div>
+                          <button
+                            onClick={() => setActiveItem({ type: 'dm', id: buddy.email })}
+                            style={{
+                              textAlign: 'left',
+                              background: 'none',
+                              border: 'none',
+                              fontWeight: 800,
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              flex: 1,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <span style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              background: isOnline ? 'var(--accent-green)' : '#94a3b8',
+                              border: '1px solid #000',
+                              display: 'inline-block'
+                            }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {buddy.name}
+                            </span>
+                          </button>
+                          {!isGuest && (
+                            <button
+                              onClick={() => handleToggleFriend(buddy.email)}
+                              title="Add Friend"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                padding: '0 0.2rem',
+                                color: 'var(--accent-purple)',
+                                fontWeight: 900
+                              }}
+                            >
+                              ＋
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {presenceUsers.filter(u => u.email !== userEmail && !friendsList.includes(u.email)).length === 0 && (
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', display: 'block', padding: '0.5rem 0' }}>No other classmates online.</span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
 
         </div>
@@ -1783,7 +2060,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                                 PDF: {note.pdfAttachment.name} ({note.pdfAttachment.size})
                               </span>
                               <button
-                                onClick={() => downloadPdfContent(note.id, note.pdfAttachment!.name)}
+                                onClick={() => downloadPdfContent(note.pdfAttachment!.url || note.id, note.pdfAttachment!.name)}
                                 style={{
                                   background: 'var(--accent-pink)',
                                   border: '1.5px solid #000',
@@ -1823,21 +2100,40 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               </button>
                             </div>
 
-                            <button
-                              onClick={() => handleTriggerSummary(note)}
-                              style={{
-                                background: 'var(--accent-cyan)',
-                                border: '1.5px solid #000',
-                                borderRadius: '6px',
-                                padding: '0.15rem 0.4rem',
-                                fontSize: '0.65rem',
-                                fontWeight: 900,
-                                cursor: 'pointer',
-                                boxShadow: '1.5px 1.5px 0px #000'
-                              }}
-                            >
-                              AI SCAN
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <button
+                                onClick={() => handleTriggerSummary(note)}
+                                style={{
+                                  background: 'var(--accent-cyan)',
+                                  border: '1.5px solid #000',
+                                  borderRadius: '6px',
+                                  padding: '0.15rem 0.4rem',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 900,
+                                  cursor: 'pointer',
+                                  boxShadow: '1.5px 1.5px 0px #000'
+                                }}
+                              >
+                                AI SCAN
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleAdminDeleteNote(note.id)}
+                                  style={{
+                                    background: 'var(--accent-pink)',
+                                    border: '1.5px solid #000',
+                                    borderRadius: '6px',
+                                    padding: '0.15rem 0.4rem',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 900,
+                                    cursor: 'pointer',
+                                    boxShadow: '1.5px 1.5px 0px #000'
+                                  }}
+                                >
+                                  DELETE
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           {/* Comment Thread Panel */}
@@ -1945,38 +2241,41 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                       flexDirection: 'column',
                       gap: '0.5rem'
                     }}>
-                      {activeItem.type === 'channel' ? (
-                        currentChannelMessages.length === 0 ? (
-                          <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No messages yet. Send the first message!</span>
-                        ) : (
-                          currentChannelMessages.map((msg: any) => (
-                            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
-                              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 800, fontSize: '0.75rem', color: msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000' }}>{msg.sender}</span>
-                                <span style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
-                              <span style={{ fontSize: '0.75rem' }}>{msg.text}</span>
-                            </div>
-                          ))
-                        )
+                      {activeChatMessages.length === 0 ? (
+                        <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {activeItem.type === 'channel' ? 'No messages yet. Send the first message!' : 'No messages yet. Join group and say hi!'}
+                        </span>
                       ) : (
-                        currentGroupMessages.length === 0 ? (
-                          <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No messages yet. Join group and say hi!</span>
-                        ) : (
-                          currentGroupMessages.map((msg: any) => (
-                            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
+                        activeChatMessages.map((msg: any) => (
+                          <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
+                            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                                 <span style={{ fontWeight: 800, fontSize: '0.75rem', color: msg.sender === 'System' ? '#64748b' : (msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000') }}>
                                   {msg.sender}
                                 </span>
                                 <span style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
-                              <span style={{ fontSize: '0.75rem', fontStyle: msg.sender === 'System' ? 'italic' : 'normal', color: msg.sender === 'System' ? '#64748b' : '#000' }}>
-                                {msg.text}
-                              </span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleAdminDeleteMessage(msg.id)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'red',
+                                    fontSize: '0.6rem',
+                                    cursor: 'pointer',
+                                    fontWeight: 800
+                                  }}
+                                >
+                                  ✕ Delete
+                                </button>
+                              )}
                             </div>
-                          ))
-                        )
+                            <span style={{ fontSize: '0.75rem', fontStyle: msg.sender === 'System' ? 'italic' : 'normal', color: msg.sender === 'System' ? '#64748b' : '#000' }}>
+                              {msg.text}
+                            </span>
+                          </div>
+                        ))
                       )}
                       <div ref={chatEndRef} />
                     </div>
@@ -2064,7 +2363,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               <p style={{ margin: 0, fontSize: '0.72rem' }}>{n.content}</p>
                               {n.pdfAttachment && (
                                 <button
-                                  onClick={() => downloadPdfContent(n.id, n.pdfAttachment.name)}
+                                  onClick={() => downloadPdfContent(n.pdfAttachment.url || n.id, n.pdfAttachment.name)}
                                   style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', background: 'none', border: 'none', cursor: 'pointer', marginTop: '0.2rem', fontWeight: 800 }}
                                 >
                                   📥 DOWNLOAD ATTACHMENT ({n.pdfAttachment.name})
@@ -2087,7 +2386,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               <p style={{ margin: 0, fontSize: '0.72rem' }}>{n.content}</p>
                               {n.pdfAttachment && (
                                 <button
-                                  onClick={() => downloadPdfContent(n.id, n.pdfAttachment.name)}
+                                  onClick={() => downloadPdfContent(n.pdfAttachment.url || n.id, n.pdfAttachment.name)}
                                   style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', background: 'none', border: 'none', cursor: 'pointer', marginTop: '0.2rem', fontWeight: 800 }}
                                 >
                                   📥 DOWNLOAD ATTACHMENT ({n.pdfAttachment.name})
@@ -2117,7 +2416,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{pdf.size} • Uploaded by {pdf.uploadedBy}</div>
                               </div>
                               <button
-                                onClick={() => downloadPdfContent(pdf.id, pdf.name)}
+                                onClick={() => downloadPdfContent(pdf.url || pdf.id, pdf.name)}
                                 className="cyber-btn cyan-fill"
                                 style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', cursor: 'pointer' }}
                               >
@@ -2137,7 +2436,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{pdf.size} • Uploaded by {pdf.uploadedBy}</div>
                               </div>
                               <button
-                                onClick={() => downloadPdfContent(pdf.id, pdf.name)}
+                                onClick={() => downloadPdfContent(pdf.url || pdf.id, pdf.name)}
                                 className="cyber-btn cyan-fill"
                                 style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', cursor: 'pointer' }}
                               >
@@ -2253,16 +2552,34 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                 flexDirection: 'column',
                 gap: '0.5rem'
               }}>
-                {dmMessages.length === 0 ? (
+                {activeChatMessages.length === 0 ? (
                   <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No messages yet. Send a direct message to say hi!</span>
                 ) : (
-                  dmMessages.map(msg => (
-                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem', alignSelf: msg.senderEmail === userEmail ? 'flex-end' : 'flex-start' }}>
-                      <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', justifyContent: msg.senderEmail === userEmail ? 'flex-end' : 'flex-start' }}>
-                        <span style={{ fontWeight: 800, fontSize: '0.72rem', color: msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000' }}>
-                          {msg.senderEmail === userEmail ? 'Me' : msg.sender}
-                        </span>
-                        <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  activeChatMessages.map(msg => (
+                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem', alignSelf: msg.senderEmail === userEmail ? 'flex-end' : 'flex-start', minWidth: '150px' }}>
+                      <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', justifyContent: msg.senderEmail === userEmail ? 'flex-end' : 'flex-start' }}>
+                          <span style={{ fontWeight: 800, fontSize: '0.72rem', color: msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000' }}>
+                            {msg.senderEmail === userEmail ? 'Me' : msg.sender}
+                          </span>
+                          <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleAdminDeleteMessage(msg.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'red',
+                              fontSize: '0.6rem',
+                              cursor: 'pointer',
+                              fontWeight: 800,
+                              marginLeft: '0.5rem'
+                            }}
+                          >
+                            ✕ Delete
+                          </button>
+                        )}
                       </div>
                       <span style={{
                         fontSize: '0.75rem',

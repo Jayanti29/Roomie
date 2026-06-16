@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInAnonymously } from 'firebase/auth';
 import * as realDb from 'firebase/database';
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // Double check if credentials exist in Vite environment variables
 const firebaseConfig = {
@@ -17,6 +18,7 @@ export const isFirebaseConfigured = !!firebaseConfig.apiKey;
 let app;
 export let auth: any = null;
 export let db: any = null;
+export let storage: any = null;
 
 if (isFirebaseConfigured) {
   try {
@@ -24,6 +26,7 @@ if (isFirebaseConfigured) {
     auth = getAuth(app);
     const dbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
     db = realDb.getDatabase(app, dbUrl);
+    storage = getStorage(app);
     console.log('[Firebase RTDB] successfully initialized with URL:', dbUrl);
   } catch (error) {
     console.error('[Firebase] Failed to initialize Firebase:', error);
@@ -197,6 +200,47 @@ export const onChildChanged = (refInstance: any, callback: (snap: any) => void):
   return () => window.clearInterval(intervalId);
 };
 
+export const onChildRemoved = (refInstance: any, callback: (snap: any) => void): (() => void) => {
+  if (!useMockDb) {
+    return realDb.onChildRemoved(refInstance, callback);
+  }
+  
+  const seenKeys = new Set<string>();
+  const poll = async () => {
+    try {
+      const snap = await mockGet(refInstance);
+      const val = snap.val();
+      if (val && typeof val === 'object') {
+        for (const key of seenKeys) {
+          if (!(key in val)) {
+            seenKeys.delete(key);
+            callback({
+              key,
+              val: () => null,
+              exists: () => false
+            });
+          }
+        }
+        for (const key of Object.keys(val)) {
+          seenKeys.add(key);
+        }
+      } else {
+        for (const key of seenKeys) {
+          seenKeys.delete(key);
+          callback({
+            key,
+            val: () => null,
+            exists: () => false
+          });
+        }
+      }
+    } catch (e) {}
+  };
+  poll();
+  const intervalId = window.setInterval(poll, 150);
+  return () => window.clearInterval(intervalId);
+};
+
 // ==========================================================================
 // EXPORTED SERVICE METHODS (DIRECT FIREBASE ONLY - NO LOCALSTORAGE FALLBACK)
 // ==========================================================================
@@ -219,6 +263,20 @@ export const authService = {
         console.debug('[Firebase] signIn success', { email }, `took ${duration}ms`);
       }
       return { email: creds.user.email || email, name: creds.user.displayName || email.split('@')[0] };
+    }
+    throw new Error('Realtime service unavailable (Firebase Authentication not configured).');
+  },
+
+  signInAnonymously: async (): Promise<{ uid: string }> => {
+    authService._log('signInAnonymously called');
+    if (isFirebaseConfigured && auth) {
+      const start = Date.now();
+      const creds = await signInAnonymously(auth);
+      const duration = Date.now() - start;
+      if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
+        console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
+      }
+      return { uid: creds.user.uid };
     }
     throw new Error('Realtime service unavailable (Firebase Authentication not configured).');
   },
@@ -257,8 +315,8 @@ export const authService = {
         achievements: [
           { id: 'first_proj', title: 'First Project Done', icon: 'PRJ', desc: 'Finish your first developer deployment', unlocked: false, rarity: 'Common' },
           { id: 'streak_30', title: '30-Day Streak', icon: 'STK', desc: 'Keep consistency alive for 30 cycles', unlocked: false, rarity: 'Rare' },
-          { id: 'lvl_20', title: 'Level 20 Reached', icon: 'LVL', desc: 'Scale into a senior network status', unlocked: false, rarity: 'Epic' },
-          { id: 'ml_master', title: 'ML Master', icon: 'MST', desc: 'Defeat Overfitter Prime in combat', unlocked: false, rarity: 'Legendary' }
+          { id: 'lvl_20', title: 'Level 20 Reached', icon: 'LVL', desc: 'Achieve Academic Level 20', unlocked: false, rarity: 'Epic' },
+          { id: 'ml_master', title: 'ML Master', icon: 'MST', desc: 'Successfully complete the Machine Learning Milestone Assessment', unlocked: false, rarity: 'Legendary' }
         ],
         customization: {
           avatarTier: 1,
@@ -356,4 +414,24 @@ if (typeof window !== 'undefined') {
       };
     }
   };
+}
+
+export async function uploadPdf(fileName: string, fileDataUrl: string, ownerEmail: string): Promise<string> {
+  if (useMockDb) {
+    const mockId = 'pdf_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+    await set(ref(db, 'pdf_contents/' + mockId), fileDataUrl);
+    return `mock-pdf-url:${mockId}`;
+  } else {
+    if (!storage) {
+      throw new Error('Firebase Storage is not initialized');
+    }
+    const response = await fetch(fileDataUrl);
+    const blob = await response.blob();
+    const cleanEmail = ownerEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const path = `pdfs/${cleanEmail}/${Date.now()}_${fileName}`;
+    const storageRefInstance = sRef(storage, path);
+    await uploadBytes(storageRefInstance, blob);
+    const downloadUrl = await getDownloadURL(storageRefInstance);
+    return downloadUrl;
+  }
 }

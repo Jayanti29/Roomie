@@ -1,11 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
-import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, get } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf } from '../firebase';
 
-const downloadPdfContent = async (id: string, fileName: string) => {
+const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
+  if (idOrUrl.startsWith('mock-pdf-url:')) {
+    const mockId = idOrUrl.split(':')[1];
+    if (isFirebaseConfigured && db) {
+      try {
+        const snap = await get(ref(db, 'pdf_contents/' + mockId));
+        if (snap.exists()) {
+          const dataUrl = snap.val();
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          link.download = fileName;
+          link.click();
+        } else {
+          alert('PDF content not found in database.');
+        }
+      } catch (err) {
+        console.error('Error fetching PDF:', err);
+      }
+    }
+    return;
+  }
+
+  if (idOrUrl.startsWith('http://') || idOrUrl.startsWith('https://')) {
+    const link = document.createElement('a');
+    link.href = idOrUrl;
+    link.target = '_blank';
+    link.download = fileName;
+    link.click();
+    return;
+  }
+
+  // Fallback for older notes:
   if (isFirebaseConfigured && db) {
     try {
-      const snap = await get(ref(db, 'pdf_contents/' + id));
+      const snap = await get(ref(db, 'pdf_contents/' + idOrUrl));
       if (snap.exists()) {
         const dataUrl = snap.val();
         const link = document.createElement('a');
@@ -50,6 +81,7 @@ interface RoomNote {
     name: string;
     size: string;
     dataUrl?: string;
+    url?: string;
   };
 }
 
@@ -136,6 +168,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   // WebRTC Peer Connections and Remote Streams
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingIceCandidates = useRef<Record<string, any[]>>({});
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -162,21 +195,44 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   useEffect(() => {
     if (isFirebaseConfigured && db) {
-      const unsub = onValue(ref(db, 'study_rooms'), (snapshot) => {
-        const activeRoomsList: StudyRoom[] = [];
-        const val = snapshot.val() || {};
-        Object.keys(val).forEach(key => {
-          const data = val[key];
-          activeRoomsList.push({
-            id: key,
-            title: data.title,
-            topic: data.topic,
-            participants: Object.keys(data.participants || {}).length
+      const roomsRef = ref(db, 'study_rooms');
+      
+      const onRoomAdded = onChildAdded(roomsRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setRooms(prev => {
+            if (prev.some(r => r.id === snap.key)) return prev;
+            return [...prev, {
+              id: snap.key!,
+              title: val.title,
+              topic: val.topic,
+              participants: Object.keys(val.participants || {}).length
+            }];
           });
-        });
-        setRooms(activeRoomsList);
+        }
       });
-      return () => unsub();
+
+      const onRoomChanged = onChildChanged(roomsRef, (snap) => {
+        const val = snap.val();
+        if (val) {
+          setRooms(prev => prev.map(r => r.id === snap.key ? {
+            id: snap.key!,
+            title: val.title,
+            topic: val.topic,
+            participants: Object.keys(val.participants || {}).length
+          } : r));
+        }
+      });
+
+      const onRoomRemoved = onChildRemoved(roomsRef, (snap) => {
+        setRooms(prev => prev.filter(r => r.id !== snap.key));
+      });
+
+      return () => {
+        onRoomAdded();
+        onRoomChanged();
+        onRoomRemoved();
+      };
     }
   }, [isFirebaseConfigured, reconnectKey]);
 
@@ -764,6 +820,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGuest) {
+      alert("Guest accounts cannot create study rooms.");
+      return;
+    }
     if (!newTitle || !newTopic) return;
 
     const cleanSlug = newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -921,26 +981,25 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       return peerConnections.current[peerId];
     }
 
+    pendingIceCandidates.current[peerId] = [];
+
+    const turnUrl = import.meta.env.VITE_TURN_URL;
+    const turnUsername = import.meta.env.VITE_TURN_USERNAME;
+    const turnPassword = import.meta.env.VITE_TURN_PASSWORD;
     const iceServersEnv = import.meta.env.VITE_ICE_SERVERS;
-    let iceServers = [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:openrelay.metered.ca:80' },
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelay',
-        credential: 'openrelay'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelay',
-        credential: 'openrelay'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelay',
-        credential: 'openrelay'
-      }
+
+    let iceServers: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' }
     ];
+
+    if (turnUrl && turnUsername && turnPassword) {
+      iceServers.push({
+        urls: turnUrl,
+        username: turnUsername,
+        credential: turnPassword
+      });
+    }
+
     if (iceServersEnv) {
       try {
         iceServers = JSON.parse(iceServersEnv);
@@ -970,15 +1029,26 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       console.log(`[WebRTC] Signaling state change for peer ${peerId}:`, pc.signalingState);
     };
 
-    // Add local tracks
-    const stream = screenSharing ? screenStreamRef.current : localStreamRef.current;
-    if (stream) {
-      console.log(`[WebRTC] Adding local tracks to peer connection for ${peerId}`);
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
+    // Add local tracks (microphone track is always bound, even during screen share)
+    if (screenSharing && screenStreamRef.current) {
+      console.log(`[WebRTC] Adding local screen tracks to peer connection for ${peerId}`);
+      screenStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, screenStreamRef.current!);
+      });
+      if (localStreamRef.current) {
+        const audioTrack = localStreamRef.current.getAudioTracks()[0];
+        if (audioTrack) {
+          console.log(`[WebRTC] Adding local mic track during screen share to ${peerId}`);
+          pc.addTrack(audioTrack, localStreamRef.current);
+        }
+      }
+    } else if (localStreamRef.current) {
+      console.log(`[WebRTC] Adding local camera tracks to peer connection for ${peerId}`);
+      localStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localStreamRef.current!);
       });
     } else {
-      console.warn(`[WebRTC] No local cameraStream or screenSharing stream active while connecting to ${peerId}. Creating one-way receiver connection.`);
+      console.warn(`[WebRTC] No local streams active while connecting to ${peerId}. Creating one-way receiver connection.`);
     }
 
     pc.onicecandidate = async (event) => {
@@ -1064,6 +1134,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           if (callData.offer && !pc.remoteDescription) {
             console.log(`[WebRTC] [Signaling] Setting remote offer from caller ${callerId}`);
             await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            
+            // Apply queued candidates once remote description is set
+            const pending = pendingIceCandidates.current[callerId] || [];
+            for (const cand of pending) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.error("[WebRTC] Failed to add queued ICE candidate:", e);
+              }
+            }
+            pendingIceCandidates.current[callerId] = [];
+
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             console.log(`[WebRTC] [Signaling] Creating and sending answer to caller ${callerId}`);
@@ -1074,9 +1156,13 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
           const callerCandidates = callData.callerCandidates ? Object.values(callData.callerCandidates) : [];
           if (pc && callerCandidates.length > 0) {
-            if (pc.remoteDescription) {
-              console.log(`[WebRTC] [Signaling] Adding caller ICE candidates for caller ${callerId}`);
-              for (const cand of callerCandidates) {
+            for (const cand of callerCandidates) {
+              if (!pc.remoteDescription) {
+                if (!pendingIceCandidates.current[callerId]) {
+                  pendingIceCandidates.current[callerId] = [];
+                }
+                pendingIceCandidates.current[callerId].push(cand as any);
+              } else {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(cand as any));
                 } catch (e) {}
@@ -1091,14 +1177,32 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             if (callData.answer && !pc.remoteDescription) {
               console.log(`[WebRTC] [Signaling] Received and setting remote answer from receiver ${receiverId}`);
               await pc.setRemoteDescription(new RTCSessionDescription(callData.answer));
+              
+              // Apply queued candidates once remote description is set
+              const pending = pendingIceCandidates.current[receiverId] || [];
+              for (const cand of pending) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (e) {
+                  console.error("[WebRTC] Failed to add queued ICE candidate:", e);
+                }
+              }
+              pendingIceCandidates.current[receiverId] = [];
             }
 
             const receiverCandidates = callData.receiverCandidates ? Object.values(callData.receiverCandidates) : [];
-            if (receiverCandidates.length > 0 && pc.remoteDescription) {
+            if (receiverCandidates.length > 0) {
               for (const cand of receiverCandidates) {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(cand as any));
-                } catch (e) {}
+                if (!pc.remoteDescription) {
+                  if (!pendingIceCandidates.current[receiverId]) {
+                    pendingIceCandidates.current[receiverId] = [];
+                  }
+                  pendingIceCandidates.current[receiverId].push(cand as any);
+                } else {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(cand as any));
+                  } catch (e) {}
+                }
               }
             }
           }
@@ -1156,12 +1260,15 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         closePeerConnection(peerId);
       }
     });
-
   }, [participants, cameraStream, cameraError]);
 
   const handleShareRoomPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeRoom) return;
+    if (isGuest) {
+      alert("Guest accounts cannot upload PDFs.");
+      return;
+    }
 
     if (file.type !== 'application/pdf') {
       alert('Only PDF files are supported.');
@@ -1175,14 +1282,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     const reader = new FileReader();
     reader.onload = async () => {
-      const newPdf = {
-        id: `pdf_${Date.now()}`,
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        uploadedBy: roomNickname,
-        timestamp: Date.now()
-      };
-
       const sysMsg: Message = {
         id: `sys_pdf_${Date.now()}`,
         sender: 'System',
@@ -1191,11 +1290,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       };
 
       if (isFirebaseConfigured && db) {
-        await set(ref(db, `pdf_contents/${newPdf.id}`), reader.result as string);
-        await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
-        await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
+        try {
+          const pdfUrl = await uploadPdf(file.name, reader.result as string, userEmail);
+          const newPdf = {
+            id: pdfUrl,
+            name: file.name,
+            size: (file.size / 1024).toFixed(1) + ' KB',
+            uploadedBy: roomNickname,
+            timestamp: Date.now()
+          };
+          await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
+          await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
+          onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 XP!`);
+        } catch (err) {
+          console.error("Failed to upload PDF:", err);
+          alert("Failed to upload PDF file.");
+        }
       }
-      onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 XP!`);
     };
     reader.readAsDataURL(file);
   };
@@ -1379,16 +1490,21 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   const handleShareRoomNote = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGuest) {
+      alert("Guest accounts cannot share notes.");
+      return;
+    }
     if (!rnTitle || !rnContent) return;
 
-    let pdfAttachmentDataUrl = '';
-    let pdfAttachmentMetadata: any = undefined;
+    let pdfUrl = '';
     if (rnPdf) {
-      pdfAttachmentDataUrl = rnPdf.dataUrl;
-      pdfAttachmentMetadata = {
-        name: rnPdf.name,
-        size: rnPdf.size
-      };
+      try {
+        pdfUrl = await uploadPdf(rnPdf.name, rnPdf.dataUrl, userEmail);
+      } catch (err) {
+        console.error("PDF upload failed:", err);
+        alert("Failed to upload PDF attachment.");
+        return;
+      }
     }
 
     const newRn: RoomNote = {
@@ -1396,7 +1512,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       title: rnTitle,
       content: rnContent,
       author: roomNickname,
-      pdfAttachment: pdfAttachmentMetadata
+      pdfAttachment: rnPdf ? {
+        name: rnPdf.name,
+        size: rnPdf.size,
+        url: pdfUrl
+      } : undefined
     };
 
     const sysMsg: Message = {
@@ -1407,9 +1527,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db && activeRoom) {
-      if (pdfAttachmentDataUrl) {
-        await set(ref(db, `pdf_contents/${newRn.id}`), pdfAttachmentDataUrl);
-      }
       await push(ref(db, `study_rooms/${activeRoom.id}/notes`), newRn);
       await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
@@ -1813,7 +1930,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                                   {rn.pdfAttachment.name}
                                 </span>
                                 <button 
-                                  onClick={() => downloadPdfContent(rn.id, rn.pdfAttachment!.name)}
+                                  onClick={() => downloadPdfContent(rn.pdfAttachment!.url || rn.id, rn.pdfAttachment!.name)}
                                   style={{
                                     background: 'var(--accent-pink)',
                                     border: '1.5px solid #000',
@@ -2112,7 +2229,12 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           key={peerId}
           autoPlay
           ref={(el) => {
-            if (el) el.srcObject = stream;
+            if (el) {
+              el.srcObject = stream;
+              el.play().catch((err) => {
+                console.warn("[WebRTC] Autoplay audio failed, trying to play on user interaction:", err);
+              });
+            }
           }}
           style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
         />
@@ -2256,7 +2378,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               {isGuest ? (
                 <div style={{ padding: '1.25rem 1rem', background: '#ffeef2', border: '2.5px solid #000', borderRadius: '12px', textAlign: 'center', boxShadow: '3px 3px 0px #000' }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>🔒 ACCOUNT REQUIRED</span>
-                  <p style={{ fontSize: '0.75rem', margin: '0.5rem 0', fontWeight: 700 }}>Guest users cannot host study rooms. Register your character to unlock full hosting privileges!</p>
+                  <p style={{ fontSize: '0.75rem', margin: '0.5rem 0', fontWeight: 700 }}>Guest users cannot host study rooms. Register your account to unlock full hosting privileges!</p>
                 </div>
               ) : (
                 <form onSubmit={handleCreateRoom} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

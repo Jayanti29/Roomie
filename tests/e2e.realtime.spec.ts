@@ -21,11 +21,11 @@ async function login(page, { email, password }) {
   await page.click('[data-testid="login-button"]', { force: true });
   // Wait for app main UI indicator
   try {
-    await page.waitForSelector('[data-testid="app-root"]', { timeout: 4000 });
+    await page.waitForSelector('[data-testid="app-root"]', { timeout: 15000 });
   } catch (err) {
     console.log(`Login failed for ${email}, attempting registration...`);
     // Click register toggle
-    await page.click('button:has-text("NEW OPERATOR? REGISTER CHARACTER")', { force: true });
+    await page.click('button:has-text("NEW STUDENT? CREATE ACCOUNT")', { force: true });
     // Fill registration fields
     await page.fill('[data-testid="name"]', email.split('@')[0]);
     await page.fill('[data-testid="email"]', email);

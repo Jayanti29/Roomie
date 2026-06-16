@@ -24,8 +24,8 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
   const [userShield, setUserShield] = useState(100);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
   const [battleLogs, setBattleLogs] = useState<string[]>([
-    'Overfit Code Monster appeared! (1000/1000 HP)',
-    'Tap correct ML principles to pop its regularization shield!'
+    'Machine Learning Assessment started! (1000/1000 completion points remaining)',
+    'Select correct ML answers to build your regularization model!'
   ]);
   const [shaking, setShaking] = useState(false);
   const [flashing, setFlashing] = useState(false);
@@ -78,11 +78,11 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
       const newHp = Math.max(0, bossHp - dmg);
       setBossHp(newHp);
 
-      const log = `Pop! Correct answer dealt ${dmg} DMG to Overfit Code Monster!`;
+      const log = `Correct! You completed ${dmg} completion points of the assessment.`;
       setBattleLogs(prev => [log, ...prev]);
 
       if (newHp === 0) {
-        const victoryLog = 'VICTORY! Overfit Code Monster has dissolved back into normal distributions!';
+        const victoryLog = 'SUCCESS! You have successfully completed the Machine Learning Assessment!';
         setBattleLogs(prev => [victoryLog, ...prev]);
         onDefeatBoss(500, 'Machine Learning Master');
       } else {
@@ -96,7 +96,7 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
       const newShield = Math.max(0, userShield - dmg);
       setUserShield(newShield);
 
-      const log = `Glitch! The monster bit you. Loss shield lost ${dmg} HP!`;
+      const log = `Incorrect! Your confidence shield decreased by ${dmg} points.`;
       setBattleLogs(prev => [log, ...prev]);
     }
   };
@@ -106,7 +106,7 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
     setUserShield(100);
     setActiveQuestionIdx(0);
     setBattleLogs([
-      'Battle reset! Overfit Code Monster is bouncing back at full HP! (1000/1000)'
+      'Assessment reset! (1000/1000 completion points remaining)'
     ]);
   };
 
@@ -127,10 +127,10 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
       {/* Header - No double slashes */}
       <div style={{ borderBottom: '2.5px solid #000', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-pink)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          MONSTER ENCOUNTER: OVERFIT CODE MONSTER
+          ACADEMIC MILESTONE: MACHINE LEARNING ASSESSMENT
         </h2>
         <span style={{ fontSize: '0.75rem', color: '#000', background: 'var(--accent-pink)', border: '1.5px solid #000', padding: '0.1rem 0.4rem', borderRadius: '6px', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>
-          LVL 20 RECOMMENDED
+          RECOMMENDED FOR ADVANCED LEVEL
         </span>
       </div>
 
@@ -172,12 +172,12 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
           {/* Boss HP bar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--accent-pink)' }}>
-              <span>MONSTER HEALTH</span>
-              <span>{bossHp} / 1000 HP</span>
+              <span>ASSESSMENT COMPLETION</span>
+              <span>{Math.round(((1000 - bossHp) / 1000) * 100)}%</span>
             </div>
             <div style={{ width: '100%', height: '14px', background: '#ffffff', border: '2px solid #000', borderRadius: '7px', overflow: 'hidden' }}>
               <div style={{
-                width: `${(bossHp / 1000) * 100}%`,
+                width: `${((1000 - bossHp) / 1000) * 100}%`,
                 height: '100%',
                 background: 'var(--accent-pink)',
                 transition: 'width 0.3s ease'
@@ -188,7 +188,7 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
           {/* User Shield HP bar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--accent-cyan)' }}>
-              <span>YOUR MODEL SHIELD</span>
+              <span>YOUR CONFIDENCE SHIELD</span>
               <span>{userShield}%</span>
             </div>
             <div style={{ width: '100%', height: '10px', background: '#ffffff', border: '2px solid #000', borderRadius: '5px', overflow: 'hidden' }}>
@@ -204,13 +204,13 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
 
         {/* Right column: Stat requirements */}
         <div style={{ background: '#fdfdfd', border: '2.5px solid #000', padding: '0.75rem', borderRadius: '16px', boxShadow: '3px 3px 0px #000', fontSize: '0.75rem', fontWeight: 800, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.3rem' }}>
-          <h4 style={{ fontFamily: 'var(--font-heading)', color: '#000', marginBottom: '0.2rem' }}>REQUIRED STATS:</h4>
+          <h4 style={{ fontFamily: 'var(--font-heading)', color: '#000', marginBottom: '0.2rem' }}>REQUIRED ACADEMIC SKILLS:</h4>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: userStats.intelligence >= 15 ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-            <span>INTEL &gt;= 15</span>
+            <span>ANALYSIS &amp; TECH &gt;= 15</span>
             <span>{userStats.intelligence}/15</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: userStats.career >= 10 ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-            <span>CAREER &gt;= 10</span>
+            <span>PROFESSIONAL PREP &gt;= 10</span>
             <span>{userStats.career}/10</span>
           </div>
         </div>
@@ -269,29 +269,29 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
         }}>
           {bossHp === 0 ? (
             <>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-pink)' }}>MONSTER POPPED!</h3>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-pink)' }}>ASSESSMENT PASSED!</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                You successfully regularized Overfit the Code Monster and earned 500 XP! Unlocked the <strong>Machine Learning Master</strong> badge.
+                You successfully regularized Overfit the Code Monster and earned 500 Progress Score! Unlocked the <strong>Machine Learning Master</strong> milestone.
               </p>
             </>
           ) : (
             <>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-pink)' }}>SHIELD CRASHED</h3>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-pink)' }}>CONFIDENCE CRASHED</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                Your model collapsed. Refactor your neural nets, train with dropout, and test again!
+                Your confidence shield collapsed. Review the concepts and try again!
               </p>
             </>
           )}
 
           <button onClick={handleReset} className="cyber-btn pink-fill" style={{ padding: '0.6rem 1.5rem' }}>
-            FIGHT AGAIN
+            RETRY ASSESSMENT
           </button>
         </div>
       )}
 
       {/* Combat Action Logs */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-        <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-heading)' }}>ACTION FEED:</h4>
+        <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-heading)' }}>ASSESSMENT LOG:</h4>
         <div style={{
           background: '#fcfcfc',
           border: '2px solid #000',
@@ -304,7 +304,7 @@ export const BossBattle: React.FC<BossBattleProps> = ({ userStats, onDefeatBoss 
           gap: '0.25rem'
         }}>
           {battleLogs.map((log, i) => (
-            <div key={i} style={{ fontSize: '0.75rem', fontWeight: 700, color: log.startsWith('Pop!') ? 'var(--accent-green)' : log.startsWith('Glitch!') ? 'var(--accent-pink)' : 'var(--text-secondary)' }}>
+            <div key={i} style={{ fontSize: '0.75rem', fontWeight: 700, color: log.startsWith('Correct!') ? 'var(--accent-green)' : log.startsWith('Incorrect!') ? 'var(--accent-pink)' : 'var(--text-secondary)' }}>
               {log}
             </div>
           ))}

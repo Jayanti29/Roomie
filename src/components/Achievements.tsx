@@ -31,15 +31,15 @@ export const Achievements: React.FC<AchievementsProps> = ({ achievements, userNa
   };
 
   const getShareTemplate = (badge: Achievement) => {
-    return `LEVEL UP IN REAL LIFE!
+    return `ACADEMIC MILESTONE REACHED!
 
-I just unlocked the "${badge.title}" (${badge.rarity}) badge on LifeQuest! 
-Level: ${userLevel}
-Achievement: "${badge.desc}"
+I just unlocked the "${badge.title}" (${badge.rarity}) badge on Roomie! 
+Academic Level: ${userLevel}
+Milestone: "${badge.desc}"
 
-Transforming real-world goals, study, and coding. Evolving daily!
+Transforming academic goals, study habits, and student collaboration. Progressing daily!
 
-#LifeQuest #GrowthMindset #PersonalDevelopment #AI`;
+#Roomie #GrowthMindset #PersonalDevelopment #AI`;
   };
 
   const handleCopyText = (text: string) => {
@@ -223,8 +223,8 @@ Transforming real-world goals, study, and coding. Evolving daily!
               </p>
 
               <div style={{ zIndex: 1, borderTop: '2.5px solid #000', width: '100%', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--text-secondary)' }}>
-                <span>OPERATOR: {userName}</span>
-                <span>LEVEL {userLevel}</span>
+                <span>STUDENT: {userName}</span>
+                <span>ACADEMIC LEVEL {userLevel}</span>
               </div>
             </div>
 

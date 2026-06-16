@@ -41,52 +41,52 @@ export const StatPanel: React.FC<StatPanelProps> = ({
 }) => {
   const statList: Stat[] = [
     {
-      name: 'Intelligence',
+      name: 'Analysis & Tech',
       value: stats.intelligence,
       max: 100,
       icon: '',
       color: 'var(--accent-cyan)',
-      description: 'Increases problem solving, coding proficiency, and study speed.'
+      description: 'Reflects problem solving ability, core subject proficiency, and research capabilities.'
     },
     {
-      name: 'Strength',
+      name: 'Study Consistency',
       value: stats.strength,
       max: 100,
       icon: '',
       color: 'var(--accent-pink)',
-      description: 'Boosts physical energy, focus limits, and resistance to burnout.'
+      description: 'Measures continuous learning volume, endurance, and prevention of learning fatigue.'
     },
     {
-      name: 'Discipline',
+      name: 'Task Execution',
       value: stats.discipline,
       max: 100,
       icon: '',
       color: 'var(--accent-green)',
-      description: 'Increases consistency multipliers and daily streak protections.'
+      description: 'Tracks daily objective adherence, session focus, and target completion consistency.'
     },
     {
-      name: 'Creativity',
+      name: 'Innovation & Design',
       value: stats.creativity,
       max: 100,
       icon: '',
       color: 'var(--accent-purple)',
-      description: 'Boosts UI/UX designing, brainstorming quality, and lateral thinking.'
+      description: 'Represents code design quality, creative solutions, and project UX enhancement.'
     },
     {
-      name: 'Communication',
+      name: 'Collaboration',
       value: stats.communication,
       max: 100,
       icon: '',
       color: 'var(--accent-gold)',
-      description: 'Enhances networking capability, client relations, and public speaking.'
+      description: 'Determines peer-to-peer engagement quality, network strength, and team communication.'
     },
     {
-      name: 'Career',
+      name: 'Professional Prep',
       value: stats.career,
       max: 100,
       icon: '',
       color: '#a3e635',
-      description: 'Increases portfolio value, job application ratings, and engineering status.'
+      description: 'Indicates portfolio preparedness, application quality, and professional readiness.'
     }
   ];
 
@@ -96,10 +96,10 @@ export const StatPanel: React.FC<StatPanelProps> = ({
       {/* Title - No double slashes */}
       <div style={{ borderBottom: '2.5px solid #000', paddingBottom: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          CHARACTER STATS & ABILITIES
+          ACADEMIC OVERVIEW & PROFILE
         </h2>
         <span style={{ fontFamily: 'var(--font-heading)', fontSize: '0.75rem', fontWeight: 800, color: '#000', background: 'var(--accent-gold)', border: '2.5px solid #000', padding: '0.1rem 0.5rem', borderRadius: '8px', boxShadow: '2px 2px 0px #000' }}>
-          CLASS: DATA ARCHITECT
+          STUDENT
         </span>
       </div>
 
@@ -119,14 +119,14 @@ export const StatPanel: React.FC<StatPanelProps> = ({
           flexShrink: 0
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#000', fontFamily: 'var(--font-heading)', textTransform: 'uppercase' }}>LVL</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#000', fontFamily: 'var(--font-heading)', textTransform: 'uppercase' }}>LEVEL</span>
             <span style={{ fontSize: '1.75rem', fontWeight: 900, fontFamily: 'var(--font-heading)', color: '#000', lineHeight: '1' }}>{level}</span>
           </div>
         </div>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>XP MULTIPLIER</span>
+            <span style={{ color: 'var(--text-secondary)' }}>PROGRESS SCORE MULTIPLIER</span>
             <span style={{ color: '#000' }}>{Math.round((xp / maxXp) * 100)}%</span>
           </div>
           
@@ -140,7 +140,7 @@ export const StatPanel: React.FC<StatPanelProps> = ({
           </div>
           
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>
-            {xp} / {maxXp} XP (need {maxXp - xp} XP to level up)
+            {xp} / {maxXp} Progress Score (need {maxXp - xp} Progress Score to increase Academic Level)
           </span>
         </div>
       </div>
@@ -228,12 +228,12 @@ export const StatPanel: React.FC<StatPanelProps> = ({
             gap: '0.25rem',
             boxShadow: '2px 2px 0px #000'
           }}>
-            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-secondary)' }}>QUEST COMPLETION</span>
+            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-secondary)' }}>TASK COMPLETION</span>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.9rem', fontWeight: 900, color: '#000', fontFamily: 'var(--font-heading)' }}>
                 {completedQuestsCount} / {totalQuestsCount}
               </span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>done</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>completed</span>
             </div>
             {/* mini progress bar */}
             <div style={{ width: '100%', height: '8px', background: '#f0f0f0', border: '1.5px solid #000', borderRadius: '4px', overflow: 'hidden' }}>
@@ -258,11 +258,11 @@ export const StatPanel: React.FC<StatPanelProps> = ({
             boxShadow: '2px 2px 0px #000',
             justifyContent: 'center'
           }}>
-            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-secondary)' }}>SESSION XP GROWTH</span>
+            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-secondary)' }}>SESSION PROGRESS</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
               <span style={{ fontSize: '1.1rem', color: 'var(--accent-pink)', fontWeight: 900 }}>↑</span>
               <span style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--accent-pink)', fontFamily: 'var(--font-heading)' }}>
-                +{sessionXpEarned.toLocaleString()} XP
+                +{sessionXpEarned.toLocaleString()} Progress
               </span>
             </div>
             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)' }}>current run</span>
@@ -283,9 +283,9 @@ export const StatPanel: React.FC<StatPanelProps> = ({
             justifyContent: 'center'
           }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-              <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-secondary)' }}>SKILLS UNLOCKED</span>
+              <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-secondary)' }}>LEARNING AREAS COMPLETED</span>
               <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-purple)', fontFamily: 'var(--font-heading)' }}>
-                {unlockedSkillsCount} Nodes
+                {unlockedSkillsCount} Areas
               </span>
             </div>
           </div>
@@ -303,9 +303,9 @@ export const StatPanel: React.FC<StatPanelProps> = ({
             justifyContent: 'center'
           }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-              <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-secondary)' }}>BADGES AWARDED</span>
+              <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-secondary)' }}>MILESTONES AWARDED</span>
               <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-gold)', fontFamily: 'var(--font-heading)' }}>
-                {unlockedAchievementsCount} Medals
+                {unlockedAchievementsCount} Badges
               </span>
             </div>
           </div>

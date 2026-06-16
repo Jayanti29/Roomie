@@ -12,13 +12,14 @@ import { AIMentor } from './components/AIMentor';
 import { NotesBoard } from './components/NotesBoard';
 import { VideoStudyRoom } from './components/VideoStudyRoom';
 import { QuizGenerator } from './components/QuizGenerator';
-import { databaseService, authService, db, isFirebaseConfigured, ref, update, set } from './firebase';
+import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb } from './firebase';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string; isGuest?: boolean } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Core Game State
+  // Core Academic State
   const [level, setLevel] = useState(24);
   const [xp, setXp] = useState(3200);
   const [maxXp, setMaxXp] = useState(5000);
@@ -56,6 +57,33 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+
+  useEffect(() => {
+    if (loggedIn && user) {
+      if (user.isGuest) {
+        setIsAdmin(false);
+      } else {
+        if (useMockDb) {
+          setIsAdmin(user.email === 'admin@roomie.io');
+        } else {
+          import('./firebase').then(({ auth }) => {
+            if (auth && auth.currentUser) {
+              auth.currentUser.getIdTokenResult(true)
+                .then((tokenResult: any) => {
+                  setIsAdmin(!!tokenResult.claims.admin);
+                })
+                .catch((e: any) => {
+                  console.error("Failed to fetch custom claims:", e);
+                  setIsAdmin(false);
+                });
+            }
+          });
+        }
+      }
+    } else {
+      setIsAdmin(false);
+    }
+  }, [loggedIn, user]);
 
   // Ask for browser HTML5 push notification permission on login
   useEffect(() => {
@@ -135,8 +163,8 @@ export default function App() {
   });
 
   const [storyLog, setStoryLog] = useState<string[]>([
-    'System core engaged. Welcome back, Operator.',
-    'Dungeon Master active. Preparing daily roadmap data...'
+    'System core engaged. Welcome back, Student.',
+    'Academic Assistant active. Preparing daily objectives...'
   ]);
 
   // UI Navigation Tabs
@@ -151,7 +179,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load User Game Data from database on login
+  // Load User Profile Data from database on login
   useEffect(() => {
     if (loggedIn && user) {
       if (user.isGuest) {
@@ -173,7 +201,7 @@ export default function App() {
         });
         setProfilePhoto(null);
         setStoryLog([
-          `Welcome to LifeQuest, Guest Operator.`,
+          `Welcome to Roomie, Guest Student.`,
           'You are browsing as a Guest. Please register an account to create rooms, write notes, and upload PDFs.'
         ]);
         setIsLoaded(true);
@@ -199,8 +227,8 @@ export default function App() {
             });
             setProfilePhoto(data.profilePhoto ?? null);
             setStoryLog([
-              `Welcome back, ${data.name}. You are currently a level ${data.level} Operator.`,
-              'Dungeon Master: Your active daily missions are loaded. Engage constraints to earn rewards.'
+              `Welcome back, ${data.name}. You are currently at Academic Level ${data.level}.`,
+              'Academic Assistant: Your active daily tasks are loaded. Complete tasks to earn progress.'
             ]);
             
             const totalEarnedPoints = data.level;
@@ -446,7 +474,8 @@ export default function App() {
   const handleUnlockSkill = (
     skillId: string, 
     cost: number, 
-    rewards: { intelligence?: number; career?: number; creativity?: number }
+    rewards: { intelligence?: number; career?: number; creativity?: number },
+    skillName: string
   ) => {
     if (skillPoints < cost) return;
 
@@ -460,13 +489,12 @@ export default function App() {
     if (rewards.creativity) newStats.creativity = Math.min(100, newStats.creativity + rewards.creativity);
     setStats(newStats);
 
-    const skillName = skillId.toUpperCase();
-    const unlockMsg = `Skill Unlocked: [${skillName}]. Neural pathway initialized. Stats boosted!`;
+    const unlockMsg = `Topic Mastered: [${skillName}]. Knowledge base expanded. Skills boosted!`;
     setStoryLog(prev => [unlockMsg, ...prev]);
   };
 
   const handleDefeatBoss = (xpReward: number, badgeName: string) => {
-    handleRewardXp(xpReward, `Defeated Overfitter Prime and earned the '${badgeName}' title!`);
+    handleRewardXp(xpReward, `Completed the Machine Learning Assessment and achieved the '${badgeName}' milestone!`);
     unlockAchievement('ml_master');
   };
 
@@ -550,11 +578,11 @@ export default function App() {
             letterSpacing: '0.05em',
             color: '#000'
           }}>
-            LIFEQUEST
+            ROOMIE
           </h1>
           {!isMobile && (
             <span style={{ fontSize: '0.55rem', background: 'var(--accent-gold)', border: '1.5px solid #000', padding: '0.15rem 0.35rem', borderRadius: '6px', fontWeight: 800 }}>
-              STUDENT GILDED
+              STUDENT PORTAL
             </span>
           )}
         </div>
@@ -934,7 +962,7 @@ export default function App() {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {tab === 'skills' ? 'SKILLS' : tab === 'boss' ? 'BOSS' : 'BADGES'}
+                    {tab === 'skills' ? 'ROADMAP' : tab === 'boss' ? 'ASSESSMENT' : 'MILESTONES'}
                   </button>
                 ))}
               </div>
@@ -984,6 +1012,7 @@ export default function App() {
             onRewardXp={handleRewardXp} 
             activeSubView={isMobile ? activeMainTab : undefined}
             isGuest={user.isGuest}
+            isAdmin={isAdmin}
           />
         )}
 

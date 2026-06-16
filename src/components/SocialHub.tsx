@@ -17,7 +17,7 @@ interface SocialHubProps {
 
 export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userXp }) => {
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'guilds' | 'duels' | 'friends'>('leaderboard');
-  const [activeGuild, setActiveGuild] = useState('Data Science Guild');
+  const [activeGuild, setActiveGuild] = useState('Data Science Group');
 
   // Interactive study buddies / friends lists
   const [friends, setFriends] = useState([
@@ -54,12 +54,12 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
   };
 
   const leaderboardUsers: LeaderboardUser[] = [
-    { rank: 1, name: 'Siddharth Nair', level: 88, totalXp: 432000, guild: 'AI Guild', avatar: 'SN' },
-    { rank: 2, name: 'Anya Sharma', level: 56, totalXp: 275000, guild: 'Startup Guild', avatar: 'AS' },
-    { rank: 3, name: 'Rohan Mehta', level: 42, totalXp: 205000, guild: 'Data Science Guild', avatar: 'RM' },
+    { rank: 1, name: 'Siddharth Nair', level: 88, totalXp: 432000, guild: 'AI Group', avatar: 'SN' },
+    { rank: 2, name: 'Anya Sharma', level: 56, totalXp: 275000, guild: 'Startup Group', avatar: 'AS' },
+    { rank: 3, name: 'Rohan Mehta', level: 42, totalXp: 205000, guild: 'Data Science Group', avatar: 'RM' },
     { rank: 4, name: `${userName} (You)`, level: userLevel, totalXp: (userLevel * 5000) + userXp, guild: activeGuild, avatar: userName.substring(0, 2).toUpperCase() },
-    { rank: 5, name: 'Neha Gupta', level: 21, totalXp: 92000, guild: 'Data Science Guild', avatar: 'NG' },
-    { rank: 6, name: 'Vikram Rao', level: 18, totalXp: 78000, guild: 'AI Guild', avatar: 'VR' }
+    { rank: 5, name: 'Neha Gupta', level: 21, totalXp: 92000, guild: 'Data Science Group', avatar: 'NG' },
+    { rank: 6, name: 'Vikram Rao', level: 18, totalXp: 78000, guild: 'AI Group', avatar: 'VR' }
   ].sort((a, b) => b.totalXp - a.totalXp);
 
   leaderboardUsers.forEach((user, index) => {
@@ -68,28 +68,28 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
 
   const guildsList = [
     {
-      name: 'Data Science Guild',
+      name: 'Data Science Group',
       motto: 'Refining correlations, conquering noise.',
       members: 142,
-      weeklyGoal: 'Reach 20,000 XP in analytics tasks.',
+      weeklyGoal: 'Reach 20,000 Progress Score in analytics tasks.',
       progress: 74,
-      buff: '+15% Intelligence XP multiplier'
+      buff: '+15% Analysis & Tech Progress Score multiplier'
     },
     {
-      name: 'AI Guild',
+      name: 'AI Group',
       motto: 'Training networks, driving agency.',
       members: 98,
       weeklyGoal: 'Solve 10 Neural Node configurations.',
       progress: 45,
-      buff: '+10% Career XP & +10% Creativity'
+      buff: '+10% Professional Prep Progress Score & +10% Innovation & Design'
     },
     {
-      name: 'Startup Guild',
+      name: 'Startup Group',
       motto: 'Build fast, break limits, scale out.',
       members: 76,
       weeklyGoal: 'Build 5 portfolio code projects.',
       progress: 60,
-      buff: '+15% Charisma/Communication XP'
+      buff: '+15% Collaboration Progress Score'
     }
   ];
 
@@ -119,7 +119,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
               whiteSpace: 'nowrap'
             }}
           >
-            {tab === 'guilds' ? 'Guilds' : tab === 'duels' ? 'Duels' : tab === 'friends' ? 'Buddies' : 'Rank'}
+            {tab === 'guilds' ? 'Groups' : tab === 'duels' ? 'Challenges' : tab === 'friends' ? 'Buddies' : 'Rank'}
           </button>
         ))}
       </div>
@@ -133,8 +133,8 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
             <div style={{ display: 'grid', gridTemplateColumns: '40px 1.4fr 1fr 1fr', padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>
               <span>RANK</span>
               <span>USER</span>
-              <span>GUILD</span>
-              <span style={{ textAlign: 'right' }}>TOTAL XP</span>
+              <span>GROUP</span>
+              <span style={{ textAlign: 'right' }}>TOTAL SCORE</span>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
@@ -176,7 +176,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
                         fontFamily: 'var(--font-heading)',
                         boxShadow: '1px 1px 0px #000'
                       }}>{user.avatar}</span>
-                      {user.name.replace(' (You)', '')} <span style={{ color: 'var(--accent-pink)', fontSize: '0.7rem', fontWeight: 800, marginLeft: '4px' }}>L.{user.level}</span>
+                      {user.name.replace(' (You)', '')} <span style={{ color: 'var(--accent-pink)', fontSize: '0.7rem', fontWeight: 800, marginLeft: '4px' }}>Level {user.level}</span>
                     </span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{user.guild.split(' ')[0]}</span>
                     <span style={{ textAlign: 'right', fontFamily: 'var(--font-heading)', color: '#000', fontWeight: 800 }}>
@@ -210,7 +210,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.9rem', fontWeight: 800, color: '#000' }}>
-                      {guild.name} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>({guild.members} users)</span>
+                      {guild.name} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>({guild.members} students)</span>
                     </h4>
                     {!active ? (
                       <button
@@ -243,7 +243,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
                     </div>
                   </div>
                   <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--accent-pink)' }}>
-                    BUFF: {guild.buff}
+                    BENEFIT: {guild.buff}
                   </div>
                 </div>
               );
@@ -254,12 +254,12 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
         {/* Duels Tab */}
         {activeTab === 'duels' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', justifyContent: 'center', alignItems: 'center', height: '100%', textAlign: 'center', minHeight: '180px' }}>
-            <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800, color: '#000' }}>COOP FRIEND DUELS</h4>
+            <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800, color: '#000' }}>COLLABORATIVE CHALLENGES</h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, maxWidth: '280px', lineHeight: '1.3' }}>
-              Challenge study buddies to productivity streaks. Win and divide massive XP pots!
+              Challenge study buddies to productivity streaks. Win and complete goals together!
             </p>
             <button className="cyber-btn pink-fill" style={{ fontSize: '0.75rem', padding: '0.4rem 1rem' }}>
-              INITIATE DUEL CONTEXT
+              START CHALLENGE
             </button>
           </div>
         )}
@@ -342,7 +342,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
                       }}>{req.avatar}</span>
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#000' }}>
-                          {req.name} <span style={{ color: 'var(--accent-pink)' }}>L.{req.level}</span>
+                          {req.name} <span style={{ color: 'var(--accent-pink)' }}>Level {req.level}</span>
                         </span>
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                           {req.college}
@@ -440,7 +440,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({ userName, userLevel, userX
                         }}>{friend.avatar}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#000' }}>
-                            {friend.name} <span style={{ color: 'var(--accent-purple)', fontSize: '0.7rem' }}>L.{friend.level}</span>
+                            {friend.name} <span style={{ color: 'var(--accent-purple)', fontSize: '0.7rem' }}>Level {friend.level}</span>
                           </span>
                           <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '180px' }}>
                             {friend.college}

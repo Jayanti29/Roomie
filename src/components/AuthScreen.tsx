@@ -72,20 +72,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleGuestLogin = () => {
+  const handleGuestLogin = async () => {
     setErrorMessage('');
-    const guestId = Math.floor(1000 + Math.random() * 9000);
-    const guestEmail = `guest_${guestId}@lifequest.io`;
-    const guestName = `Guest_${guestId}`;
-    onLoginSuccess(
-      guestEmail, 
-      guestName, 
-      'BCA (Bachelor of Computer Applications)', 
-      'Bachelor of Computer Applications', 
-      'Christ University, Bangalore', 
-      'Bangalore, Karnataka', 
-      true
-    );
+    setLoading(true);
+    try {
+      const guestId = Math.floor(1000 + Math.random() * 9000);
+      const guestEmail = `guest_${guestId}@roomie.io`;
+      const guestName = `Guest_${guestId}`;
+      if (authService.isFirebase) {
+        await authService.signInAnonymously();
+      }
+      onLoginSuccess(
+        guestEmail, 
+        guestName, 
+        'BCA (Bachelor of Computer Applications)', 
+        'Bachelor of Computer Applications', 
+        'Christ University, Bangalore', 
+        'Bangalore, Karnataka', 
+        true
+      );
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Guest login failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,7 +128,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             color: '#000',
             letterSpacing: '0.05em'
           }}>
-            LIFEQUEST
+            ROOMIE
           </h1>
           <span style={{
             fontFamily: 'var(--font-heading)',
@@ -128,7 +138,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             color: 'var(--accent-pink)',
             textTransform: 'uppercase'
           }}>
-            ACTIVE GAME ENGINE
+            REAL-TIME COLLABORATION PLATFORM
           </span>
         </div>
 
@@ -144,11 +154,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           lineHeight: '1.4',
           boxShadow: '3px 3px 0px #000'
         }}>
-          {authService.isFirebase ? (
-            <span>Firebase Cloud database connected! Authenticate to access real-time study networks.</span>
-          ) : (
-            <span>Offline Engine active. Initialize credentials or engage guest parameters.</span>
-          )}
+          <span>Connect, collaborate and learn together.</span>
         </div>
 
         {/* Error message */}
@@ -170,7 +176,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {isRegistering && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>CHARACTER NAME</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>FULL NAME</label>
               <input
                   type="text"
                   data-testid="name"
@@ -230,7 +236,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             disabled={loading}
             style={{ width: '100%', padding: '0.75rem', marginTop: '0.4rem', border: '3px solid #000', boxShadow: '4px 4px 0px #000' }}
           >
-            {loading ? 'SYNCHRONIZING...' : isRegistering ? 'INITIALIZE CHARACTER' : 'ENGAGE APP ENGINE'}
+            {loading ? 'SYNCHRONIZING...' : isRegistering ? 'CREATE ACCOUNT' : 'LOG IN'}
           </button>
         </form>
 
@@ -252,7 +258,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               textDecoration: 'underline'
             }}
           >
-            {isRegistering ? 'ALREADY REGISTERED? LOG IN' : 'NEW OPERATOR? REGISTER CHARACTER'}
+            {isRegistering ? 'ALREADY HAVE AN ACCOUNT? LOG IN' : 'NEW STUDENT? CREATE ACCOUNT'}
           </button>
 
           <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>OR</span>

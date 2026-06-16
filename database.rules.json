@@ -1,6 +1,107 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "admins": {
+      ".read": "auth != null",
+      ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || auth.token.email === 'admin@roomie.io' || auth.token.admin === true)"
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+      }
+    },
+    "private_chats": {
+      "$chatId": {
+        ".read": "auth != null && (auth.token.email != null && $chatId.contains(auth.token.email.replace('.', '_')))",
+        ".write": "auth != null && (auth.token.email != null && $chatId.contains(auth.token.email.replace('.', '_')))"
+      }
+    },
+    "bookmarks": {
+      "$userKey": {
+        ".read": "auth != null && (auth.token.email != null && auth.token.email.replace('.', '_') === $userKey)",
+        ".write": "auth != null && (auth.token.email != null && auth.token.email.replace('.', '_') === $userKey)"
+      }
+    },
+    "shared_notes": {
+      "$noteId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('authorEmail').val() === auth.token.email || auth.token.admin === true)"
+      }
+    },
+    "pdf_contents": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "community_channels": {
+      "$channelId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.exists()))",
+        "messages": {
+          ".write": "auth != null"
+        },
+        "notes": {
+          ".write": "auth != null"
+        },
+        "pdfs": {
+          ".write": "auth != null"
+        },
+        "metadata": {
+          ".write": "auth != null && auth.token.admin === true"
+        }
+      }
+    },
+    "community_groups": {
+      "$groupId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.admin === true || !data.exists())",
+        "members": {
+          "$userSlug": {
+            ".write": "auth != null && (auth.token.admin === true || auth.token.email.replace('.', '_') === $userSlug)"
+          }
+        },
+        "messages": {
+          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+        },
+        "notes": {
+          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+        },
+        "pdfs": {
+          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+        },
+        "metadata": {
+          ".write": "auth != null && (auth.token.admin === true || !data.exists() || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+        }
+      }
+    },
+    "study_rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('hostEmail').val() === auth.token.email)",
+        "participants": {
+          "$peerId": {
+            ".write": "auth != null"
+          }
+        },
+        "joinRequests": {
+          "$peerId": {
+            ".write": "auth != null"
+          }
+        },
+        "messages": {
+          ".write": "auth != null"
+        },
+        "calls": {
+          ".write": "auth != null"
+        },
+        "notes": {
+          ".write": "auth != null"
+        },
+        "pdfs": {
+          ".write": "auth != null"
+        }
+      }
+    }
   }
 }

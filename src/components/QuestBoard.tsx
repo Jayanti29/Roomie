@@ -76,12 +76,12 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
       {/* DM Story Mode Panel - Cartoon Scroll style */}
       <div style={{ background: '#fcfcfc', border: '3px solid #000', borderRadius: '20px', padding: '1rem', position: 'relative', boxShadow: '4px 4px 0px #000' }}>
         <div style={{ position: 'absolute', top: '0.4rem', right: '0.6rem', fontSize: '0.65rem', color: '#000', fontFamily: 'var(--font-heading)', fontWeight: 800, background: 'var(--accent-cyan)', border: '1.5px solid #000', padding: '0.1rem 0.4rem', borderRadius: '6px' }}>
-          DUNGEON MASTER v4.2
+          ACADEMIC ASSISTANT
         </div>
         
         {/* No double slashes */}
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.95rem', fontWeight: 800, color: '#000', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <span>◈</span> DM STORY LOG
+          <span>◈</span> ASSISTANT LOG
         </h3>
         <div style={{ maxHeight: '90px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingRight: '0.25rem' }}>
           {storyLog.map((log, i) => (
@@ -95,7 +95,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
       {/* Quests Header - No double slashes */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.75rem' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          ACTIVE MISSIONS
+          ACTIVE OBJECTIVES
         </h2>
         <button 
           onClick={() => setShowAddForm(!showAddForm)}
@@ -105,7 +105,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
             fontSize: '0.75rem'
           }}
         >
-          {showAddForm ? '✕ CANCEL' : '+ NEW MISSION'}
+          {showAddForm ? '✕ CANCEL' : '+ NEW OBJECTIVE'}
         </button>
       </div>
 
@@ -113,7 +113,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
       {showAddForm && (
         <form onSubmit={handleCreateQuest} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#fdfdfd', border: '3px dashed #000', boxShadow: 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)' }}>MISSION OBJECTIVE</label>
+            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)' }}>OBJECTIVE DESCRIPTION</label>
             <input
               type="text"
               className="cyber-input"
@@ -141,11 +141,11 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
                   fontSize: '0.8rem'
                 }}
               >
-                <option value="Study">Study (Intelligence)</option>
-                <option value="Fitness">Fitness (Strength)</option>
-                <option value="Productivity">Habits (Discipline)</option>
-                <option value="Networking">Networking (Charisma)</option>
-                <option value="Coding">Projects (Career)</option>
+                <option value="Study">Study (Analysis & Tech)</option>
+                <option value="Fitness">Health (Consistency)</option>
+                <option value="Productivity">Focus (Task Execution)</option>
+                <option value="Networking">Networking (Collaboration)</option>
+                <option value="Coding">Projects (Career Prep)</option>
               </select>
             </div>
 
@@ -165,16 +165,16 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
                   fontSize: '0.8rem'
                 }}
               >
-                <option value="Easy">Easy (+50 XP)</option>
-                <option value="Medium">Medium (+100 XP)</option>
-                <option value="Hard">Hard (+150 XP)</option>
-                <option value="Heroic">Heroic (+250 XP)</option>
+                <option value="Easy">Easy (+50 Progress)</option>
+                <option value="Medium">Medium (+100 Progress)</option>
+                <option value="Hard">Hard (+150 Progress)</option>
+                <option value="Heroic">Expert (+250 Progress)</option>
               </select>
             </div>
           </div>
 
           <button type="submit" className="cyber-btn pink-fill" style={{ width: '100%', padding: '0.55rem' }}>
-            LAUNCH MISSION
+            CREATE OBJECTIVE
           </button>
         </form>
       )}
@@ -183,7 +183,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '380px', overflowY: 'auto', paddingRight: '0.25rem' }}>
         {quests.filter(q => !q.completed).length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '120px', border: '3.5px dashed #000', borderRadius: '20px', gap: '0.5rem' }}>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>ALL DAILY MISSIONS CLEARED!</p>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>ALL DAILY OBJECTIVES COMPLETED!</p>
           </div>
         ) : (
           quests.map(quest => {
@@ -216,7 +216,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
                       borderRadius: '6px',
                       textTransform: 'uppercase'
                     }}>
-                      {quest.difficulty}
+                      {quest.difficulty === 'Heroic' ? 'Expert' : quest.difficulty}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>{quest.category}</span>
                   </div>
@@ -224,12 +224,15 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
                   
                   {/* Rewards preview */}
                   <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.72rem', fontWeight: 800, fontFamily: 'var(--font-heading)', color: 'var(--accent-pink)' }}>
-                    <span>+{quest.xpReward} XP</span>
-                    {Object.entries(quest.statReward).map(([statName, val]) => (
-                      <span key={statName} style={{ color: 'var(--accent-purple)' }}>
-                        +{val} {statName.toUpperCase().substring(0, 3)}
-                      </span>
-                    ))}
+                    <span>+{quest.xpReward} Progress</span>
+                    {Object.entries(quest.statReward).map(([statName, val]) => {
+                      const displayStatName = statName === 'intelligence' ? 'Analysis' : statName === 'strength' ? 'Consistency' : statName === 'discipline' ? 'Execution' : statName === 'creativity' ? 'Innovation' : statName === 'communication' ? 'Collaboration' : 'Prep';
+                      return (
+                        <span key={statName} style={{ color: 'var(--accent-purple)' }}>
+                          +{val} {displayStatName}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -253,7 +256,7 @@ export const QuestBoard: React.FC<QuestBoardProps> = ({ quests, onCompleteQuest,
                     boxShadow: '2px 2px 0px #000',
                     flexShrink: 0
                   }}
-                  title="Complete Mission"
+                  title="Complete Objective"
                   onMouseDown={(e) => {
                     e.currentTarget.style.transform = 'translate(1px, 1px)';
                     e.currentTarget.style.boxShadow = '1px 1px 0px #000';
