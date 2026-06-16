@@ -764,8 +764,8 @@ export default function App() {
           {([
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'notes', label: 'Shared Notes' },
-            { id: 'video_rooms', label: 'Study Video Rooms' },
-            { id: 'quiz_station', label: 'AI Quiz Station' }
+            { id: 'video_rooms', label: 'Study Rooms' },
+            { id: 'quiz_station', label: 'Study Quizzes' }
           ] as const).map(tab => (
             <button
               key={tab.id}
@@ -923,12 +923,12 @@ export default function App() {
               }} onClick={() => setActiveMainTab('quiz_station')}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800 }}>
-                    🤖 AI QUIZ STATION
+                    🤖 STUDY QUIZZES
                   </h3>
                   <span style={{ fontSize: '0.7rem', background: '#fff', border: '1.5px solid #000', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 800 }}>LAUNCH</span>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700 }}>
-                  Generate customized AI tests, battle subject questions, and boost your communication/intelligence parameters instantly!
+                  Generate customized AI tests, practice subject questions, and boost your collaboration/analysis parameters instantly!
                 </p>
               </div>
             </section>
@@ -962,7 +962,7 @@ export default function App() {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {tab === 'skills' ? 'ROADMAP' : tab === 'boss' ? 'ASSESSMENT' : 'MILESTONES'}
+                    {tab === 'skills' ? 'LEARNING PROGRESS' : tab === 'boss' ? 'ASSESSMENT' : 'MILESTONES'}
                   </button>
                 ))}
               </div>

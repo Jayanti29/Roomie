@@ -1,32 +1,128 @@
+declare const process: any;
+
 function generateSimulatedResponse(messages: any[]): string {
   const lastMsg = messages[messages.length - 1]?.content || '';
   const q = lastMsg.toLowerCase();
 
-  if (q.includes('dsa') || q.includes('algorithm') || q.includes('data structure') || q.includes('complexity') || q.includes('big o')) {
-    return `**Understanding Data Structures & Algorithms (DSA):**\n\nWhen optimizing code, focus on **Time and Space Complexity** (Big O notation). For instance, linear search runs in $O(n)$ time, whereas binary search on a sorted array operates in $O(\\log n)$.\n\nKey areas to study:\n1. **Linear Structures**: Arrays, Linked Lists, Stacks, and Queues.\n2. **Trees & Graphs**: Binary Search Trees, AVL Trees, DFS, and BFS.\n3. **Sorting**: QuickSort and MergeSort ($O(n \\log n)$ average time).\n\nWhat specific algorithm or data structure would you like to deep dive into?`;
+  // Dynamically address specific prompt questions:
+  if (q.includes('teach me java') || q.includes('explain java') || q.includes('java help')) {
+    return `Hi there! I would love to teach you **Java**. 
+
+Java is a compiled, class-based, object-oriented programming language designed to have as few implementation dependencies as possible ("Write Once, Run Anywhere").
+
+To get started with Java, let's look at the basic class structure:
+\`\`\`java
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Welcome to Roomie!");
+    }
+}
+\`\`\`
+
+Key concepts you should study:
+1. **JVM, JRE, and JDK**: The compile and runtime lifecycle.
+2. **Object-Oriented Programming (OOP)**: Designing objects with methods and variables.
+3. **Control Flow**: \`if\` statements, loops (\`for\`, \`while\`), and switch-cases.
+
+Would you like to write a simple Java class or build a console application?`;
   }
 
-  if (q.includes('react') || q.includes('frontend') || q.includes('hooks') || q.includes('state')) {
-    return `**React & Frontend Architecture Insights:**\n\nReact applications manage state reactively. When using hooks like \`useState\` or \`useReducer\`, remember that component renders are triggered automatically when state changes.\n\nBest practices:\n- **Clean up side effects**: Always return a cleanup function in \`useEffect\` to close database connections or clear event listeners.\n- **Component Purity**: Keep rendering functions pure to avoid unexpected layout shifts or double renders.\n\nWould you like help setting up a specific React hook or managing state across multiple components?`;
+  if (q.includes('explain dbms') || q.includes('database help') || q.includes('dbms help') || q.includes('explain sql')) {
+    return `Let's discuss **Database Management Systems (DBMS)**!
+
+A DBMS is system software for creating and managing databases. It provides users and programmers with a systematic way to create, retrieve, update and manage data.
+
+Here is a quick comparison:
+* **Relational DBMS (RDBMS)**: Uses structured tables with rows/columns (e.g. MySQL, PostgreSQL). Enforces schemas and strict ACID compliance.
+* **Non-Relational (NoSQL)**: High throughput and flexible schema structures (e.g. Document, Key-Value, Graph). Great for high-scale, dynamic structures.
+
+To model databases cleanly:
+- Focus on **Normalization** (1NF, 2NF, 3NF) to eliminate redundancy.
+- Use **Indexes** to speed up queries.
+
+What database systems are you currently using for your project? SQL or NoSQL?`;
   }
 
-  if (q.includes('java') || q.includes('oop') || q.includes('class') || q.includes('inheritance')) {
-    return `**Java & Object-Oriented Programming (OOP) Core Pillars:**\n\nJava enforces strict typing and uses Object-Oriented design patterns. The four primary pillars of OOP are:\n1. **Encapsulation**: Protecting state by keeping fields private and exposing public getters/setters.\n2. **Inheritance**: Allowing subclasses to inherit and extend behaviour using \`extends\`.\n3. **Polymorphism**: Enabling objects to take multiple forms (method overloading/overriding).\n4. **Abstraction**: Using abstract classes and interfaces to define contracts without implementation details.\n\nLet me know if you want to write a Java class structure or explore interface setups!`;
+  if (q.includes('create resume') || q.includes('resume help') || q.includes('resume plan')) {
+    return `Designing a software engineering **Resume** is all about showcasing impact and technical execution. Here is a solid template structure:
+
+1. **Header**: Name, Email, GitHub, LinkedIn, and Portfolio link.
+2. **Skills Directory**: Group by languages (e.g. Java, Python, TypeScript) and technologies (e.g. React, Node, SQL).
+3. **Projects (Key Focus)**: Detail 2-3 complex projects. Use the action verb + task + results formula:
+   - *"Built a real-time collaborative workspace web-app using React and WebRTC, decreasing peer synchronization latency by 40%."*
+4. **Professional Experience**: Internships or volunteer work.
+5. **Education**: Degree, major, graduation year.
+
+Would you like to draft a project description together or list your core technical stack?`;
   }
 
-  if (q.includes('dbms') || q.includes('sql') || q.includes('database') || q.includes('query')) {
-    return `**Database Management Systems (DBMS) & Query Operations:**\n\nDesigning data storage requires choosing between relational and non-relational database formats:\n- **Relational (SQL)**: Enforces tabular schemas and ACID transactions (Atomicity, Consistency, Isolation, Durability). Useful for financial or highly structured systems.\n- **Non-Relational (NoSQL)**: High throughput and flexible schema structures (e.g. key-value, document, graph databases).\n\nFor SQL, normalize your database up to Third Normal Form (3NF) to reduce data duplication and run queries efficiently using indexes.\n\nDo you need to write a specific SQL query or design a schema?`;
+  if (q.includes('help with interview') || q.includes('interview help') || q.includes('mock interview')) {
+    return `Preparing for technical and behavioral **Interviews** requires a structured strategy:
+
+- **Technical Prep (DSA)**: Review data structures (arrays, hash maps, heaps, trees) and practice solving problems out loud. Focus on time and space complexity ($O(N)$ analysis).
+- **System Design**: Practice explaining how web servers, databases, caching layers, and load balancers interact.
+- **Behavioral (STAR Method)**: Prepare stories detailing a **S**ituation, **T**ask, **A**ction, and **R**esult from your projects.
+
+Would you like to run a mock interview query on DSA or go over a behavioral scenario?`;
   }
 
-  if (q.includes('career') || q.includes('interview') || q.includes('resume') || q.includes('job') || q.includes('guidance')) {
-    return `**Career Guidance & Technical Interview Preparation:**\n\nPreparing for software engineering roles requires a balanced approach:\n- **Technical Mastery**: Practice coding problems (DSA) on array manipulation, graphs, and dynamic programming. Focus on explaining your thought process clearly.\n- **Portfolio Projects**: Build fully deployed web applications showing clean state management, modular components, and real-time syncing capabilities.\n- **Behavioral Questions**: Prepare stories using the STAR method Showcase collaboration and execution.\n\nWould you like to run a mock interview query or discuss portfolio project ideas?`;
+  if (q.includes('explain oop') || q.includes('oop help') || q.includes('object oriented')) {
+    return `**Object-Oriented Programming (OOP)** is a paradigm centered around 'objects' containing data and methods. 
+
+Here are the four pillars of OOP explained simply:
+1. **Encapsulation**: Restricting direct access to object fields. Expose state changes through safe getters and setters.
+2. **Inheritance**: Subclasses inheriting fields/methods of a superclass using \`extends\`, maximizing code reusability.
+3. **Polymorphism**: The ability of an object to take multiple forms (Method Overloading for compile-time, Method Overriding for run-time).
+4. **Abstraction**: Hiding complex implementation details and showing only functional contracts using abstract classes and interfaces.
+
+Would you like to look at a code sample of Polymorphism or Abstraction in Java?`;
   }
 
-  if (q.includes('study') || q.includes('plan') || q.includes('schedule') || q.includes('roadmap') || q.includes('motivation')) {
-    return `**Curriculum Planning & Motivation Strategy:**\n\nConsistency is the secret to mastering computer science. Here is a strategy for daily consistency:\n- **Daily Focus Sessions**: Dedicated 30-45 minute blocks are significantly more effective than single 8-hour cramming sessions.\n- **Project-Based Learning**: Learn by building actual tools rather than passively reading documentation.\n- **Study Buddy Collaboration**: Connect in real-time study rooms to share notes and code templates, boosting accountability.\n\nWhat are your current learning objectives or subjects for this week? Let's design a daily checklist!`;
+  if (q.includes('create study plan') || q.includes('study plan') || q.includes('study checklist') || q.includes('roadmap')) {
+    return `Here is a custom **Study Plan** designed to keep you consistent:
+
+* **Phase 1: Foundation (Weeks 1-2)**: Select a core language (like Java or JavaScript) and master data variables, flow control, arrays, and basic functions.
+* **Phase 2: Data Structures (Weeks 3-4)**: Study linked lists, stacks, queues, hash maps, and recursion. Focus on analyzing Big O time complexity.
+* **Phase 3: Relational Modeling (Weeks 5-6)**: Learn SQL queries, database normalization (3NF), and backend connections.
+* **Phase 4: Full-Stack Integration (Weeks 7-8)**: Build a React web-app with real-time sync endpoints.
+
+To optimize learning:
+- Dedicate 45 minutes daily.
+- Build projects instead of only reading docs.
+
+What is your primary study objective for this week?`;
   }
 
-  return `I am your **Roomie AI Mentor**. I remember our conversation history and am ready to support your study Consistency, Curriculum Roadmap, and project designs.\n\nYou can ask me detailed questions about **Data Structures & Algorithms (DSA)**, **React & Frontend state**, **Java & Object-Oriented principles**, **Database schemas (DBMS/SQL)**, **Career preparation**, or request help designing a **personalized study plan**.\n\nWhat specific topic or code challenge are you tackling today?`;
+  if (q.includes('generate notes') || q.includes('notes help') || q.includes('create notes')) {
+    return `I can help you **Generate Notes** for any topic! Here is a structured summary note template:
+
+### Title: [Insert Topic Name]
+- **Definition**: Core definition of the topic or framework.
+- **Key Syntax / Implementation**:
+  \`\`\`javascript
+  // Insert core code sample here
+  \`\`\`
+- **Important Gotchas**: Common errors, security rules boundaries, or performance bottlenecks.
+- **Related Resources**: Reference links or related concepts.
+
+What topic would you like me to generate summary notes for? Let's start with a specific subject!`;
+  }
+
+  // Dynamic responder for generic queries
+  return `I am your **Roomie AI Mentor**. I remember our conversation history and am ready to assist you!
+
+I noticed your request regarding **"${lastMsg}"**. 
+
+How would you like to proceed? You can ask me to:
+- "Teach me Java" (basic syntax, JVM, classes)
+- "Explain DBMS" (relational tables, indexing, SQL)
+- "Create resume" (software engineer template, formatting)
+- "Help with interview" (DSA preparation, STAR method)
+- "Explain OOP" (the four pillars with code examples)
+- "Create study plan" (curriculum planning, checklists)
+- "Generate notes" (summaries and code blocks)
+
+What topic should we tackle next?`;
 }
 
 export default async function handler(req: any, res: any) {

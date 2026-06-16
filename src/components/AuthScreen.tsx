@@ -28,7 +28,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     if (isRegistering && password !== confirmPassword) {
-      setErrorMessage('Confirm Passphrase does not match.');
+      setErrorMessage('Confirm Password does not match.');
       setLoading(false);
       return;
     }
@@ -203,7 +203,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>ACCESS PASSPHRASE</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>PASSWORD</label>
             <input
                   type="password"
                   data-testid="password"
@@ -217,7 +217,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
           {isRegistering && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>CONFIRM PASSPHRASE</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>CONFIRM PASSWORD</label>
               <input
                 type="password"
                 className="cyber-input"
@@ -236,7 +236,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             disabled={loading}
             style={{ width: '100%', padding: '0.75rem', marginTop: '0.4rem', border: '3px solid #000', boxShadow: '4px 4px 0px #000' }}
           >
-            {loading ? 'SYNCHRONIZING...' : isRegistering ? 'CREATE ACCOUNT' : 'LOG IN'}
+            {loading ? 'SYNCHRONIZING...' : isRegistering ? 'CREATE ACCOUNT' : 'SIGN IN'}
           </button>
         </form>
 
@@ -258,7 +258,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               textDecoration: 'underline'
             }}
           >
-            {isRegistering ? 'ALREADY HAVE AN ACCOUNT? LOG IN' : 'NEW STUDENT? CREATE ACCOUNT'}
+            {isRegistering ? 'ALREADY HAVE AN ACCOUNT? SIGN IN' : 'NEW STUDENT? CREATE ACCOUNT'}
           </button>
 
           <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>OR</span>

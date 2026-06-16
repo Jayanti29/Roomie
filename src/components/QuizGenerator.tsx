@@ -267,9 +267,9 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
           </div>
 
           <div style={{ background: '#f5f5f5', border: '2px solid #000', borderRadius: '10px', padding: '0.65rem', width: '100%', fontSize: '0.75rem', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div style={{ color: 'var(--accent-pink)' }}>★ Earned +{(score * 50) + 50} Experience Points!</div>
-            {score >= 2 && <div style={{ color: 'var(--accent-purple)' }}>★ Earned +2 Intelligence Points!</div>}
-            {score >= 2 && <div style={{ color: 'var(--accent-green)' }}>★ Earned +1 Career Strategy Points!</div>}
+            <div style={{ color: 'var(--accent-pink)' }}>★ Earned +{(score * 50) + 50} Progress Points!</div>
+            {score >= 2 && <div style={{ color: 'var(--accent-purple)' }}>★ Earned +2 Analysis Points!</div>}
+            {score >= 2 && <div style={{ color: 'var(--accent-green)' }}>★ Earned +1 Execution Points!</div>}
           </div>
 
           <button 

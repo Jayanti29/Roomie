@@ -1374,7 +1374,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     e.preventDefault();
     if (!roomCodeToJoin) return;
 
-    const codePart = roomCodeToJoin.replace('LQ-', '').toLowerCase();
+    const codePart = roomCodeToJoin.toUpperCase().replace('RM-', '').replace('LQ-', '').toLowerCase();
     const matchedRoom = rooms.find(r => r.id.toLowerCase().includes(codePart));
 
     if (matchedRoom) {
@@ -2307,11 +2307,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)' }}>ROOM CODE</span>
               <div style={{ fontSize: '2.2rem', fontFamily: 'var(--font-heading)', fontWeight: 900, color: '#000', letterSpacing: '0.05em' }}>
-                LQ-{createdRoomCode.id.substring(5).toUpperCase()}
+                RM-{createdRoomCode.id.substring(5).toUpperCase()}
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`LQ-${createdRoomCode.id.substring(5).toUpperCase()}`);
+                  navigator.clipboard.writeText(`RM-${createdRoomCode.id.substring(5).toUpperCase()}`);
                   setShowCopySuccess(true);
                   setTimeout(() => setShowCopySuccess(false), 2000);
                 }}
@@ -2423,7 +2423,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 <input 
                   type="text" 
                   data-testid="join-room-input"
-                  placeholder="Enter Room Code (e.g. LQ-101)" 
+                  placeholder="Enter Room Code (e.g. RM-101)" 
                   value={roomCodeToJoin}
                   onChange={(e) => setRoomCodeToJoin(e.target.value.toUpperCase())}
                   className="cyber-input" 
@@ -2462,7 +2462,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       TOPIC: {room.topic}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-purple)' }}>
-                      CODE: LQ-{room.id.substring(5).toUpperCase()}
+                      CODE: RM-{room.id.substring(5).toUpperCase()}
                     </span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', fontWeight: 700, marginTop: '0.15rem' }}>
                       {room.participants} classmates studying
@@ -2551,7 +2551,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 <div>
                   <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800 }}>{activeRoom.title}</h4>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                    STUDY TOPIC: {activeRoom.topic} | Major: {userCourse} | Intelligence: {userStats.intelligence} | CODE: <strong style={{ color: 'var(--accent-pink)' }}>LQ-{activeRoom.id.substring(5).toUpperCase()}</strong>
+                    STUDY TOPIC: {activeRoom.topic} | Major: {userCourse} | Analysis: {userStats.intelligence} | CODE: <strong style={{ color: 'var(--accent-pink)' }}>RM-{activeRoom.id.substring(5).toUpperCase()}</strong>
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -2892,7 +2892,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 <div>
                   <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800 }}>{activeRoom.title}</h4>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                    CODE: <strong style={{ color: 'var(--accent-pink)' }}>LQ-{activeRoom.id.substring(5).toUpperCase()}</strong>
+                    CODE: <strong style={{ color: 'var(--accent-pink)' }}>RM-{activeRoom.id.substring(5).toUpperCase()}</strong>
                   </span>
                 </div>
                 <button 

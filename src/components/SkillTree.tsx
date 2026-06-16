@@ -99,7 +99,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ unlockedSkills, skillPoint
       {/* Header - No double slashes */}
       <div style={{ borderBottom: '2.5px solid #000', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          ACADEMIC CURRICULUM ROADMAP
+          ACADEMIC LEARNING PROGRESS
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>STUDY POINTS:</span>
