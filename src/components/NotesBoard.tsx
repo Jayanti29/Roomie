@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ref, onValue, set, update } from 'firebase/database';
-import { db, isFirebaseConfigured } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, get, push } from '../firebase';
 
 export const getCustomSubjectsForCourse = (course: string): string[] => {
   const c = course.toLowerCase();
@@ -24,6 +23,25 @@ export const getCustomSubjectsForCourse = (course: string): string[] => {
   }
   const capitalizedCourse = course.charAt(0).toUpperCase() + course.slice(1);
   return [capitalizedCourse, 'Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'Biology', 'Literature'];
+};
+
+export const downloadPdfContent = async (id: string, fileName: string) => {
+  if (isFirebaseConfigured && db) {
+    try {
+      const snap = await get(ref(db, 'pdf_contents/' + id));
+      if (snap.exists()) {
+        const dataUrl = snap.val();
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = fileName;
+        link.click();
+      } else {
+        alert('PDF content not found in database.');
+      }
+    } catch (err) {
+      console.error('Error fetching PDF:', err);
+    }
+  }
 };
 
 interface Comment {
@@ -280,7 +298,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
         // Delta Detection for Channel Messages & Mentions
         list.forEach(chan => {
           const prevCount = channelMsgCounts.current[chan.id];
-          const newMessages = chan.messages || [];
+          const newMessages = Array.isArray(chan.messages) ? chan.messages : Object.values(chan.messages || {});
           if (prevCount !== undefined && newMessages.length > prevCount) {
             const lastMsg = newMessages[newMessages.length - 1];
             if (lastMsg && lastMsg.senderEmail !== userEmail) {
@@ -313,7 +331,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
         // Delta Detection for Group Messages & Mentions
         list.forEach(g => {
           const prevCount = groupMsgCounts.current[g.id];
-          const newMessages = g.messages || [];
+          const newMessages = Array.isArray(g.messages) ? g.messages : Object.values(g.messages || {});
           if (prevCount !== undefined && newMessages.length > prevCount) {
             const lastMsg = newMessages[newMessages.length - 1];
             if (lastMsg && lastMsg.senderEmail !== userEmail) {
@@ -370,7 +388,8 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       const unsub = onValue(chatRef, (snap) => {
         if (snap.exists()) {
           const snapVal = snap.val() || {};
-          const msgs = snapVal.messages || [];
+          const msgsVal = snapVal.messages || [];
+          const msgs = Array.isArray(msgsVal) ? msgsVal : Object.values(msgsVal);
           const prevCount = dmMsgCounts.current[chatId];
           if (prevCount !== undefined && msgs.length > prevCount) {
             const lastMsg = msgs[msgs.length - 1];
@@ -401,14 +420,19 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     const unreadMessagesExist = dmMessages.some(msg => msg.senderEmail !== userEmail && !msg.read);
     
     if (unreadMessagesExist) {
-      const updated = dmMessages.map(msg => {
-        if (msg.senderEmail !== userEmail) {
-          return { ...msg, read: true };
-        }
-        return msg;
-      });
       if (isFirebaseConfigured && db) {
-        update(ref(db, 'private_chats/' + chatId), { messages: updated }).catch(() => {});
+        get(ref(db, 'private_chats/' + chatId + '/messages')).then((snap) => {
+          if (snap.exists()) {
+            const val = snap.val();
+            const updates: any = {};
+            Object.entries(val).forEach(([key, msg]: [string, any]) => {
+              if (msg.senderEmail !== userEmail && !msg.read) {
+                updates[`/private_chats/${chatId}/messages/${key}/read`] = true;
+              }
+            });
+            update(ref(db), updates).catch(() => {});
+          }
+        });
       }
     }
   }, [activeItem, dmMessages, userEmail, isFirebaseConfigured]);
@@ -536,8 +560,9 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     e.preventDefault();
     if (!title || !content) return;
 
+    const noteId = `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newNote: StudyNote = {
-      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: noteId,
       title,
       content,
       course,
@@ -546,12 +571,15 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       likes: 0,
       date: new Date().toLocaleDateString(),
       comments: [],
-      pdfAttachment: pdfFile || undefined
+      pdfAttachment: pdfFile ? { name: pdfFile.name, size: pdfFile.size } : undefined
     };
 
     if (isFirebaseConfigured && db) {
       try {
-        await set(ref(db, 'shared_notes/' + newNote.id), newNote);
+        if (pdfFile) {
+          await set(ref(db, 'pdf_contents/' + noteId), pdfFile.dataUrl);
+        }
+        await set(ref(db, 'shared_notes/' + noteId), newNote);
       } catch (err) {
         console.error('Database save note error:', err);
       }
@@ -695,10 +723,12 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     const gp = groups.find(g => g.id === groupId);
     if (!gp) return;
 
-    const isMember = (gp.members || []).includes(userEmail);
-    const updatedMembers = isMember
-      ? (gp.members || []).filter((m: string) => m !== userEmail)
-      : [...(gp.members || []), userEmail];
+    const gpMembers = Array.isArray(gp.members)
+      ? gp.members
+      : (gp.members ? Object.keys(gp.members).map(k => k.replace(/_/g, '.')) : []);
+
+    const isMember = gpMembers.includes(userEmail);
+    const userSlug = userEmail.replace(/\./g, '_');
 
     const sysMsg = {
       id: `sys_${Date.now()}`,
@@ -708,14 +738,9 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       timestamp: Date.now()
     };
 
-    const updatedGroup = {
-      ...gp,
-      members: updatedMembers,
-      messages: [...(gp.messages || []), sysMsg]
-    };
-
     if (isFirebaseConfigured && db) {
-      await update(ref(db, 'community_groups/' + groupId), updatedGroup);
+      await set(ref(db, `community_groups/${groupId}/members/${userSlug}`), isMember ? null : true);
+      await push(ref(db, `community_groups/${groupId}/messages`), sysMsg);
     }
   };
 
@@ -733,32 +758,14 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       read: false
     };
 
-    if (activeItem.type === 'channel') {
-      const chan = channels.find(c => c.id === activeItem.id);
-      if (chan && isFirebaseConfigured && db) {
-        const updatedChan = {
-          ...chan,
-          messages: [...(chan.messages || []), newMsg]
-        };
-        await update(ref(db, 'community_channels/' + activeItem.id), updatedChan);
-      }
-    } else if (activeItem.type === 'group') {
-      const gp = groups.find(g => g.id === activeItem.id);
-      if (gp && isFirebaseConfigured && db) {
-        const updatedGroup = {
-          ...gp,
-          messages: [...(gp.messages || []), newMsg]
-        };
-        await update(ref(db, 'community_groups/' + activeItem.id), updatedGroup);
-      }
-    } else if (activeItem.type === 'dm') {
-      const chatId = getDmChatId(userEmail, activeItem.id);
-      const updatedMessages = [...dmMessages, newMsg];
-      if (isFirebaseConfigured && db) {
-        const docRef = ref(db, 'private_chats/' + chatId);
-        await update(docRef, {
-          messages: updatedMessages
-        });
+    if (isFirebaseConfigured && db) {
+      if (activeItem.type === 'channel') {
+        await push(ref(db, `community_channels/${activeItem.id}/messages`), newMsg);
+      } else if (activeItem.type === 'group') {
+        await push(ref(db, `community_groups/${activeItem.id}/messages`), newMsg);
+      } else if (activeItem.type === 'dm') {
+        const chatId = getDmChatId(userEmail, activeItem.id);
+        await push(ref(db, `private_chats/${chatId}/messages`), newMsg);
       }
     }
 
@@ -798,8 +805,9 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
     e.preventDefault();
     if (!wsTitle || !wsContent) return;
 
+    const noteId = `ws_note_${Date.now()}`;
     const newNote = {
-      id: `ws_note_${Date.now()}`,
+      id: noteId,
       title: wsTitle,
       content: wsContent,
       course: wsSubject,
@@ -808,7 +816,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       date: new Date().toISOString().split('T')[0],
       likes: 0,
       comments: [],
-      pdfAttachment: wsPdfFile || undefined
+      pdfAttachment: wsPdfFile ? { name: wsPdfFile.name, size: wsPdfFile.size } : undefined
     };
 
     const sysMsg = {
@@ -819,32 +827,19 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
       timestamp: Date.now()
     };
 
-    if (activeItem.type === 'channel') {
-      const chan = channels.find(c => c.id === activeItem.id);
-      if (!chan) return;
-      const updatedChan = {
-        ...chan,
-        notes: [newNote, ...(chan.notes || [])],
-        messages: [...(chan.messages || []), sysMsg]
-      };
-
-      if (isFirebaseConfigured && db) {
-        await update(ref(db, 'community_channels/' + activeItem.id), updatedChan);
+    if (isFirebaseConfigured && db) {
+      if (wsPdfFile) {
+        await set(ref(db, 'pdf_contents/' + noteId), wsPdfFile.dataUrl);
       }
-      onRewardXp(25, `Shared note in #${chan.name}!`);
-    } else if (activeItem.type === 'group') {
-      const gp = groups.find(g => g.id === activeItem.id);
-      if (!gp) return;
-      const updatedGroup = {
-        ...gp,
-        notes: [newNote, ...(gp.notes || [])],
-        messages: [...(gp.messages || []), sysMsg]
-      };
-
-      if (isFirebaseConfigured && db) {
-        await update(ref(db, 'community_groups/' + activeItem.id), updatedGroup);
+      if (activeItem.type === 'channel') {
+        await push(ref(db, `community_channels/${activeItem.id}/notes`), newNote);
+        await push(ref(db, `community_channels/${activeItem.id}/messages`), sysMsg);
+        onRewardXp(25, `Shared note in #${channels.find(c => c.id === activeItem.id)?.name || ''}!`);
+      } else if (activeItem.type === 'group') {
+        await push(ref(db, `community_groups/${activeItem.id}/notes`), newNote);
+        await push(ref(db, `community_groups/${activeItem.id}/messages`), sysMsg);
+        onRewardXp(25, `Shared note in study group ${groups.find(g => g.id === activeItem.id)?.name || ''}!`);
       }
-      onRewardXp(25, `Shared note in study group ${gp.name}!`);
     }
 
     setWsTitle('');
@@ -869,11 +864,11 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
 
     const reader = new FileReader();
     reader.onload = async () => {
+      const pdfId = `ws_pdf_${Date.now()}`;
       const newPdf = {
-        id: `ws_pdf_${Date.now()}`,
+        id: pdfId,
         name: file.name,
         size: (file.size / 1024).toFixed(1) + ' KB',
-        dataUrl: reader.result as string,
         uploadedBy: userName,
         uploadedByEmail: userEmail,
         timestamp: Date.now()
@@ -887,32 +882,17 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
         timestamp: Date.now()
       };
 
-      if (activeItem.type === 'channel') {
-        const chan = channels.find(c => c.id === activeItem.id);
-        if (!chan) return;
-        const updatedChan = {
-          ...chan,
-          pdfs: [newPdf, ...(chan.pdfs || [])],
-          messages: [...(chan.pdfs || []), sysMsg]
-        };
-
-        if (isFirebaseConfigured && db) {
-          await update(ref(db, 'community_channels/' + activeItem.id), updatedChan);
+      if (isFirebaseConfigured && db) {
+        await set(ref(db, 'pdf_contents/' + pdfId), reader.result as string);
+        if (activeItem.type === 'channel') {
+          await push(ref(db, `community_channels/${activeItem.id}/pdfs`), newPdf);
+          await push(ref(db, `community_channels/${activeItem.id}/messages`), sysMsg);
+          onRewardXp(30, `Uploaded PDF to #${channels.find(c => c.id === activeItem.id)?.name || ''}!`);
+        } else if (activeItem.type === 'group') {
+          await push(ref(db, `community_groups/${activeItem.id}/pdfs`), newPdf);
+          await push(ref(db, `community_groups/${activeItem.id}/messages`), sysMsg);
+          onRewardXp(30, `Uploaded PDF to group ${groups.find(g => g.id === activeItem.id)?.name || ''}!`);
         }
-        onRewardXp(30, `Uploaded PDF to #${chan.name}!`);
-      } else if (activeItem.type === 'group') {
-        const gp = groups.find(g => g.id === activeItem.id);
-        if (!gp) return;
-        const updatedGroup = {
-          ...gp,
-          pdfs: [newPdf, ...(gp.pdfs || [])],
-          messages: [...(gp.messages || []), sysMsg]
-        };
-
-        if (isFirebaseConfigured && db) {
-          await update(ref(db, 'community_groups/' + activeItem.id), updatedGroup);
-        }
-        onRewardXp(30, `Uploaded PDF to group ${gp.name}!`);
       }
     };
     reader.readAsDataURL(file);
@@ -958,6 +938,14 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
   const currentChannel = activeItem.type === 'channel' ? channels.find(c => c.id === activeItem.id) : null;
   const currentGroup = activeItem.type === 'group' ? groups.find(g => g.id === activeItem.id) : null;
   const currentBuddy = activeItem.type === 'dm' ? presenceUsers.find(u => u.email === activeItem.id) : null;
+
+  const currentChannelMessages = currentChannel ? (Array.isArray(currentChannel.messages) ? currentChannel.messages : Object.values(currentChannel.messages || {})) : [];
+  const currentGroupMessages = currentGroup ? (Array.isArray(currentGroup.messages) ? currentGroup.messages : Object.values(currentGroup.messages || {})) : [];
+  const currentChannelNotes = currentChannel ? (Array.isArray(currentChannel.notes) ? currentChannel.notes : Object.values(currentChannel.notes || {})) : [];
+  const currentGroupNotes = currentGroup ? (Array.isArray(currentGroup.notes) ? currentGroup.notes : Object.values(currentGroup.notes || {})) : [];
+  const currentChannelPdfs = currentChannel ? (Array.isArray(currentChannel.pdfs) ? currentChannel.pdfs : Object.values(currentChannel.pdfs || {})) : [];
+  const currentGroupPdfs = currentGroup ? (Array.isArray(currentGroup.pdfs) ? currentGroup.pdfs : Object.values(currentGroup.pdfs || {})) : [];
+  const currentGroupMembers = currentGroup ? (Array.isArray(currentGroup.members) ? currentGroup.members : Object.keys(currentGroup.members || {}).map(k => k.replace(/_/g, '.'))) : [];
 
   // Force Feed tab on mobile if subview is notes
   useEffect(() => {
@@ -1137,7 +1125,8 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
               {groups.map(gp => {
-                const joined = (gp.members || []).includes(userEmail);
+                const gpMembers = Array.isArray(gp.members) ? gp.members : (gp.members ? Object.keys(gp.members).map(k => k.replace(/_/g, '.')) : []);
+                const joined = gpMembers.includes(userEmail);
                 return (
                   <button
                     key={gp.id}
@@ -1165,7 +1154,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                       {gp.name}
                     </span>
                     <span style={{ fontSize: '0.55rem', background: '#000', color: '#fff', padding: '0.05rem 0.25rem', borderRadius: '4px' }}>
-                      {joined ? 'IN' : gp.members?.length || 0}
+                      {joined ? 'IN' : gpMembers.length}
                     </span>
                   </button>
                 );
@@ -1793,24 +1782,21 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               <span style={{ fontSize: '0.65rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
                                 PDF: {note.pdfAttachment.name} ({note.pdfAttachment.size})
                               </span>
-                              {note.pdfAttachment.dataUrl && (
-                                <a
-                                  href={note.pdfAttachment.dataUrl}
-                                  download={note.pdfAttachment.name}
-                                  style={{
-                                    background: 'var(--accent-pink)',
-                                    border: '1.5px solid #000',
-                                    borderRadius: '5px',
-                                    padding: '0.15rem 0.4rem',
-                                    fontSize: '0.55rem',
-                                    color: '#fff',
-                                    fontWeight: 900,
-                                    textDecoration: 'none'
-                                  }}
-                                >
-                                  GET
-                                </a>
-                              )}
+                              <button
+                                onClick={() => downloadPdfContent(note.id, note.pdfAttachment!.name)}
+                                style={{
+                                  background: 'var(--accent-pink)',
+                                  border: '1.5px solid #000',
+                                  borderRadius: '5px',
+                                  padding: '0.15rem 0.4rem',
+                                  fontSize: '0.55rem',
+                                  color: '#fff',
+                                  fontWeight: 900,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                GET
+                              </button>
                             </div>
                           )}
 
@@ -1960,10 +1946,10 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                       gap: '0.5rem'
                     }}>
                       {activeItem.type === 'channel' ? (
-                        (currentChannel?.messages || []).length === 0 ? (
+                        currentChannelMessages.length === 0 ? (
                           <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No messages yet. Send the first message!</span>
                         ) : (
-                          (currentChannel?.messages || []).map((msg: any) => (
+                          currentChannelMessages.map((msg: any) => (
                             <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
                               <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                                 <span style={{ fontWeight: 800, fontSize: '0.75rem', color: msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000' }}>{msg.sender}</span>
@@ -1974,10 +1960,10 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                           ))
                         )
                       ) : (
-                        (currentGroup?.messages || []).length === 0 ? (
+                        currentGroupMessages.length === 0 ? (
                           <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No messages yet. Join group and say hi!</span>
                         ) : (
-                          (currentGroup?.messages || []).map((msg: any) => (
+                          currentGroupMessages.map((msg: any) => (
                             <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
                               <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                                 <span style={{ fontWeight: 800, fontSize: '0.75rem', color: msg.sender === 'System' ? '#64748b' : (msg.senderEmail === userEmail ? 'var(--accent-pink)' : '#000') }}>
@@ -1996,7 +1982,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                     </div>
 
                     {/* Chat composer form */}
-                    {activeItem.type === 'group' && !(currentGroup?.members || []).includes(userEmail) ? (
+                    {activeItem.type === 'group' && !currentGroupMembers.includes(userEmail) ? (
                       <div style={{ display: 'flex', background: '#ffeef2', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: 800 }}>You must join this study group to participate in chat.</span>
                         <button onClick={() => handleToggleJoinGroup(activeItem.id)} className="cyber-btn pink-fill" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}>JOIN GROUP</button>
@@ -2065,10 +2051,10 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                     {/* Workspace notes listing */}
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {activeItem.type === 'channel' ? (
-                        (currentChannel?.notes || []).length === 0 ? (
+                        currentChannelNotes.length === 0 ? (
                           <span style={{ textAlign: 'center', margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No shared notes in this channel yet.</span>
                         ) : (
-                          (currentChannel?.notes || []).map((n: any) => (
+                          currentChannelNotes.map((n: any) => (
                             <div key={n.id} style={{ background: '#fff', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', boxShadow: '2px 2px 0px #000' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                                 <span style={{ fontWeight: 800 }}>{n.author}</span>
@@ -2077,18 +2063,21 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               <h5 style={{ margin: '0.1rem 0', fontSize: '0.8rem', fontWeight: 900 }}>{n.title}</h5>
                               <p style={{ margin: 0, fontSize: '0.72rem' }}>{n.content}</p>
                               {n.pdfAttachment && (
-                                <a href={n.pdfAttachment.dataUrl} download={n.pdfAttachment.name} style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', marginTop: '0.2rem', fontWeight: 800 }}>
+                                <button
+                                  onClick={() => downloadPdfContent(n.id, n.pdfAttachment.name)}
+                                  style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', background: 'none', border: 'none', cursor: 'pointer', marginTop: '0.2rem', fontWeight: 800 }}
+                                >
                                   📥 DOWNLOAD ATTACHMENT ({n.pdfAttachment.name})
-                                </a>
+                                </button>
                               )}
                             </div>
                           ))
                         )
                       ) : (
-                        (currentGroup?.notes || []).length === 0 ? (
+                        currentGroupNotes.length === 0 ? (
                           <span style={{ textAlign: 'center', margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No shared notes in this study group yet.</span>
                         ) : (
-                          (currentGroup?.notes || []).map((n: any) => (
+                          currentGroupNotes.map((n: any) => (
                             <div key={n.id} style={{ background: '#fff', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', boxShadow: '2px 2px 0px #000' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                                 <span style={{ fontWeight: 800 }}>{n.author}</span>
@@ -2097,9 +2086,12 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                               <h5 style={{ margin: '0.1rem 0', fontSize: '0.8rem', fontWeight: 900 }}>{n.title}</h5>
                               <p style={{ margin: 0, fontSize: '0.72rem' }}>{n.content}</p>
                               {n.pdfAttachment && (
-                                <a href={n.pdfAttachment.dataUrl} download={n.pdfAttachment.name} style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', marginTop: '0.2rem', fontWeight: 800 }}>
+                                <button
+                                  onClick={() => downloadPdfContent(n.id, n.pdfAttachment.name)}
+                                  style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--accent-pink)', background: 'none', border: 'none', cursor: 'pointer', marginTop: '0.2rem', fontWeight: 800 }}
+                                >
                                   📥 DOWNLOAD ATTACHMENT ({n.pdfAttachment.name})
-                                </a>
+                                </button>
                               )}
                             </div>
                           ))
@@ -2115,30 +2107,42 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                     {/* PDFs Feed list */}
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#fafafa', border: '2px solid #000', borderRadius: '10px', padding: '0.5rem' }}>
                       {activeItem.type === 'channel' ? (
-                        (currentChannel?.pdfs || []).length === 0 ? (
+                        currentChannelPdfs.length === 0 ? (
                           <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No PDFs uploaded in this channel yet.</span>
                         ) : (
-                          (currentChannel?.pdfs || []).map((pdf: any) => (
+                          currentChannelPdfs.map((pdf: any) => (
                             <div key={pdf.id} style={{ background: '#fff', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
                                 <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>📄 {pdf.name}</span>
                                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{pdf.size} • Uploaded by {pdf.uploadedBy}</div>
                               </div>
-                              <a href={pdf.dataUrl} download={pdf.name} className="cyber-btn cyan-fill" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem' }}>DOWNLOAD</a>
+                              <button
+                                onClick={() => downloadPdfContent(pdf.id, pdf.name)}
+                                className="cyber-btn cyan-fill"
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', cursor: 'pointer' }}
+                              >
+                                DOWNLOAD
+                              </button>
                             </div>
                           ))
                         )
                       ) : (
-                        (currentGroup?.pdfs || []).length === 0 ? (
+                        currentGroupPdfs.length === 0 ? (
                           <span style={{ margin: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No PDFs uploaded in this study group yet.</span>
                         ) : (
-                          (currentGroup?.pdfs || []).map((pdf: any) => (
+                          currentGroupPdfs.map((pdf: any) => (
                             <div key={pdf.id} style={{ background: '#fff', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
                                 <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>📄 {pdf.name}</span>
                                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{pdf.size} • Uploaded by {pdf.uploadedBy}</div>
                               </div>
-                              <a href={pdf.dataUrl} download={pdf.name} className="cyber-btn cyan-fill" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem' }}>DOWNLOAD</a>
+                              <button
+                                onClick={() => downloadPdfContent(pdf.id, pdf.name)}
+                                className="cyber-btn cyan-fill"
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', cursor: 'pointer' }}
+                              >
+                                DOWNLOAD
+                              </button>
                             </div>
                           ))
                         )
@@ -2150,7 +2154,7 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                       <div style={{ background: '#ffeef2', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', textAlign: 'center' }}>
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--accent-pink)' }}>🔒 GUEST LIMIT: UPLOAD LOCKED</span>
                       </div>
-                    ) : activeItem.type === 'group' && !(currentGroup?.members || []).includes(userEmail) ? (
+                    ) : activeItem.type === 'group' && !currentGroupMembers.includes(userEmail) ? (
                       <span style={{ fontSize: '0.7rem', fontStyle: 'italic', textAlign: 'center' }}>Join group to upload materials.</span>
                     ) : (
                       <div style={{ background: '#fff9db', border: '2px solid #000', borderRadius: '8px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -2165,18 +2169,18 @@ export const NotesBoard: React.FC<NotesBoardProps> = ({ userName, userEmail, use
                 {wsTab === 'members' && activeItem.type === 'group' && (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #000', paddingBottom: '0.4rem' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>Group Members: {(currentGroup?.members || []).length}</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>Group Members: {currentGroupMembers.length}</span>
                       <button
                         onClick={() => handleToggleJoinGroup(activeItem.id)}
-                        className={`cyber-btn ${(currentGroup?.members || []).includes(userEmail) ? '' : 'pink-fill'}`}
+                        className={`cyber-btn ${currentGroupMembers.includes(userEmail) ? '' : 'pink-fill'}`}
                         style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
                       >
-                        {(currentGroup?.members || []).includes(userEmail) ? 'LEAVE STUDY GROUP' : 'JOIN STUDY GROUP'}
+                        {currentGroupMembers.includes(userEmail) ? 'LEAVE STUDY GROUP' : 'JOIN STUDY GROUP'}
                       </button>
                     </div>
 
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {(currentGroup?.members || []).map((memberEmail: string) => {
+                      {currentGroupMembers.map((memberEmail: string) => {
                         const userProfile = presenceUsers.find(u => u.email === memberEmail);
                         const isOnline = userProfile?.online;
                         return (

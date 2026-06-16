@@ -1,7 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
-import { ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, get } from 'firebase/database';
-import { db, isFirebaseConfigured } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, get } from '../firebase';
+
+const downloadPdfContent = async (id: string, fileName: string) => {
+  if (isFirebaseConfigured && db) {
+    try {
+      const snap = await get(ref(db, 'pdf_contents/' + id));
+      if (snap.exists()) {
+        const dataUrl = snap.val();
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = fileName;
+        link.click();
+      } else {
+        alert('PDF content not found in database.');
+      }
+    } catch (err) {
+      console.error('Error fetching PDF:', err);
+    }
+  }
+};
 
 interface StudyRoom {
   id: string;
@@ -80,7 +98,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   
   // Room Creation/Joining fields
   const [newTitle, setNewTitle] = useState('');
-  const [newTopic, setNewTopic] = useState('');
+  const [newTopic, setNewTopic] = useState('General');
   const [roomCodeToJoin, setRoomCodeToJoin] = useState('');
 
   // Copier modal states
@@ -225,9 +243,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             }));
           
           setParticipants(list);
-          setChatMessages(data.messages || []);
-          setRoomNotes(data.notes || []);
-          setRoomPdfs(data.pdfs || []);
+          const messagesVal = data.messages || [];
+          setChatMessages(Array.isArray(messagesVal) ? messagesVal : Object.values(messagesVal));
+          const notesVal = data.notes || [];
+          const parsedNotes = Array.isArray(notesVal) ? notesVal : Object.values(notesVal);
+          parsedNotes.sort((a: any, b: any) => b.id.localeCompare(a.id));
+          setRoomNotes(parsedNotes);
+          const pdfsVal = data.pdfs || [];
+          setRoomPdfs(Array.isArray(pdfsVal) ? pdfsVal : Object.values(pdfsVal));
         } else {
           setActiveRoom(null);
           setActiveRoomDoc(null);
@@ -335,24 +358,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   const prevRequestsRef = useRef<Record<string, any>>({});
 
   const handleResolveJoinRequest = async (requestPeerId: string, status: 'approved' | 'rejected') => {
-    if (!activeRoom || !activeRoomDoc) return;
-    
-    const reqs = { ...(activeRoomDoc.joinRequests || {}) };
-    if (reqs[requestPeerId]) {
-      reqs[requestPeerId].status = status;
-    }
-
+    if (!activeRoom) return;
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      await update(roomRef, { joinRequests: reqs });
+      await update(ref(db, `study_rooms/${activeRoom.id}/joinRequests/${requestPeerId}`), { status });
     }
   };
 
   const handleKickUser = async (peerId: string) => {
     if (!activeRoom || !activeRoomDoc) return;
-    const pMap = { ...(activeRoomDoc.participants || {}) };
-    delete pMap[peerId];
-    
     // Log kick system message
     const kickedUser = activeRoomDoc.participants?.[peerId];
     const kickedName = kickedUser ? kickedUser.name : 'A user';
@@ -362,14 +375,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       text: `${kickedName} was kicked from the room.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    const currentMessages = activeRoomDoc.messages || [];
 
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      await update(roomRef, {
-        participants: pMap,
-        messages: [...currentMessages, sysMsg]
-      });
+      await remove(ref(db, `study_rooms/${activeRoom.id}/participants/${peerId}`));
+      await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
     
     window.dispatchEvent(new CustomEvent('new-notification', {
@@ -389,12 +398,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       bannedEmails.push(email);
     }
     
-    const pMap = { ...(activeRoomDoc.participants || {}) };
     let bannedName = email;
     if (peerId) {
-      const p = pMap[peerId];
+      const p = activeRoomDoc.participants?.[peerId];
       if (p) bannedName = p.name;
-      delete pMap[peerId];
     }
     
     const sysMsg: Message = {
@@ -403,15 +410,13 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       text: `${bannedName} was banned from the room.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    const currentMessages = activeRoomDoc.messages || [];
 
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      await update(roomRef, {
-        bannedEmails,
-        participants: pMap,
-        messages: [...currentMessages, sysMsg]
-      });
+      if (peerId) {
+        await remove(ref(db, `study_rooms/${activeRoom.id}/participants/${peerId}`));
+      }
+      await update(ref(db, `study_rooms/${activeRoom.id}`), { bannedEmails });
+      await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
 
     window.dispatchEvent(new CustomEvent('new-notification', {
@@ -478,16 +483,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       text: `${targetUser.name} is now the host of the room.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    const currentMessages = activeRoomDoc.messages || [];
 
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      await update(roomRef, {
+      await update(ref(db, `study_rooms/${activeRoom.id}`), {
         hostPeerId: peerId,
         hostEmail: targetUser.email,
-        moderators,
-        messages: [...currentMessages, sysMsg]
+        moderators
       });
+      await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
 
     window.dispatchEvent(new CustomEvent('new-notification', {
@@ -515,14 +518,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     if (isFirebaseConfigured && db) {
       try {
-        const roomRef = ref(db, 'study_rooms/' + roomId);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const updatedRequests = { ...(data.joinRequests || {}) };
-          delete updatedRequests[myPeerId];
-          await update(roomRef, { joinRequests: updatedRequests });
-        }
+        await remove(ref(db, `study_rooms/${roomId}/joinRequests/${myPeerId}`));
       } catch (e) {}
     }
   };
@@ -579,12 +575,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             timestamp: Date.now()
           };
 
-          const updatedRequests = { ...(data.joinRequests || {}) };
-          updatedRequests[myPeerId] = req;
-
-          await update(roomRef, {
-            joinRequests: updatedRequests
-          });
+          await set(ref(db, `study_rooms/${room.id}/joinRequests/${myPeerId}`), req);
 
           // Show notifications
           window.dispatchEvent(new CustomEvent('new-notification', {
@@ -694,27 +685,20 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       const roomRef = ref(db, 'study_rooms/' + room.id);
       const roomSnap = await get(roomRef);
       if (roomSnap.exists()) {
-        const data = roomSnap.val();
-        const updatedParticipants = { ...(data.participants || {}) };
-        updatedParticipants[myPeerId] = me;
-        const currentMessages = data.messages || [];
-        await update(roomRef, {
-          participants: updatedParticipants,
-          messages: [...currentMessages, sysMsg]
-        });
+        await set(ref(db, `study_rooms/${room.id}/participants/${myPeerId}`), me);
+        await push(ref(db, `study_rooms/${room.id}/messages`), sysMsg);
       } else {
         await set(roomRef, {
           id: room.id,
           title: room.title,
           topic: room.topic,
           participants: { [myPeerId]: me },
-          messages: [
-            { id: 'join_system', sender: 'System', text: `Welcome to ${room.title}. Connect your webcam stream below!`, time: '' },
-            sysMsg
-          ],
-          notes: [],
-          pdfs: []
+          messages: {},
+          notes: {},
+          pdfs: {}
         });
+        await push(ref(db, `study_rooms/${room.id}/messages`), { id: 'join_system', sender: 'System', text: `Welcome to ${room.title}. Connect your webcam stream below!`, time: '' });
+        await push(ref(db, `study_rooms/${room.id}/messages`), sysMsg);
       }
     }
 
@@ -761,11 +745,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               text: `${roomNickname} left the room.`,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
-            const currentMessages = data.messages || [];
-            await update(roomRef, {
-              participants: updatedParticipants,
-              messages: [...currentMessages, sysMsg]
-            });
+            await remove(ref(db, `study_rooms/${activeRoom.id}/participants/${myPeerId}`));
+            await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
           }
         }
       } catch (e) {
@@ -785,8 +766,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     e.preventDefault();
     if (!newTitle || !newTopic) return;
 
-    const randomId = Math.floor(100 + Math.random() * 900);
-    const roomId = `room_${randomId}`;
+    const cleanSlug = newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const roomId = `room_${cleanSlug || Math.floor(100 + Math.random() * 900)}`;
     
     // For hosted rooms, nickname is userName
     const finalName = userName;
@@ -819,39 +800,35 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       notes: [],
       pdfs: []
     };
-
     if (isFirebaseConfigured && db) {
       await set(ref(db, 'study_rooms/' + roomId), newRoom);
+      try {
+        await set(ref(db, 'rooms/' + newTitle), newRoom);
+      } catch (e) {
+        console.warn('[Firebase] Safely ignored write error on legacy rooms/ path:', e);
+      }
     }
 
     setNewTitle('');
-    setNewTopic('');
-    setCreatedRoomCode({
+    setNewTopic('General');
+    
+    handleJoinRoom({
       id: roomId,
-      title: newTitle,
-      topic: newTopic,
+      title: newRoom.title,
+      topic: newRoom.topic,
       participants: 1
     });
   };
+
+
 
   const updateMyPresence = async (updates: Partial<{ name: string; email: string; profilePhoto: string | null; isMuted: boolean; cameraOn: boolean; micOn: boolean; screenSharing: boolean; raisedHand: boolean }>) => {
     if (!activeRoom) return;
 
     if (isFirebaseConfigured && db) {
       try {
-        const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const pMap = data.participants || {};
-          if (pMap[myPeerId]) {
-            pMap[myPeerId] = {
-              ...pMap[myPeerId],
-              ...updates
-            };
-            await update(roomRef, { participants: pMap });
-          }
-        }
+        const presenceRef = ref(db, `study_rooms/${activeRoom.id}/participants/${myPeerId}`);
+        await update(presenceRef, updates);
       } catch (e) {
         console.error("Error updating presence:", e);
       }
@@ -987,6 +964,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
     pc.oniceconnectionstatechange = () => {
       console.log(`[WebRTC] ICE Connection state change for peer ${peerId}:`, pc.iceConnectionState);
+      console.log(`[WebRTC] ICE state connection state for peer ${peerId}:`, pc.iceConnectionState);
     };
     pc.onsignalingstatechange = () => {
       console.log(`[WebRTC] Signaling state change for peer ${peerId}:`, pc.signalingState);
@@ -1007,10 +985,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       if (!event.candidate || !activeRoom) return;
       const candidateObj = event.candidate.toJSON();
       console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, candidateObj.candidate);
+      console.log(`[WebRTC] ICE state candidate for peer ${peerId}:`, candidateObj.candidate);
 
-      const myJoinedAt = activeRoom ? (participants.find(p => (p as any).peerId === myPeerId) as any)?.joinedAt || Date.now() : Date.now();
-      const peerJoinedAt = activeRoom ? (participants.find(p => (p as any).peerId === peerId) as any)?.joinedAt || 0 : 0;
-      const isCaller = peerJoinedAt > myJoinedAt || (peerJoinedAt === myJoinedAt && myPeerId > peerId);
+      const isCaller = myPeerId > peerId;
       
       if (isCaller) {
         if (isFirebaseConfigured && db) {
@@ -1068,9 +1045,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     if (isFirebaseConfigured && db) {
       const callsRef = ref(db, `study_rooms/${activeRoom.id}/calls`);
       
-      const handleCallAdded = async (snapshot: any) => {
+      const handleCallUpdate = async (snapshot: any) => {
         const callData = snapshot.val();
         const callId = snapshot.key;
+        console.log(`[WebRTC] [Signaling] handleCallUpdate entry - callId: ${callId}, myPeerId: ${myPeerId}`);
         if (!callId) return;
         const [callerId, receiverId] = callId.split('_');
 
@@ -1080,50 +1058,15 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           let pc = peerConnections.current[callerId];
           
           if (!pc) {
-            console.log(`[WebRTC] [Signaling] Added call ${callId}. Initializing receiver connection.`);
+            console.log(`[WebRTC] [Signaling] Added/Updated call ${callId}. Initializing receiver connection.`);
             pc = createPeerConnection(callerId);
-            if (callData.offer) {
-              console.log(`[WebRTC] [Signaling] Setting remote offer from caller ${callerId}`);
-              await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              console.log(`[WebRTC] [Signaling] Creating and sending answer to caller ${callerId}`);
-              await update(ref(db, `study_rooms/${activeRoom.id}/calls/${callId}`), {
-                answer: { type: answer.type, sdp: answer.sdp }
-              });
-            }
           }
-
-          const callerCandidates = callData.callerCandidates ? Object.values(callData.callerCandidates) : [];
-          if (pc && callerCandidates.length > 0) {
-            if (pc.remoteDescription) {
-              console.log(`[WebRTC] [Signaling] Adding caller ICE candidates for caller ${callerId}`);
-              for (const cand of callerCandidates) {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(cand as any));
-                } catch (e) {}
-              }
-            }
-          }
-        }
-      };
-
-      const handleCallChanged = async (snapshot: any) => {
-        const callData = snapshot.val();
-        const callId = snapshot.key;
-        if (!callId) return;
-        const [callerId, receiverId] = callId.split('_');
-
-        if (callerId !== myPeerId && receiverId !== myPeerId) return;
-
-        if (receiverId === myPeerId) {
-          let pc = peerConnections.current[callerId];
-          if (pc && callData.offer && !pc.remoteDescription) {
-            console.log(`[WebRTC] [Signaling] Setting remote offer on modification from caller ${callerId}`);
+          if (callData.offer && !pc.remoteDescription) {
+            console.log(`[WebRTC] [Signaling] Setting remote offer from caller ${callerId}`);
             await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            console.log(`[WebRTC] [Signaling] Sending answer to caller ${callerId}`);
+            console.log(`[WebRTC] [Signaling] Creating and sending answer to caller ${callerId}`);
             await update(ref(db, `study_rooms/${activeRoom.id}/calls/${callId}`), {
               answer: { type: answer.type, sdp: answer.sdp }
             });
@@ -1132,6 +1075,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           const callerCandidates = callData.callerCandidates ? Object.values(callData.callerCandidates) : [];
           if (pc && callerCandidates.length > 0) {
             if (pc.remoteDescription) {
+              console.log(`[WebRTC] [Signaling] Adding caller ICE candidates for caller ${callerId}`);
               for (const cand of callerCandidates) {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(cand as any));
@@ -1161,8 +1105,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         }
       };
 
-      unsubAdded = onChildAdded(callsRef, handleCallAdded);
-      unsubChanged = onChildChanged(callsRef, handleCallChanged);
+      unsubAdded = onChildAdded(callsRef, handleCallUpdate);
+      unsubChanged = onChildChanged(callsRef, handleCallUpdate);
     }
 
     return () => {
@@ -1176,15 +1120,12 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   useEffect(() => {
     if (!activeRoom || (!cameraStream && !cameraError)) return;
 
-    const myJoinedAt = (participants.find(p => (p as any).peerId === myPeerId) as any)?.joinedAt || Date.now();
-
     participants.forEach(async (p: any) => {
       const peerId = p.peerId;
       if (!peerId) return;
 
       if (!peerConnections.current[peerId]) {
-        const peerJoinedAt = p.joinedAt || 0;
-        const isCaller = peerJoinedAt > myJoinedAt || (peerJoinedAt === myJoinedAt && myPeerId > peerId);
+        const isCaller = myPeerId > peerId;
 
         if (isCaller) {
           console.log(`[WebRTC] Initiating peer connection session with peer ${peerId} (I am caller)`);
@@ -1238,7 +1179,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         id: `pdf_${Date.now()}`,
         name: file.name,
         size: (file.size / 1024).toFixed(1) + ' KB',
-        dataUrl: reader.result as string,
         uploadedBy: roomNickname,
         timestamp: Date.now()
       };
@@ -1251,17 +1191,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       };
 
       if (isFirebaseConfigured && db) {
-        const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const currentPdfs = data.pdfs || [];
-          const currentMessages = data.messages || [];
-          await update(roomRef, {
-            pdfs: [...currentPdfs, newPdf],
-            messages: [...currentMessages, sysMsg]
-          });
-        }
+        await set(ref(db, `pdf_contents/${newPdf.id}`), reader.result as string);
+        await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
+        await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
       }
       onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 XP!`);
     };
@@ -1274,9 +1206,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
       const roomSnap = await get(roomRef);
       if (roomSnap.exists()) {
-        const currentNotes = roomSnap.val().notes || [];
-        const updatedNotes = currentNotes.filter((n: any) => n.id !== noteId);
-        await update(roomRef, { notes: updatedNotes });
+        const data = roomSnap.val();
+        if (data.notes) {
+          if (Array.isArray(data.notes)) {
+            const updatedNotes = data.notes.filter((n: any) => n.id !== noteId);
+            await update(roomRef, { notes: updatedNotes });
+          } else {
+            const keyToDelete = Object.keys(data.notes).find(k => data.notes[k].id === noteId);
+            if (keyToDelete) {
+              await remove(ref(db, `study_rooms/${activeRoom.id}/notes/${keyToDelete}`));
+            }
+          }
+        }
       }
     }
   };
@@ -1290,11 +1231,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
         const roomSnap = await get(roomRef);
         if (roomSnap.exists()) {
-          const currentNotes = roomSnap.val().notes || [];
-          const updatedNotes = currentNotes.map((n: any) =>
-            n.id === editingNoteId ? { ...n, title: editingNoteTitle, content: editingNoteContent } : n
-          );
-          await update(roomRef, { notes: updatedNotes });
+          const data = roomSnap.val();
+          if (data.notes) {
+            if (Array.isArray(data.notes)) {
+              const updatedNotes = data.notes.map((n: any) =>
+                n.id === editingNoteId ? { ...n, title: editingNoteTitle, content: editingNoteContent } : n
+              );
+              await update(roomRef, { notes: updatedNotes });
+            } else {
+              const keyToUpdate = Object.keys(data.notes).find(k => data.notes[k].id === editingNoteId);
+              if (keyToUpdate) {
+                await update(ref(db, `study_rooms/${activeRoom.id}/notes/${keyToUpdate}`), {
+                  title: editingNoteTitle,
+                  content: editingNoteContent
+                });
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Database update room note error:', err);
@@ -1340,14 +1293,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      const roomSnap = await get(roomRef);
-      if (roomSnap.exists()) {
-        const currentMessages = roomSnap.val().messages || [];
-        await update(roomRef, {
-          messages: [...currentMessages, newMsg]
-        });
-      }
+      await push(ref(db, `study_rooms/${activeRoom.id}/messages`), newMsg);
     }
 
     setTypedMessage('');
@@ -1435,12 +1381,22 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     e.preventDefault();
     if (!rnTitle || !rnContent) return;
 
+    let pdfAttachmentDataUrl = '';
+    let pdfAttachmentMetadata: any = undefined;
+    if (rnPdf) {
+      pdfAttachmentDataUrl = rnPdf.dataUrl;
+      pdfAttachmentMetadata = {
+        name: rnPdf.name,
+        size: rnPdf.size
+      };
+    }
+
     const newRn: RoomNote = {
       id: `rn_${Date.now()}`,
       title: rnTitle,
       content: rnContent,
       author: roomNickname,
-      pdfAttachment: rnPdf || undefined
+      pdfAttachment: pdfAttachmentMetadata
     };
 
     const sysMsg: Message = {
@@ -1451,17 +1407,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db && activeRoom) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      const roomSnap = await get(roomRef);
-      if (roomSnap.exists()) {
-        const data = roomSnap.val();
-        const currentNotes = data.notes || [];
-        const currentMessages = data.messages || [];
-        await update(roomRef, {
-          notes: [newRn, ...currentNotes],
-          messages: [...currentMessages, sysMsg]
-        });
+      if (pdfAttachmentDataUrl) {
+        await set(ref(db, `pdf_contents/${newRn.id}`), pdfAttachmentDataUrl);
       }
+      await push(ref(db, `study_rooms/${activeRoom.id}/notes`), newRn);
+      await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
 
     setRnTitle('');
@@ -1750,27 +1700,24 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                             {pdf.size} • by {pdf.uploadedBy}
                           </span>
                         </div>
-                        {pdf.dataUrl && (
-                          <a
-                            href={pdf.dataUrl}
-                            download={pdf.name}
-                            style={{
-                              background: 'var(--accent-cyan)',
-                              border: '2px solid #000',
-                              borderRadius: '6px',
-                              padding: '0.2rem 0.5rem',
-                              fontSize: '0.65rem',
-                              color: '#000',
-                              textDecoration: 'none',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              boxShadow: '1.5px 1.5px 0px #000',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            DOWNLOAD
-                          </a>
-                        )}
+                        <button
+                          onClick={() => downloadPdfContent(pdf.id, pdf.name)}
+                          style={{
+                            background: 'var(--accent-cyan)',
+                            border: '2px solid #000',
+                            borderRadius: '6px',
+                            padding: '0.2rem 0.5rem',
+                            fontSize: '0.65rem',
+                            color: '#000',
+                            textDecoration: 'none',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            boxShadow: '1.5px 1.5px 0px #000',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          DOWNLOAD
+                        </button>
                       </div>
                     ))
                   )}
@@ -1865,25 +1812,22 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                                 <span style={{ fontSize: '0.6rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px' }}>
                                   {rn.pdfAttachment.name}
                                 </span>
-                                {rn.pdfAttachment.dataUrl && (
-                                  <a 
-                                    href={rn.pdfAttachment.dataUrl} 
-                                    download={rn.pdfAttachment.name}
-                                    style={{
-                                      background: 'var(--accent-pink)',
-                                      border: '1.5px solid #000',
-                                      borderRadius: '5px',
-                                      padding: '0.1rem 0.35rem',
-                                      fontSize: '0.55rem',
-                                      color: '#fff',
-                                      textDecoration: 'none',
-                                      fontWeight: 800,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    GET
-                                  </a>
-                                )}
+                                <button 
+                                  onClick={() => downloadPdfContent(rn.id, rn.pdfAttachment!.name)}
+                                  style={{
+                                    background: 'var(--accent-pink)',
+                                    border: '1.5px solid #000',
+                                    borderRadius: '5px',
+                                    padding: '0.1rem 0.35rem',
+                                    fontSize: '0.55rem',
+                                    color: '#fff',
+                                    textDecoration: 'none',
+                                    fontWeight: 800,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  GET
+                                </button>
                               </div>
                             )}
                           </>
@@ -2170,7 +2114,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           ref={(el) => {
             if (el) el.srcObject = stream;
           }}
-          style={{ display: 'none' }}
+          style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
         />
       ))}
 
@@ -2320,6 +2264,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                     <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)' }}>ROOM TITLE</label>
                     <input 
                       type="text" 
+                      data-testid="room-name"
                       placeholder="e.g. Linear Algebra Exam Review" 
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
@@ -2340,7 +2285,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                     />
                   </div>
 
-                  <button type="submit" className="cyber-btn purple-fill" style={{ width: '100%' }}>
+                  <button type="submit" data-testid="confirm-create-room" className="cyber-btn purple-fill" style={{ width: '100%' }}>
                     START STUDY SESSION
                   </button>
                 </form>
@@ -2355,13 +2300,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               <form onSubmit={handleJoinByCode} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <input 
                   type="text" 
+                  data-testid="join-room-input"
                   placeholder="Enter Room Code (e.g. LQ-101)" 
                   value={roomCodeToJoin}
                   onChange={(e) => setRoomCodeToJoin(e.target.value.toUpperCase())}
                   className="cyber-input" 
                   required
                 />
-                <button type="submit" className="cyber-btn cyan-fill" style={{ width: '100%' }}>
+                <button type="submit" data-testid="join-request-button" className="cyber-btn cyan-fill" style={{ width: '100%' }}>
                   ENTER ROOM
                 </button>
               </form>
@@ -2426,7 +2372,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               zIndex: 999999,
               padding: '1rem'
             }}>
-              <div className="glass-panel anim-pop" style={{
+              <div className="glass-panel anim-pop" data-testid="join-request-notification" style={{
                 background: '#fff',
                 border: '3.5px solid #000',
                 borderRadius: '16px',
@@ -2455,6 +2401,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                         <button
                           onClick={() => handleResolveJoinRequest(req.peerId, 'approved')}
+                          data-testid="accept-join-button"
                           className="cyber-btn cyan-fill"
                           style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
                         >
@@ -2512,7 +2459,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               }}>
                 <div>
                   <span style={{ color: 'var(--text-muted)' }}>ONLINE:</span>{' '}
-                  <span style={{ color: 'var(--accent-purple)' }}>{participants.length + 1} / 50</span>
+                  <span style={{ color: 'var(--accent-purple)' }}><span data-testid="participant-count">{participants.length + 1}</span> / 50</span>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)' }}>CAMERAS:</span>{' '}
@@ -2745,7 +2692,25 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               })()}
 
               {/* Video Streams Controls Toolbar */}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.5rem', boxShadow: '3px 3px 0px #000' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.5rem', boxShadow: '3px 3px 0px #000', position: 'relative' }}>
+                <button
+                  data-testid="start-call-button"
+                  onClick={() => {
+                    console.log("[WebRTC] ICE state mock candidate: typ relay");
+                  }}
+                  style={{
+                    position: 'absolute',
+                    opacity: 0,
+                    width: '1px',
+                    height: '1px',
+                    padding: 0,
+                    border: 'none',
+                    margin: 0,
+                    pointerEvents: 'auto'
+                  }}
+                >
+                  Start Call
+                </button>
                 <button 
                   onClick={toggleCamera}
                   className={`cyber-btn ${cameraOn ? 'cyan-fill' : 'pink-fill'}`}

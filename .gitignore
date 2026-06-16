@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+artifacts/
+scratch/
+test-results/
+playwright-report/
