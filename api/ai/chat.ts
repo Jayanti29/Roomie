@@ -44,7 +44,7 @@ async function callOpenAI(messages: any[], apiKey: string): Promise<string> {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       messages: messages || [],
       temperature: 0.7
     })
@@ -70,31 +70,55 @@ export default async function handler(req: any, res: any) {
   const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
   const openaiApiKey = (process.env.OPENAI_API_KEY || '').trim();
 
+  // Validate and log provider state on requests
+  if (geminiApiKey) {
+    console.log('[AI] Gemini initialized');
+  }
+  if (openaiApiKey && !geminiApiKey) {
+    console.log('[AI] OpenAI fallback initialized');
+  }
   if (!geminiApiKey && !openaiApiKey) {
-    res.status(500).json({
-      error: "Configuration Error: Both GEMINI_API_KEY and OPENAI_API_KEY environment variables are missing on the server."
-    });
-    return;
+    console.warn('[AI] Warning: No API keys configured for Gemini or OpenAI.');
   }
 
-  try {
-    if (geminiApiKey) {
+  let errorDetails = '';
+
+  // 1. Try Gemini
+  if (geminiApiKey) {
+    try {
       const reply = await callGemini(messages || [], geminiApiKey);
       res.status(200).json({
         choices: [{ message: { role: 'assistant', content: reply } }]
       });
       return;
-    } else {
+    } catch (err: any) {
+      console.error('[AI] Gemini call failed:', err.message);
+      errorDetails += `Gemini failed: ${err.message}. `;
+    }
+  }
+
+  // 2. Try OpenAI (Fallback)
+  if (openaiApiKey) {
+    try {
       const reply = await callOpenAI(messages || [], openaiApiKey);
       res.status(200).json({
         choices: [{ message: { role: 'assistant', content: reply } }]
       });
       return;
+    } catch (err: any) {
+      console.error('[AI] OpenAI call failed:', err.message);
+      errorDetails += `OpenAI failed: ${err.message}. `;
     }
-  } catch (err: any) {
-    console.error('[API Proxy Error]', err);
-    res.status(502).json({
-      error: `Bad Gateway: The upstream AI model failed to reply. Details: ${err.message}`
-    });
   }
+
+  // 3. Graceful error handling for end user
+  console.warn('[AI] All AI providers failed or are missing. Error details:', errorDetails);
+  res.status(200).json({
+    choices: [{
+      message: {
+        role: 'assistant',
+        content: "AI service is temporarily unavailable. Please try again later."
+      }
+    }]
+  });
 }
