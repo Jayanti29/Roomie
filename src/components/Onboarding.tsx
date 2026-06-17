@@ -1,6 +1,6 @@
 // src/components/Onboarding.tsx
 import React, { useState, useRef } from 'react';
-import { statesAndUTs, popularColleges, popularUniversities, degrees, specializations } from '../utils/collegeData';
+import { statesAndUTs, popularColleges, popularUniversities, degrees, specializations, citiesByState } from '../utils/collegeData';
 
 interface OnboardingProps {
   userEmail: string;
@@ -34,6 +34,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ defaultName, onComplete 
   const [college, setCollege] = useState('');
   const [collegeSuggestions, setCollegeSuggestions] = useState<string[]>([]);
   const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
+
+  // City autocomplete based on selected state
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
 
   // Manual entry overrides
   const [isCollegeNotListed, setIsCollegeNotListed] = useState(false);
@@ -76,6 +80,34 @@ export const Onboarding: React.FC<OnboardingProps> = ({ defaultName, onComplete 
   const handleSelectUniv = (univName: string) => {
     setUniversity(univName);
     setShowUnivDropdown(false);
+  };
+
+  const handleCityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCity(val);
+    const stateCities = citiesByState[state] || [];
+    if (val.trim().length > 0) {
+      const filtered = stateCities.filter(c => c.toLowerCase().includes(val.toLowerCase()));
+      setCitySuggestions(filtered.slice(0, 8));
+      setShowCityDropdown(filtered.length > 0);
+    } else {
+      // Show all cities for state when empty
+      setCitySuggestions(stateCities.slice(0, 8));
+      setShowCityDropdown(stateCities.length > 0);
+    }
+  };
+
+  const handleCityFocus = () => {
+    const stateCities = citiesByState[state] || [];
+    if (stateCities.length > 0 && !city) {
+      setCitySuggestions(stateCities.slice(0, 8));
+      setShowCityDropdown(true);
+    }
+  };
+
+  const handleSelectCity = (cityName: string) => {
+    setCity(cityName);
+    setShowCityDropdown(false);
   };
 
   const handleCollegeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,7 +313,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ defaultName, onComplete 
                   className="cyber-input"
                   style={{ cursor: 'pointer', appearance: 'auto' }}
                   value={state}
-                  onChange={(e) => setState(e.target.value)}
+                  onChange={(e) => { setState(e.target.value); setCity(''); setShowCityDropdown(false); }}
                   required
                 >
                   <option value="" disabled>Select your state</option>
@@ -291,16 +323,41 @@ export const Onboarding: React.FC<OnboardingProps> = ({ defaultName, onComplete 
                 </select>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
                 <label style={{ fontSize: '0.8rem', fontWeight: 800 }}>CITY</label>
                 <input
                   type="text"
                   className="cyber-input"
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Bangalore"
+                  onChange={handleCityChange}
+                  onFocus={handleCityFocus}
+                  onBlur={() => setTimeout(() => setShowCityDropdown(false), 200)}
+                  placeholder={state ? `Type city in ${state}...` : 'Select state first'}
+                  autoComplete="off"
                   required
                 />
+                {showCityDropdown && citySuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: '#fff', border: '2.5px solid #000', borderRadius: '10px',
+                    boxShadow: '3px 3px 0px #000', maxHeight: '200px', overflowY: 'auto'
+                  }}>
+                    {citySuggestions.map(c => (
+                      <div
+                        key={c}
+                        onMouseDown={() => handleSelectCity(c)}
+                        style={{
+                          padding: '0.5rem 0.75rem', fontSize: '0.8rem', fontWeight: 700,
+                          cursor: 'pointer', borderBottom: '1px solid #eee'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                      >
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

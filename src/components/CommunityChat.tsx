@@ -36,14 +36,23 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const defaultChannels = [
-    { id: 'chan_general', name: 'general' },
-    { id: 'chan_announcements', name: 'announcements' },
-    { id: 'chan_help', name: 'help-channel' },
-    { id: 'chan_college', name: 'college-discussions' },
-    { id: 'chan_placement', name: 'placement-discussions' },
-    { id: 'chan_doubts', name: 'doubt-discussion' },
-    { id: 'chan_career', name: 'career-guidance' },
-    { id: 'chan_offtopic', name: 'off-topic' }
+    { id: 'chan_general', name: '💬 general' },
+    { id: 'chan_announcements', name: '📢 announcements' },
+    { id: 'chan_help', name: '🙋 help-me' },
+    { id: 'chan_college', name: '🏫 college-life' },
+    { id: 'chan_placement', name: '💼 placement-prep' },
+    { id: 'chan_doubts', name: '🤔 academic-doubts' },
+    { id: 'chan_career', name: '🎯 career-guidance' },
+    { id: 'chan_engineering', name: '⚙️ engineering-btech' },
+    { id: 'chan_bca_mca', name: '💻 bca-mca-it' },
+    { id: 'chan_medical', name: '🏥 medical-mbbs' },
+    { id: 'chan_commerce', name: '📊 commerce-bcom-ca' },
+    { id: 'chan_law', name: '⚖️ law-llb' },
+    { id: 'chan_arts', name: '📚 arts-humanities' },
+    { id: 'chan_design', name: '🎨 design-nift-nid' },
+    { id: 'chan_upsc', name: '🏛️ upsc-govt-exams' },
+    { id: 'chan_coding', name: '🖥️ coding-dsa-projects' },
+    { id: 'chan_offtopic', name: '🎮 off-topic' }
   ];
 
   // Initialize and load channels list

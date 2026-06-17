@@ -170,6 +170,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const pendingIceCandidates = useRef<Record<string, any[]>>({});
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  // Separate audio-only streams per peer — so remote video stays muted (no echo) while audio plays separately
+  const [remoteAudioStreams, setRemoteAudioStreams] = useState<Record<string, MediaStream>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
 
@@ -266,6 +268,27 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           
           const pMap = data.participants || {};
           
+          // Check if the host has muted US
+          const myData = pMap[myPeerId];
+          if (myData && !isHost) {
+            if (myData.isMuted && micOn) {
+              console.log("[Host Control] We have been muted by the host.");
+              setMicOn(false);
+              if (localStreamRef.current) {
+                localStreamRef.current.getAudioTracks().forEach(track => {
+                  track.enabled = false;
+                });
+              }
+              window.dispatchEvent(new CustomEvent('new-notification', {
+                detail: {
+                  title: 'Muted by Host',
+                  message: 'The host has muted your microphone.',
+                  type: 'info'
+                }
+              }));
+            }
+          }
+          
           // Check if we are kicked or banned by host
           if (!isHost) {
             if (!pMap[myPeerId]) {
@@ -329,42 +352,15 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           throw new Error('Webcam is not supported in this browser connection.');
         }
 
-        const totalParticipants = participants.length + 1;
-        let videoConstraints: any = { facingMode: 'user' };
-
-        // Adaptive quality based on capacity
-        if (totalParticipants > 12) {
-          videoConstraints = {
-            facingMode: 'user',
-            width: { ideal: 320 },
-            height: { ideal: 240 },
-            frameRate: { ideal: 15 }
-          };
-        } else if (totalParticipants > 4) {
-          videoConstraints = {
-            facingMode: 'user',
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 24 }
-          };
-        } else {
-          videoConstraints = {
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 }
-          };
-        }
-
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ 
-            video: videoConstraints, 
+            video: true, 
             audio: true 
           });
         } catch {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           } catch {
             console.log('[WebRTC] Camera initialization failed/denied, falling back to audio only');
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -384,12 +380,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         localStreamRef.current = stream;
         setCameraStream(stream);
         
-        // Brief timeout ensures video element is fully mounted in the DOM
-        setTimeout(() => {
-          if (videoRef.current && !isCancelled) {
-            videoRef.current.srcObject = stream;
-          }
-        }, 150);
+        // Assign to local video preview
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
       } catch (err) {
         if (isCancelled) return;
         console.error('Study room webcam initialization failed:', err);
@@ -409,7 +403,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       localStreamRef.current = null;
       setCameraStream(null);
     };
-  }, [activeRoom, participants.length]);
+  }, [activeRoom?.id]);
 
   const prevRequestsRef = useRef<Record<string, any>>({});
 
@@ -558,6 +552,38 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     }));
   };
 
+  const handleMuteParticipant = async (targetPeerId: string) => {
+    if (!activeRoom || !isMod) return;
+    if (isFirebaseConfigured && db) {
+      try {
+        await update(ref(db, `study_rooms/${activeRoom.id}/participants/${targetPeerId}`), {
+          isMuted: true,
+          micOn: false
+        });
+        console.log(`[Host Control] Host muted participant: ${targetPeerId}`);
+      } catch (err) {
+        console.error("Failed to mute participant:", err);
+      }
+    }
+  };
+
+  const handleCloseRoom = async () => {
+    if (!activeRoom) return;
+    if (!isHost) return;
+
+    if (confirm("Are you sure you want to close this study room? This will disconnect all participants.")) {
+      if (isFirebaseConfigured && db) {
+        try {
+          const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
+          await remove(roomRef);
+        } catch (e) {
+          console.error("Error closing room:", e);
+        }
+      }
+      handleLeaveRoom();
+    }
+  };
+
   const handleToggleRaiseHand = () => {
     const nextHandState = !(activeRoomDoc?.participants?.[myPeerId]?.raisedHand ?? false);
     updateMyPresence({ raisedHand: nextHandState });
@@ -678,44 +704,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     }
   };
 
-  const handleJoinRoom = async (room: StudyRoom) => {
-
-    let existingNames: string[] = [];
-    let currentParticipantCount = 0;
-    let isAlreadyIn = false;
-
-    // Fetch existing participant names and check capacity limit
-    if (isFirebaseConfigured && db) {
-      try {
-        const roomRef = ref(db, 'study_rooms/' + room.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const pMap = data.participants || {};
-          isAlreadyIn = !!pMap[myPeerId];
-          currentParticipantCount = Object.keys(pMap).length;
-          existingNames = Object.values(pMap)
-            .filter((p: any) => p.peerId !== myPeerId)
-            .map((p: any) => p.name);
-        }
-      } catch (e) {
-        console.error("Error reading existing participants:", e);
-      }
-    }
-
-    // Capacity check: Max 50 participants (unless we're already re-joining)
-    if (currentParticipantCount >= 50 && !isAlreadyIn) {
-      setRoomFullError("Room Full (50/50 participants). Please join another room or create a new one.");
-      return;
-    }
-
-    // Resolve name collisions (e.g. if testing multiple tabs with same credentials)
+  const handleJoinRoom = (room: StudyRoom) => {
     let finalName = userName;
-    let suffix = 1;
-    while (existingNames.includes(finalName)) {
-      suffix++;
-      finalName = `${userName} (${suffix})`;
-    }
     setRoomNickname(finalName);
 
     const me = {
@@ -739,26 +729,44 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     if (isFirebaseConfigured && db) {
       const roomRef = ref(db, 'study_rooms/' + room.id);
-      const roomSnap = await get(roomRef);
-      if (roomSnap.exists()) {
-        await set(ref(db, `study_rooms/${room.id}/participants/${myPeerId}`), me);
-        await push(ref(db, `study_rooms/${room.id}/messages`), sysMsg);
-      } else {
-        await set(roomRef, {
-          id: room.id,
-          title: room.title,
-          topic: room.topic,
-          participants: { [myPeerId]: me },
-          messages: {},
-          notes: {},
-          pdfs: {}
-        });
-        await push(ref(db, `study_rooms/${room.id}/messages`), { id: 'join_system', sender: 'System', text: `Welcome to ${room.title}. Connect your webcam stream below!`, time: '' });
-        await push(ref(db, `study_rooms/${room.id}/messages`), sysMsg);
-      }
+      get(roomRef).then((roomSnap) => {
+        if (roomSnap.exists()) {
+          const participantRef = ref(db, `study_rooms/${room.id}/participants/${myPeerId}`);
+          const msgRef = ref(db, `study_rooms/${room.id}/messages`);
+          Promise.all([
+            set(participantRef, me),
+            push(msgRef, sysMsg)
+          ]).then(() => {
+            setActiveRoom(room);
+          }).catch((err) => {
+            console.error("Error setting participant:", err);
+            setActiveRoom(room);
+          });
+        } else {
+          set(roomRef, {
+            id: room.id,
+            title: room.title,
+            topic: room.topic,
+            participants: { [myPeerId]: me },
+            messages: {},
+            notes: {},
+            pdfs: {}
+          }).then(() => {
+            push(ref(db, `study_rooms/${room.id}/messages`), { id: 'join_system', sender: 'System', text: `Welcome to ${room.title}. Connect your webcam stream below!`, time: '' }).catch(console.error);
+            push(ref(db, `study_rooms/${room.id}/messages`), sysMsg).catch(console.error);
+            setActiveRoom(room);
+          }).catch((err) => {
+            console.error("Error creating room node:", err);
+            setActiveRoom(room);
+          });
+        }
+      }).catch((err) => {
+        console.error("Error checking room snap:", err);
+        setActiveRoom(room);
+      });
+    } else {
+      setActiveRoom(room);
     }
-
-    setActiveRoom(room);
   };
 
   const handleLeaveRoom = async () => {
@@ -818,7 +826,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     setRemoteStreams({});
   };
 
-  const handleCreateRoom = async (e: React.FormEvent) => {
+  const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
       alert("Guest accounts cannot create study rooms.");
@@ -829,7 +837,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     const cleanSlug = newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const roomId = `room_${cleanSlug || Math.floor(100 + Math.random() * 900)}`;
     
-    // For hosted rooms, nickname is userName
     const finalName = userName;
     setRoomNickname(finalName);
 
@@ -860,24 +867,41 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       notes: [],
       pdfs: []
     };
+
     if (isFirebaseConfigured && db) {
-      await set(ref(db, 'study_rooms/' + roomId), newRoom);
+      set(ref(db, 'study_rooms/' + roomId), newRoom).then(() => {
+        setActiveRoom({
+          id: roomId,
+          title: newTitle,
+          topic: newTopic,
+          participants: 1
+        });
+      }).catch((err) => {
+        console.error("Error creating study room:", err);
+        setActiveRoom({
+          id: roomId,
+          title: newTitle,
+          topic: newTopic,
+          participants: 1
+        });
+      });
+
       try {
-        await set(ref(db, 'rooms/' + newTitle), newRoom);
-      } catch (e) {
-        console.warn('[Firebase] Safely ignored write error on legacy rooms/ path:', e);
+        set(ref(db, 'rooms/' + newTitle), newRoom).catch(console.error);
+      } catch (err) {
+        console.warn('[Firebase] Legacy path write error:', err);
       }
+    } else {
+      setActiveRoom({
+        id: roomId,
+        title: newTitle,
+        topic: newTopic,
+        participants: 1
+      });
     }
 
     setNewTitle('');
     setNewTopic('General');
-    
-    handleJoinRoom({
-      id: roomId,
-      title: newRoom.title,
-      topic: newRoom.topic,
-      participants: 1
-    });
   };
 
 
@@ -1099,27 +1123,33 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     pc.ontrack = (event) => {
-      const rStream = event.streams[0] || new MediaStream();
-      logWebRtcStates("ontrack", event.track, rStream);
-      
-      setRemoteStreams(prev => {
-        let oldStream = prev[peerId];
-        if (!oldStream) {
-          oldStream = new MediaStream();
-        }
-        // Append track directly to the oldStream object instead of replacing streams
-        if (!oldStream.getTracks().some(t => t.id === event.track.id)) {
-          console.log(`[WebRTC] [ontrack] Appending track: kind=${event.track.kind}, id=${event.track.id} to peer ${peerId}`);
-          oldStream.addTrack(event.track);
-        }
-        
-        console.log(`[WebRTC] Updated remote stream for peer ${peerId}: id=${oldStream.id}, active=${oldStream.active}, videoTracks=${oldStream.getVideoTracks().length}, audioTracks=${oldStream.getAudioTracks().length}`);
-        
-        return {
-          ...prev,
-          [peerId]: oldStream
-        };
-      });
+      logWebRtcStates("ontrack", event.track, event.streams[0]);
+      const track = event.track;
+      console.log(`[WebRTC] [ontrack] Received track: kind=${track.kind}, id=${track.id}, readyState=${track.readyState}`);
+
+      if (track.kind === 'video') {
+        // Video tracks go to remoteStreams (used by <video> element, muted to prevent echo)
+        setRemoteStreams(prev => {
+          let oldStream = prev[peerId];
+          if (!oldStream) oldStream = new MediaStream();
+          if (!oldStream.getTracks().some(t => t.id === track.id)) {
+            console.log(`[WebRTC] [ontrack] Adding video track to remoteStreams for peer ${peerId}`);
+            oldStream.addTrack(track);
+          }
+          return { ...prev, [peerId]: oldStream };
+        });
+      } else if (track.kind === 'audio') {
+        // Audio tracks go to remoteAudioStreams (used by hidden <audio> element, NOT muted)
+        setRemoteAudioStreams(prev => {
+          let oldAudioStream = prev[peerId];
+          if (!oldAudioStream) oldAudioStream = new MediaStream();
+          if (!oldAudioStream.getTracks().some(t => t.id === track.id)) {
+            console.log(`[WebRTC] [ontrack] Adding audio track to remoteAudioStreams for peer ${peerId}`);
+            oldAudioStream.addTrack(track);
+          }
+          return { ...prev, [peerId]: oldAudioStream };
+        });
+      }
     };
 
 
@@ -1133,6 +1163,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       delete peerConnections.current[peerId];
     }
     setRemoteStreams(prev => {
+      const next = { ...prev };
+      delete next[peerId];
+      return next;
+    });
+    setRemoteAudioStreams(prev => {
       const next = { ...prev };
       delete next[peerId];
       return next;
@@ -2164,6 +2199,13 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       {isMod && !isPeerHost && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.35rem', marginTop: '0.1rem' }}>
                           <button
+                            onClick={() => handleMuteParticipant(friend.peerId)}
+                            className="cyber-btn pink-fill"
+                            style={{ padding: '0.15rem 0.35rem', fontSize: '0.6rem', boxShadow: '1px 1px 0px #000' }}
+                          >
+                            MUTE
+                          </button>
+                          <button
                             onClick={() => handleKickUser(friend.peerId)}
                             className="cyber-btn pink-fill"
                             style={{ padding: '0.15rem 0.35rem', fontSize: '0.6rem', boxShadow: '1px 1px 0px #000' }}
@@ -2258,16 +2300,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   return (
     <div style={{ height: '100%', position: 'relative' }}>
 
-      {/* Hidden audio tags to ensure remote audio tracks play independently of video lifecycle */}
-      {Object.entries(remoteStreams).map(([peerId, stream]) => (
+      {/* Hidden audio-only elements per peer — NOT muted so remote voice is heard.
+           These use remoteAudioStreams (audio tracks only) to avoid double-audio from video element. */}
+      {Object.entries(remoteAudioStreams).map(([peerId, audioStream]) => (
         <audio
-          key={peerId}
+          key={`audio_${peerId}`}
           autoPlay
+          playsInline
           ref={(el) => {
             if (el) {
-              el.srcObject = stream;
+              el.srcObject = audioStream;
+              const audioTracks = audioStream.getAudioTracks();
+              console.log(`[Audio] Attaching audio-only stream for peer ${peerId}: ${audioTracks.length} audio track(s)`);
+              audioTracks.forEach(track => {
+                console.log(`  - track.enabled: ${track.enabled}, readyState: ${track.readyState}`);
+              });
               el.play().catch((err) => {
-                console.warn("[WebRTC] Autoplay audio failed, trying to play on user interaction:", err);
+                console.warn(`[WebRTC] Autoplay audio blocked for peer ${peerId}:`, err);
               });
             }
           }}
@@ -2584,7 +2633,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               {/* Header info */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', border: '2.5px solid #000', borderRadius: '14px', padding: '0.5rem 1rem', boxShadow: '3px 3px 0px #000' }}>
                 <div>
-                  <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800 }}>{activeRoom.title}</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800, margin: 0 }}>{activeRoom.title}</h4>
+                    <span style={{ background: '#10b981', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 800 }}>● CONNECTED</span>
+                  </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>
                     STUDY TOPIC: {activeRoom.topic} | Major: {userCourse} | Analysis: {userStats.intelligence} | CODE: <strong style={{ color: 'var(--accent-pink)' }}>RM-{activeRoom.id.substring(5).toUpperCase()}</strong>
                   </span>
@@ -2701,9 +2753,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       {/* User Stream card (Only shown on Page 0) */}
                       {galleryPage === 0 && (
                         <div style={{ position: 'relative', background: '#000', border: '3px solid #000', borderRadius: '16px', overflow: 'hidden', boxShadow: '3px 3px 0px #000', aspectRatio: '1.3' }}>
+                          {/* Status badges */}
+                          <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.25rem', zIndex: 10 }}>
+                            <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>● ONLINE</span>
+                            <span style={{ background: cameraOn ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
+                              {cameraOn ? '📷 ON' : '📷 OFF'}
+                            </span>
+                            <span style={{ background: micOn ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
+                              {micOn ? '🎙️ ON' : '🎙️ MUTED'}
+                            </span>
+                          </div>
                           {cameraOn && !cameraError && cameraStream ? (
                             <video
-                              ref={videoRef}
+                              ref={(el) => {
+                                // @ts-ignore
+                                videoRef.current = el;
+                                if (el) el.srcObject = cameraStream;
+                              }}
                               autoPlay
                               playsInline
                               muted
@@ -2754,69 +2820,82 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       )}
 
                       {/* Dynamic classmates grid cards */}
-                      {pageClassmates.map((friend, idx) => (
-                        <div 
-                          key={idx}
-                          className="anim-pop"
-                          style={{ 
-                            position: 'relative', 
-                            background: '#fcfcfc', 
-                            border: '3px solid #000', 
-                            borderRadius: '16px', 
-                            overflow: 'hidden', 
-                            boxShadow: '3px 3px 0px #000', 
-                            aspectRatio: '1.3',
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center' 
-                          }}
-                        >
-                          {renderParticipantVideo(friend)}
-                          {friend.raisedHand && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '0.5rem',
-                              right: '0.5rem',
-                              background: 'var(--accent-gold)',
-                              border: '2px solid #000',
-                              borderRadius: '50%',
-                              width: '30px',
-                              height: '30px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '1.2rem',
-                              boxShadow: '1.5px 1.5px 0px #000',
-                              animation: 'float-bouncy 2s infinite',
-                              zIndex: 10
-                            }}>
-                              ✋
+                      {pageClassmates.map((friend, idx) => {
+                        const isLiveVideo = friend.peerId && remoteStreams[friend.peerId] && remoteStreams[friend.peerId].getVideoTracks().length > 0 && remoteStreams[friend.peerId].getVideoTracks()[0].readyState === 'live';
+                        return (
+                          <div 
+                            key={idx}
+                            className="anim-pop"
+                            style={{ 
+                              position: 'relative', 
+                              background: '#fcfcfc', 
+                              border: '3px solid #000', 
+                              borderRadius: '16px', 
+                              overflow: 'hidden', 
+                              boxShadow: '3px 3px 0px #000', 
+                              aspectRatio: '1.3',
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center' 
+                            }}
+                          >
+                            {/* Status badges */}
+                            <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.25rem', zIndex: 10 }}>
+                              <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>● ONLINE</span>
+                              <span style={{ background: isLiveVideo ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
+                                {isLiveVideo ? '📷 ON' : '📷 OFF'}
+                              </span>
+                              <span style={{ background: !friend.isMuted ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
+                                {!friend.isMuted ? '🎙️ ON' : '🎙️ MUTED'}
+                              </span>
                             </div>
-                          )}
-                          <div style={{ 
-                            position: 'absolute', 
-                            bottom: '0.5rem', 
-                            left: '0.5rem', 
-                            background: 'rgba(0,0,0,0.6)', 
-                            color: '#fff', 
-                            padding: '0.15rem 0.5rem', 
-                            borderRadius: '6px', 
-                            fontSize: '0.65rem', 
-                            fontWeight: 800, 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '4px' 
-                          }}>
-                            <span style={{ 
-                              width: '6px', 
-                              height: '6px', 
-                              borderRadius: '50%', 
-                              background: (!(friend.peerId && remoteStreams[friend.peerId as string] && remoteStreams[friend.peerId as string].getVideoTracks().length > 0 && remoteStreams[friend.peerId as string].getVideoTracks()[0].readyState === 'live') || friend.isMuted) ? '#f44336' : '#4caf50' 
-                            }} />
-                            {friend.name} {friend.screenSharing ? ' (SHARING)' : ''} {friend.isMuted ? ' (MUTED)' : ''}
+                            {renderParticipantVideo(friend)}
+                            {friend.raisedHand && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '0.5rem',
+                                right: '0.5rem',
+                                background: 'var(--accent-gold)',
+                                border: '2px solid #000',
+                                borderRadius: '50%',
+                                width: '30px',
+                                height: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '1.2rem',
+                                boxShadow: '1.5px 1.5px 0px #000',
+                                animation: 'float-bouncy 2s infinite',
+                                zIndex: 10
+                              }}>
+                                ✋
+                              </div>
+                            )}
+                            <div style={{ 
+                              position: 'absolute', 
+                              bottom: '0.5rem', 
+                              left: '0.5rem', 
+                              background: 'rgba(0,0,0,0.6)', 
+                              color: '#fff', 
+                              padding: '0.15rem 0.5rem', 
+                              borderRadius: '6px', 
+                              fontSize: '0.65rem', 
+                              fontWeight: 800, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px' 
+                            }}>
+                              <span style={{ 
+                                width: '6px', 
+                                height: '6px', 
+                                borderRadius: '50%', 
+                                background: (!isLiveVideo || friend.isMuted) ? '#f44336' : '#4caf50' 
+                              }} />
+                              {friend.name} {friend.screenSharing ? ' (SHARING)' : ''} {friend.isMuted ? ' (MUTED)' : ''}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                     </div>
 
@@ -2849,7 +2928,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               })()}
 
               {/* Video Streams Controls Toolbar */}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.5rem', boxShadow: '3px 3px 0px #000', position: 'relative' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.5rem', boxShadow: '3px 3px 0px #000', position: 'relative', flexWrap: 'wrap' }}>
                 <button
                   data-testid="start-call-button"
                   onClick={() => {
@@ -2871,30 +2950,46 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 <button 
                   onClick={toggleCamera}
                   className={`cyber-btn ${cameraOn ? 'cyan-fill' : 'pink-fill'}`}
-                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1 }}
+                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '100px' }}
                 >
                   {cameraOn ? 'CAMERA OFF' : 'CAMERA ON'}
                 </button>
                 <button 
                   onClick={toggleMute}
                   className={`cyber-btn ${micOn ? 'cyan-fill' : 'pink-fill'}`}
-                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1 }}
+                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '100px' }}
                 >
                   {micOn ? 'MUTE MIC' : 'UNMUTE MIC'}
                 </button>
                 <button 
                   onClick={handleToggleRaiseHand}
                   className={`cyber-btn ${myRaisedHand ? 'gold-fill' : 'purple-fill'}`}
-                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1 }}
+                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '80px' }}
                 >
                   {myRaisedHand ? '✋ LOWER' : '🙋 RAISE'}
                 </button>
                 <button 
                   onClick={toggleScreenShare}
                   className={`cyber-btn ${screenSharing ? 'pink-fill' : 'gold-fill'}`}
-                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1 }}
+                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '100px' }}
                 >
                   {screenSharing ? 'STOP SHARE' : 'SHARE'}
+                </button>
+                {isHost && (
+                  <button 
+                    onClick={handleCloseRoom}
+                    className="cyber-btn pink-fill"
+                    style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '110px', background: '#e11d48' }}
+                  >
+                    CLOSE ROOM
+                  </button>
+                )}
+                <button 
+                  onClick={handleLeaveRoom}
+                  className="cyber-btn pink-fill"
+                  style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '110px' }}
+                >
+                  LEAVE ROOM
                 </button>
               </div>
 
