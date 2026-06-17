@@ -6,7 +6,7 @@ const PROD_URL = 'https://roomie-platform.vercel.app?debug=true';
 const TEST_USER = { email: 'testuser1@example.com', password: 'Test@1234' };
 
 test('Production Audit and Screenshot Capture', async ({ page }) => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
   
   // 1. Open live Vercel deployment
   console.log('Opening production URL...');
@@ -56,21 +56,31 @@ test('Production Audit and Screenshot Capture', async ({ page }) => {
   await page.click('button:has-text("🎓 AI Tutor")', { force: true });
   await page.waitForTimeout(1000);
 
-  // Fill in the prompt
-  console.log('Submitting prompt: Explain OOP in Java...');
   const inputPlaceholder = 'Ask 🎓 AI Tutor anything...';
+
+  // --- Prompt 1: Explain OOP in Java ---
+  console.log('Submitting prompt 1: Explain OOP in Java...');
   await page.fill(`input[placeholder="${inputPlaceholder}"]`, 'Explain OOP in Java');
-  
-  // Click submit (ASK button)
   await page.click('button:has-text("ASK")', { force: true });
+  await page.waitForTimeout(6000); // Wait for response
+  console.log('Capturing prompt 1 response screenshot...');
+  await page.screenshot({ path: 'artifacts/screenshots/live_ai_oop.png' });
 
-  // Wait for typing indicator to disappear or response to arrive
-  console.log('Waiting for AI response...');
-  await page.waitForTimeout(12000); // 12s wait for API response
+  // --- Prompt 2: Create a DSA roadmap ---
+  console.log('Submitting prompt 2: Create a DSA roadmap...');
+  await page.fill(`input[placeholder="${inputPlaceholder}"]`, 'Create a DSA roadmap');
+  await page.click('button:has-text("ASK")', { force: true });
+  await page.waitForTimeout(6000); // Wait for response
+  console.log('Capturing prompt 2 response screenshot...');
+  await page.screenshot({ path: 'artifacts/screenshots/live_ai_dsa.png' });
 
-  // Capture AI response screen
-  console.log('Capturing AI response screen...');
-  await page.screenshot({ path: 'artifacts/screenshots/live_ai_response.png' });
+  // --- Prompt 3: Generate study plan for BCA semester 4 ---
+  console.log('Submitting prompt 3: Generate study plan for BCA semester 4...');
+  await page.fill(`input[placeholder="${inputPlaceholder}"]`, 'Generate study plan for BCA semester 4');
+  await page.click('button:has-text("ASK")', { force: true });
+  await page.waitForTimeout(6000); // Wait for response
+  console.log('Capturing prompt 3 response screenshot...');
+  await page.screenshot({ path: 'artifacts/screenshots/live_ai_bca.png' });
 
   // Save the text content of the AI chat window for audit logs
   const chatMessages = await page.locator('.glass-panel').nth(1).innerText().catch(() => '');

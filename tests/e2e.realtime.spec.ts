@@ -2,7 +2,7 @@
 import { test, expect, devices } from '@playwright/test';
 import fs from 'fs';
 
-const PROD_URL = process.env.TEST_URL || 'https://lifequest-app-three.vercel.app?debug=true';
+const PROD_URL = process.env.TEST_URL || 'https://roomie-platform.vercel.app?debug=true';
 const TEST_USERS = [
   { email: 'testuser1@example.com', password: 'Test@1234' },
   { email: 'testuser2@example.com', password: 'Test@1234' },
