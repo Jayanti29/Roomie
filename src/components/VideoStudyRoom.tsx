@@ -1017,6 +1017,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     // Add logging for connection state changes
     pc.onconnectionstatechange = () => {
       console.log(`[WebRTC] Connection state change for peer ${peerId}:`, pc.connectionState);
+      console.log(`[WebRTC] Connection details: connectionState=${pc.connectionState}, signalingState=${pc.signalingState}`);
       if (pc.connectionState === 'failed') {
         console.error(`[WebRTC] Connection failed with peer ${peerId}. Retrying/restarting ICE if possible.`);
       }
@@ -1030,21 +1031,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     // Add local tracks (microphone track is always bound, even during screen share)
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(track => {
+        console.log(`[WebRTC] Adding local mic track to peer connection for ${peerId}, track ID: ${track.id}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
+        pc.addTrack(track, localStreamRef.current!);
+      });
+    }
+
     if (screenSharing && screenStreamRef.current) {
       console.log(`[WebRTC] Adding local screen tracks to peer connection for ${peerId}`);
-      screenStreamRef.current.getTracks().forEach(track => {
+      screenStreamRef.current.getVideoTracks().forEach(track => {
+        console.log(`[WebRTC] Adding local screen video track: ${track.id}, enabled: ${track.enabled}`);
         pc.addTrack(track, screenStreamRef.current!);
       });
-      if (localStreamRef.current) {
-        const audioTrack = localStreamRef.current.getAudioTracks()[0];
-        if (audioTrack) {
-          console.log(`[WebRTC] Adding local mic track during screen share to ${peerId}`);
-          pc.addTrack(audioTrack, localStreamRef.current);
-        }
-      }
     } else if (localStreamRef.current) {
       console.log(`[WebRTC] Adding local camera tracks to peer connection for ${peerId}`);
-      localStreamRef.current.getTracks().forEach(track => {
+      localStreamRef.current.getVideoTracks().forEach(track => {
+        console.log(`[WebRTC] Adding local camera video track: ${track.id}, enabled: ${track.enabled}`);
         pc.addTrack(track, localStreamRef.current!);
       });
     } else {
@@ -1052,10 +1055,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     }
 
     pc.onicecandidate = async (event) => {
+      if (event.candidate) {
+        console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, event.candidate.toJSON().candidate);
+        console.log(`[WebRTC] ICE state candidate for peer ${peerId}:`, event.candidate.toJSON().candidate);
+      } else {
+        console.log(`[WebRTC] ICE candidate gathering complete for peer ${peerId}`);
+      }
       if (!event.candidate || !activeRoom) return;
       const candidateObj = event.candidate.toJSON();
-      console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, candidateObj.candidate);
-      console.log(`[WebRTC] ICE state candidate for peer ${peerId}:`, candidateObj.candidate);
 
       const isCaller = myPeerId > peerId;
       
@@ -1082,11 +1089,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     pc.ontrack = (event) => {
       console.log(`[WebRTC] Received remote stream track from peer ${peerId}:`, event.track.kind);
-      const rStream = event.streams[0];
-      setRemoteStreams(prev => ({
-        ...prev,
-        [peerId]: rStream
-      }));
+      console.log(`[WebRTC] Track info: kind=${event.track.kind}, readyState=${event.track.readyState}, enabled=${event.track.enabled}`);
+      const rStream = event.streams[0] || new MediaStream();
+      console.log(`[WebRTC] Stream info: id=${rStream.id}, active=${rStream.active}, videoTracks=${rStream.getVideoTracks().length}, audioTracks=${rStream.getAudioTracks().length}`);
+      
+      setRemoteStreams(prev => {
+        const oldStream = prev[peerId];
+        // Create a new MediaStream instance copying tracks to ensure reference change triggers React state updates
+        const newStream = oldStream ? new MediaStream(oldStream.getTracks()) : new MediaStream();
+        if (!newStream.getTracks().some(t => t.id === event.track.id)) {
+          newStream.addTrack(event.track);
+        }
+        console.log(`[WebRTC] Updated remote stream for peer ${peerId}: videoTracks=${newStream.getVideoTracks().length}, audioTracks=${newStream.getAudioTracks().length}`);
+        return {
+          ...prev,
+          [peerId]: newStream
+        };
+      });
     };
 
     return pc;
@@ -1541,6 +1560,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   const renderParticipantVideo = (friend: any) => {
     const stream = remoteStreams[friend.peerId];
+    const hasVideo = stream && stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].readyState === 'live';
     return (
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         {stream && (
@@ -1555,11 +1575,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               width: '100%', 
               height: '100%', 
               objectFit: 'cover',
-              display: friend.cameraOn ? 'block' : 'none' 
+              display: hasVideo ? 'block' : 'none' 
             }}
           />
         )}
-        {(!friend.cameraOn || !stream) && renderParticipantAvatar(friend)}
+        {!hasVideo && renderParticipantAvatar(friend)}
       </div>
     );
   };
