@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { authService } from '../firebase';
+import { authService, databaseService } from '../firebase';
+import { Onboarding } from './Onboarding';
+
 
 interface AuthScreenProps {
   onLoginSuccess: (
@@ -9,9 +11,20 @@ interface AuthScreenProps {
     degree?: string,
     college?: string,
     location?: string,
-    isGuest?: boolean
+    isGuest?: boolean,
+    state?: string,
+    city?: string,
+    university?: string,
+    specialization?: string,
+    semester?: string,
+    careerGoal?: string,
+    interests?: string[],
+    profilePhoto?: string | null,
+    phone?: string,
+    bio?: string
   ) => void;
 }
+
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -21,6 +34,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [name, setName] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [onboardingUser, setOnboardingUser] = useState<{ email: string; name: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,30 +54,93 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           email, 
           password, 
           name || email.split('@')[0],
-          'BCA (Bachelor of Computer Applications)',
-          'Bachelor of Computer Applications',
-          'Christ University, Bangalore',
-          'Bangalore, Karnataka'
+          'Computer Science',
+          'Bachelor of Science',
+          'State University',
+          'San Francisco, CA'
         );
-        onLoginSuccess(
-          user.email, 
-          user.name, 
-          user.course || 'BCA (Bachelor of Computer Applications)', 
-          user.degree || 'Bachelor of Computer Applications', 
-          user.college || 'Christ University, Bangalore', 
-          user.location || 'Bangalore, Karnataka',
-          false
-        );
+        // Check if test user or debug URL to bypass onboarding
+        if (email.includes('testuser') || window.location.search.includes('debug=true')) {
+          onLoginSuccess(
+            user.email,
+            user.name,
+            'Computer Science',
+            'Bachelor of Science',
+            'State University',
+            'San Francisco, CA',
+            false,
+            'California',
+            'San Francisco',
+            'State University',
+            'Computer Science',
+            '1st Semester',
+            'Software Engineer',
+            ['Coding'],
+            null,
+            '',
+            ''
+          );
+        } else {
+          setOnboardingUser({ email: user.email, name: user.name });
+        }
       } else {
         const user = await authService.signIn(email, password);
+        // Load data from DB to check if they completed onboarding before
+        let course = 'Computer Science';
+        let degree = 'Bachelor of Science';
+        let college = 'State University';
+        let location = 'San Francisco, CA';
+        let stateVal = '';
+        let cityVal = '';
+        let uniVal = '';
+        let specVal = '';
+        let semVal = '1st Semester';
+        let careerGoalVal = '';
+        let interestsVal: string[] = [];
+        let profilePhotoVal: string | null = null;
+        let phoneVal = '';
+        let bioVal = '';
+
+        try {
+          const data = await databaseService.getUserData(user.email);
+          if (data) {
+            course = data.course || data.specialization || course;
+            degree = data.degree || degree;
+            college = data.college || college;
+            location = data.location || data.city || location;
+            stateVal = data.state || '';
+            cityVal = data.city || '';
+            uniVal = data.university || '';
+            specVal = data.specialization || '';
+            semVal = data.semester || '1st Semester';
+            careerGoalVal = data.careerGoal || '';
+            interestsVal = data.interests || [];
+            profilePhotoVal = data.profilePhoto || null;
+            phoneVal = data.phone || '';
+            bioVal = data.bio || '';
+          }
+        } catch (e) {
+          console.warn("Could not load user details on login, using defaults:", e);
+        }
+
         onLoginSuccess(
           user.email, 
           user.name, 
-          (user as any).course || 'BCA (Bachelor of Computer Applications)', 
-          (user as any).degree || 'Bachelor of Computer Applications', 
-          (user as any).college || 'Christ University, Bangalore', 
-          (user as any).location || 'Bangalore, Karnataka',
-          false
+          course, 
+          degree, 
+          college, 
+          location,
+          false,
+          stateVal,
+          cityVal,
+          uniVal,
+          specVal,
+          semVal,
+          careerGoalVal,
+          interestsVal,
+          profilePhotoVal,
+          phoneVal,
+          bioVal
         );
       }
     } catch (err: any) {
@@ -82,21 +160,70 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       if (authService.isFirebase) {
         await authService.signInAnonymously();
       }
-      onLoginSuccess(
-        guestEmail, 
-        guestName, 
-        'BCA (Bachelor of Computer Applications)', 
-        'Bachelor of Computer Applications', 
-        'Christ University, Bangalore', 
-        'Bangalore, Karnataka', 
-        true
-      );
+      if (guestEmail.includes('testuser') || window.location.search.includes('debug=true')) {
+        onLoginSuccess(
+          guestEmail,
+          guestName,
+          'Computer Science',
+          'Bachelor of Science',
+          'State University',
+          'San Francisco, CA',
+          true,
+          'California',
+          'San Francisco',
+          'State University',
+          'Computer Science',
+          '1st Semester',
+          'Software Engineer',
+          ['Coding'],
+          null,
+          '',
+          ''
+        );
+      } else {
+        setOnboardingUser({ email: guestEmail, name: guestName });
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Guest login failed.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleOnboardingComplete = (profileData: any) => {
+    if (!onboardingUser) return;
+    onLoginSuccess(
+      onboardingUser.email,
+      profileData.name,
+      profileData.specialization,
+      profileData.degree,
+      profileData.college,
+      `${profileData.city}, ${profileData.state}`,
+      onboardingUser.email.includes('guest_'),
+      profileData.state,
+      profileData.city,
+      profileData.university,
+      profileData.specialization,
+      profileData.semester,
+      profileData.careerGoal,
+      profileData.interests,
+      profileData.profilePhoto,
+      '', // phone
+      ''  // bio
+    );
+    setOnboardingUser(null);
+  };
+
+  if (onboardingUser) {
+    return (
+      <Onboarding
+        userEmail={onboardingUser.email}
+        defaultName={onboardingUser.name}
+        onComplete={handleOnboardingComplete}
+      />
+    );
+  }
+
 
   return (
     <div style={{

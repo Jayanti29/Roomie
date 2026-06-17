@@ -485,10 +485,16 @@ input.cyber-input:focus {
   background: #fff;
   border-top: 3px solid #000;
   display: flex;
-  justify-content: space-around;
+  justify-content: flex-start;
   align-items: center;
   z-index: 99999;
   box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+.bottom-nav::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
 }
 .bottom-nav-btn {
   display: flex;
@@ -503,7 +509,7 @@ input.cyber-input:focus {
   color: var(--text-muted);
   cursor: pointer;
   height: 100%;
-  flex: 1;
+  flex: 0 0 80px;
   transition: background 0.15s ease;
   border-left: 1px solid #eaeaea;
   gap: 2px;

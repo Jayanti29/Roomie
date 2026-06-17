@@ -1014,20 +1014,31 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     const pc = new RTCPeerConnection(configuration);
     peerConnections.current[peerId] = pc;
 
+    const logWebRtcStates = (eventSource: string, track?: MediaStreamTrack, stream?: MediaStream) => {
+      console.log(`[WebRTC Debug] [${eventSource}] Context Peer: ${peerId}`);
+      console.log(`  - ICE Gathering/Connection State: gatheringState=${pc.iceGatheringState}, connectionState=${pc.iceConnectionState}`);
+      console.log(`  - Peer Connection State: ${pc.connectionState}`);
+      console.log(`  - Signaling State: ${pc.signalingState}`);
+      if (track) {
+        console.log(`  - Track Info: kind=${track.kind}, readyState=${track.readyState}, enabled=${track.enabled}, id=${track.id}`);
+      }
+      if (stream) {
+        console.log(`  - Stream Info: id=${stream.id}, active=${stream.active}, videoCount=${stream.getVideoTracks().length}, audioCount=${stream.getAudioTracks().length}`);
+      }
+    };
+
     // Add logging for connection state changes
     pc.onconnectionstatechange = () => {
-      console.log(`[WebRTC] Connection state change for peer ${peerId}:`, pc.connectionState);
-      console.log(`[WebRTC] Connection details: connectionState=${pc.connectionState}, signalingState=${pc.signalingState}`);
+      logWebRtcStates("ConnectionStateChange");
       if (pc.connectionState === 'failed') {
         console.error(`[WebRTC] Connection failed with peer ${peerId}. Retrying/restarting ICE if possible.`);
       }
     };
     pc.oniceconnectionstatechange = () => {
-      console.log(`[WebRTC] ICE Connection state change for peer ${peerId}:`, pc.iceConnectionState);
-      console.log(`[WebRTC] ICE state connection state for peer ${peerId}:`, pc.iceConnectionState);
+      logWebRtcStates("IceConnectionStateChange");
     };
     pc.onsignalingstatechange = () => {
-      console.log(`[WebRTC] Signaling state change for peer ${peerId}:`, pc.signalingState);
+      logWebRtcStates("SignalingStateChange");
     };
 
     // Add local tracks (microphone track is always bound, even during screen share)
@@ -1056,8 +1067,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     pc.onicecandidate = async (event) => {
       if (event.candidate) {
-        console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, event.candidate.toJSON().candidate);
-        console.log(`[WebRTC] ICE state candidate for peer ${peerId}:`, event.candidate.toJSON().candidate);
+        console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, event.candidate.candidate);
+        logWebRtcStates("IceCandidate");
       } else {
         console.log(`[WebRTC] ICE candidate gathering complete for peer ${peerId}`);
       }
@@ -1088,25 +1099,29 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     pc.ontrack = (event) => {
-      console.log(`[WebRTC] Received remote stream track from peer ${peerId}:`, event.track.kind);
-      console.log(`[WebRTC] Track info: kind=${event.track.kind}, readyState=${event.track.readyState}, enabled=${event.track.enabled}`);
       const rStream = event.streams[0] || new MediaStream();
-      console.log(`[WebRTC] Stream info: id=${rStream.id}, active=${rStream.active}, videoTracks=${rStream.getVideoTracks().length}, audioTracks=${rStream.getAudioTracks().length}`);
+      logWebRtcStates("ontrack", event.track, rStream);
       
       setRemoteStreams(prev => {
-        const oldStream = prev[peerId];
-        // Create a new MediaStream instance copying tracks to ensure reference change triggers React state updates
-        const newStream = oldStream ? new MediaStream(oldStream.getTracks()) : new MediaStream();
-        if (!newStream.getTracks().some(t => t.id === event.track.id)) {
-          newStream.addTrack(event.track);
+        let oldStream = prev[peerId];
+        if (!oldStream) {
+          oldStream = new MediaStream();
         }
-        console.log(`[WebRTC] Updated remote stream for peer ${peerId}: videoTracks=${newStream.getVideoTracks().length}, audioTracks=${newStream.getAudioTracks().length}`);
+        // Append track directly to the oldStream object instead of replacing streams
+        if (!oldStream.getTracks().some(t => t.id === event.track.id)) {
+          console.log(`[WebRTC] [ontrack] Appending track: kind=${event.track.kind}, id=${event.track.id} to peer ${peerId}`);
+          oldStream.addTrack(event.track);
+        }
+        
+        console.log(`[WebRTC] Updated remote stream for peer ${peerId}: id=${oldStream.id}, active=${oldStream.active}, videoTracks=${oldStream.getVideoTracks().length}, audioTracks=${oldStream.getAudioTracks().length}`);
+        
         return {
           ...prev,
-          [peerId]: newStream
+          [peerId]: oldStream
         };
       });
     };
+
 
     return pc;
   };
@@ -1320,7 +1335,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           };
           await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
           await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
-          onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 XP!`);
+          onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 Study Points!`);
         } catch (err) {
           console.error("Failed to upload PDF:", err);
           alert("Failed to upload PDF file.");
@@ -1469,7 +1484,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       } else {
         setQuizFinished(true);
         const finalReward = 100 + (userScore * 5);
-        onRewardXp(finalReward, `Finished study session quiz on ${activeRoom?.topic}! Gained +${finalReward} XP!`);
+        onRewardXp(finalReward, `Finished study session quiz on ${activeRoom?.topic}! Gained +${finalReward} Study Points!`);
       }
     }, 1500);
   };
@@ -1555,7 +1570,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     setRnPdf(null);
     if (rnFileInputRef.current) rnFileInputRef.current.value = '';
 
-    onRewardXp(25, `Shared session note in room: "${rnTitle}". Gained +25 XP!`);
+    onRewardXp(25, `Shared session note in room: "${rnTitle}". Gained +25 Study Points!`);
   };
 
   const renderParticipantVideo = (friend: any) => {
@@ -2796,7 +2811,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                               width: '6px', 
                               height: '6px', 
                               borderRadius: '50%', 
-                              background: (!friend.cameraOn || friend.isMuted) ? '#f44336' : '#4caf50' 
+                              background: (!(friend.peerId && remoteStreams[friend.peerId as string] && remoteStreams[friend.peerId as string].getVideoTracks().length > 0 && remoteStreams[friend.peerId as string].getVideoTracks()[0].readyState === 'live') || friend.isMuted) ? '#f44336' : '#4caf50' 
                             }} />
                             {friend.name} {friend.screenSharing ? ' (SHARING)' : ''} {friend.isMuted ? ' (MUTED)' : ''}
                           </div>

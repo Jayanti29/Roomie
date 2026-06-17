@@ -1,0 +1,16 @@
+{
+  "short_name": "Roomie",
+  "name": "Roomie Student Portal",
+  "icons": [
+    {
+      "src": "/assets/ai_companion.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#e4f9b8",
+  "theme_color": "#c58fff",
+  "display": "standalone",
+  "orientation": "portrait"
+}

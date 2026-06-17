@@ -10,10 +10,9 @@ interface QuizQuestion {
 
 interface QuizGeneratorProps {
   onRewardXp: (xp: number, message: string) => void;
-  onRewardStat: (statName: string, value: number) => void;
 }
 
-export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewardStat }) => {
+export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp }) => {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
@@ -31,10 +30,10 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
     setCompleted(false);
 
     const steps = [
-      'Scanning curriculum databases...',
-      'Formulating cognitive difficulty metrics...',
-      'Encapsulating choice distraction vectors...',
-      'Calibrating question blueprints...'
+      'Scanning academic course databases...',
+      'Formulating quiz cognitive metrics...',
+      'Structuring practice choice distractions...',
+      'Calibrating subject blueprints...'
     ];
 
     let stepIdx = 0;
@@ -75,13 +74,9 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
     } else {
       setCompleted(true);
       
-      // Calculate XP and Stat boosts
-      const xpGained = score * 50 + 50; // Max 200 XP
-      onRewardXp(xpGained, `Finished quiz on "${topic}"! Score: ${score}/3. Earned +${xpGained} XP!`);
-      if (score >= 2) {
-        onRewardStat('intelligence', 2);
-        onRewardStat('career', 1);
-      }
+      // Calculate Study Points
+      const pointsGained = score * 30 + 30; // Max 120 Points
+      onRewardXp(pointsGained, `Completed Study Quiz on "${topic}"! Score: ${score}/3. Earned +${pointsGained} Study Points!`);
     }
   };
 
@@ -91,7 +86,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
       {/* Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          AI QUIZ GENERATOR STATION
+          🤖 STUDY QUIZZES
         </h3>
         {questions && !completed && (
           <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>
@@ -104,9 +99,9 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
       {!loading && !questions && (
         <div className="anim-pop" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center', flex: 1, maxWidth: '500px', margin: '0 auto', width: '100%' }}>
           <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#000', marginBottom: '0.25rem' }}>AI QUIZ GENERATOR</div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#000', marginBottom: '0.25rem' }}>STUDY QUIZ MAKER</div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '0.25rem' }}>
-              Type any course subject or specific syllabus topic below, and our AI model will compile a customized evaluation quiz on the spot!
+              Type any course subject or specific syllabus topic below, and our AI model will compile a customized practice quiz on the spot!
             </p>
           </div>
 
@@ -127,7 +122,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
             className="cyber-btn pink-fill"
             style={{ width: '100%', padding: '0.75rem', fontSize: '1rem' }}
           >
-            GENERATE AI QUIZ
+            GENERATE STUDY QUIZ
           </button>
         </div>
       )}
@@ -267,9 +262,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
           </div>
 
           <div style={{ background: '#f5f5f5', border: '2px solid #000', borderRadius: '10px', padding: '0.65rem', width: '100%', fontSize: '0.75rem', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div style={{ color: 'var(--accent-pink)' }}>★ Earned +{(score * 50) + 50} Progress Points!</div>
-            {score >= 2 && <div style={{ color: 'var(--accent-purple)' }}>★ Earned +2 Analysis Points!</div>}
-            {score >= 2 && <div style={{ color: 'var(--accent-green)' }}>★ Earned +1 Execution Points!</div>}
+            <div style={{ color: 'var(--accent-pink)' }}>★ Earned +{(score * 30) + 30} Study Points!</div>
           </div>
 
           <button 
@@ -285,3 +278,4 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp, onRewa
     </div>
   );
 };
+

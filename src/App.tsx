@@ -1,63 +1,117 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
-import { StatPanel } from './components/StatPanel';
-import { QuestBoard } from './components/QuestBoard';
-import type { Quest } from './components/QuestBoard';
-import { SkillTree } from './components/SkillTree';
-import { BossBattle } from './components/BossBattle';
-import { Achievements } from './components/Achievements';
-import type { Achievement } from './components/Achievements';
-import { SocialHub } from './components/SocialHub';
-import { AIMentor } from './components/AIMentor';
-import { NotesBoard } from './components/NotesBoard';
+import { Dashboard } from './components/Dashboard';
+import { SharedNotes } from './components/SharedNotes';
+import { CommunityChat } from './components/CommunityChat';
+import { StudyGroups } from './components/StudyGroups';
 import { VideoStudyRoom } from './components/VideoStudyRoom';
+import { AIWorkspace } from './components/AIWorkspace';
+import { Planner } from './components/Planner';
+import { ProfilePage } from './components/ProfilePage';
 import { QuizGenerator } from './components/QuizGenerator';
-import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb } from './firebase';
+import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
+
+interface ToastItem {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+}
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  timestamp: number;
+  read: boolean;
+}
+
+interface Course {
+  id: string;
+  name: string;
+  progress: number;
+}
+
+interface LearningTrack {
+  id: string;
+  name: string;
+  goal: string;
+  targetDate: string;
+  roadmapMarkdown?: string;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  deadline: string;
+  priority: string;
+  status: string;
+}
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string; isGuest?: boolean } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Core Academic State
-  const [level, setLevel] = useState(24);
-  const [xp, setXp] = useState(3200);
-  const [maxXp, setMaxXp] = useState(5000);
-  const [skillPoints, setSkillPoints] = useState(2);
+  // Academic State (compatible with legacy db structure)
+  const [level, setLevel] = useState(1);
+  const [xp, setXp] = useState(0);
+  const [maxXp, setMaxXp] = useState(1000);
+  const [studyPoints, setStudyPoints] = useState(0);
   const [stats, setStats] = useState({
-    intelligence: 18,
-    strength: 15,
-    discipline: 20,
-    creativity: 14,
-    communication: 16,
-    career: 22
+    intelligence: 5,
+    strength: 5,
+    discipline: 5,
+    creativity: 5,
+    communication: 5,
+    career: 5
   });
-  const [unlockedSkills, setUnlockedSkills] = useState<string[]>(['python', 'numpy']);
-  const [quests, setQuests] = useState<Quest[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [sessionXpEarned, setSessionXpEarned] = useState(0);
+  const [achievements, setAchievements] = useState<any[]>([]);
+
+  // Navigation state - supports 8 independent modules + quiz station (from dashboard)
+  type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'ai_workspace' | 'planner' | 'profile' | 'quiz_station';
+  const [activeMainTab, setActiveMainTab] = useState<Tab>('dashboard');
+
+  // Modular Data States
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [learningTracks, setLearningTracks] = useState<LearningTrack[]>([]);
+  const [notesList, setNotesList] = useState<any[]>([]);
 
   // Real-Time Notification Center & Toast states
-  interface ToastItem {
-    id: string;
-    title: string;
-    message: string;
-    type: string;
-  }
-
-  interface NotificationItem {
-    id: string;
-    title: string;
-    message: string;
-    type: string;
-    timestamp: number;
-    read: boolean;
-  }
-
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
 
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+
+  const [profile, setProfile] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    state: 'Karnataka',
+    city: 'Bangalore',
+    university: 'Christ University',
+    college: 'Christ University, Bangalore',
+    degree: 'BCA (Bachelor of Computer Applications)',
+    specialization: 'Computer Science',
+    semester: '1st Semester',
+    careerGoal: 'Software Engineer',
+    interests: [] as string[],
+    bio: '',
+    profilePhoto: null as string | null
+  });
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Sync admin state
   useEffect(() => {
     if (loggedIn && user) {
       if (user.isGuest) {
@@ -85,13 +139,14 @@ export default function App() {
     }
   }, [loggedIn, user]);
 
-  // Ask for browser HTML5 push notification permission on login
+  // Request notification permissions
   useEffect(() => {
     if (loggedIn && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, [loggedIn]);
 
+  // E2E performance / latency test target
   useEffect(() => {
     const handleLatencyTest = async () => {
       if (isFirebaseConfigured && db) {
@@ -110,7 +165,7 @@ export default function App() {
     return () => window.removeEventListener('debug-latency-test', handleLatencyTest);
   }, []);
 
-  // Global listener for notifications dispatched anywhere in the app
+  // Global listener for notification events
   useEffect(() => {
     const handleNewNotification = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -119,7 +174,6 @@ export default function App() {
 
       const newId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       
-      // Update Notification List
       setNotifications(prev => [
         {
           id: newId,
@@ -132,13 +186,11 @@ export default function App() {
         ...prev
       ].slice(0, 50));
 
-      // Trigger Toast Alert popup
       setToasts(prev => [...prev, { id: newId, title, message, type: type || 'info' }]);
       setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== newId));
       }, 4000);
 
-      // Trigger browser push notification if app is backgrounded
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
         try {
           new Notification(title, { body: message });
@@ -152,61 +204,48 @@ export default function App() {
     return () => window.removeEventListener('new-notification', handleNewNotification);
   }, []);
 
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [profile, setProfile] = useState({
-    course: 'Computer Science',
-    degree: 'Bachelor of Science',
-    college: 'State University',
-    location: 'San Francisco, CA'
-  });
-
-  const [storyLog, setStoryLog] = useState<string[]>([
-    'System core engaged. Welcome back, Student.',
-    'Academic Assistant active. Preparing daily objectives...'
-  ]);
-
-  // UI Navigation Tabs
-  const [activeMainTab, setActiveMainTab] = useState<'dashboard' | 'notes' | 'video_rooms' | 'quiz_station' | 'chat' | 'profile'>('dashboard');
-  const [activeRightTab, setActiveRightTab] = useState<'skills' | 'boss' | 'achievements'>('skills');
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Load User Profile Data from database on login
+  // Load User Data, Profile, Tasks, Courses, Learning Tracks
   useEffect(() => {
     if (loggedIn && user) {
+      const userKey = user.email.replace(/\./g, '_');
+
       if (user.isGuest) {
         setLevel(1);
         setXp(0);
         setMaxXp(1000);
-        setStats({ intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 });
-        setUnlockedSkills([]);
-        setQuests([
-          { id: 'q1', title: 'Complete Python Challenge', category: 'Study', difficulty: 'Medium', xpReward: 100, statReward: { intelligence: 10 }, completed: false },
-          { id: 'q2', title: 'Read 20 Pages', category: 'Productivity', difficulty: 'Easy', xpReward: 50, statReward: { discipline: 5 }, completed: false }
-        ]);
-        setAchievements([]);
+        setStudyPoints(120);
         setProfile({
-          course: 'BCA (Bachelor of Computer Applications)',
-          degree: 'Bachelor of Computer Applications',
+          name: user.name,
+          email: user.email,
+          phone: '',
+          state: 'Karnataka',
+          city: 'Bangalore',
+          university: 'Christ University',
           college: 'Christ University, Bangalore',
-          location: 'Bangalore, Karnataka'
+          degree: 'BCA (Bachelor of Computer Applications)',
+          specialization: 'Computer Science',
+          semester: '1st Semester',
+          careerGoal: 'Software Engineer',
+          interests: ['Programming', 'UI Design'],
+          bio: 'Guest student workspace',
+          profilePhoto: null
         });
-        setProfilePhoto(null);
-        setStoryLog([
-          `Welcome to Roomie, Guest Student.`,
-          'You are browsing as a Guest. Please register an account to create rooms, write notes, and upload PDFs.'
+        setCourses([
+          { id: 'c1', name: 'Programming in Java', progress: 60 },
+          { id: 'c2', name: 'Database Management Systems', progress: 40 }
+        ]);
+        setLearningTracks([
+          { id: 't1', name: 'Data Structures and Algorithms', goal: 'Master tree & graph questions', targetDate: '2026-07-31' }
+        ]);
+        setTasks([
+          { id: 't_g1', title: 'Complete Java Assignment 1', deadline: '2026-06-25', priority: 'High', status: 'In Progress' },
+          { id: 't_g2', title: 'Read Chapter 3 DBMS Normalization', deadline: '2026-06-28', priority: 'Medium', status: 'Not Started' }
         ]);
         setIsLoaded(true);
         return;
       }
+
+      // Load Profile & State from database Service
       const loadData = async () => {
         try {
           const data = await databaseService.getUserData(user.email);
@@ -214,31 +253,28 @@ export default function App() {
             setLevel(data.level ?? 1);
             setXp(data.xp ?? 0);
             setMaxXp(data.maxXp ?? 1000);
+            setStudyPoints(data.studyPoints ?? data.xp ?? 0);
             setStats(data.stats ?? { intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 });
-            setUnlockedSkills(data.unlockedSkills ?? []);
-            setQuests(data.quests ?? []);
             setAchievements(data.achievements ?? []);
 
+            const loadedProfile = data.profile ?? {};
             setProfile({
-              course: data.course ?? 'Computer Science',
-              degree: data.degree ?? 'Bachelor of Science',
-              college: data.college ?? 'State University',
-              location: data.location ?? 'San Francisco, CA'
+              name: loadedProfile.name ?? data.name ?? user.name ?? '',
+              email: loadedProfile.email ?? data.email ?? user.email ?? '',
+              phone: loadedProfile.phone ?? '',
+              state: loadedProfile.state ?? data.state ?? 'Karnataka',
+              city: loadedProfile.city ?? data.location ?? 'Bangalore',
+              university: loadedProfile.university ?? 'Christ University',
+              college: loadedProfile.college ?? data.college ?? 'Christ University, Bangalore',
+              degree: loadedProfile.degree ?? data.degree ?? 'BCA (Bachelor of Computer Applications)',
+              specialization: loadedProfile.specialization ?? data.course ?? 'Computer Science',
+              semester: loadedProfile.semester ?? '1st Semester',
+              careerGoal: loadedProfile.careerGoal ?? '',
+              interests: loadedProfile.interests ?? [],
+              bio: loadedProfile.bio ?? '',
+              profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null
             });
-            setProfilePhoto(data.profilePhoto ?? null);
-            setStoryLog([
-              `Welcome back, ${data.name}. You are currently at Academic Level ${data.level}.`,
-              'Academic Assistant: Your active daily tasks are loaded. Complete tasks to earn progress.'
-            ]);
-            
-            const totalEarnedPoints = data.level;
-            const spent = (data.unlockedSkills ?? []).reduce((acc: number, val: string) => {
-              if (val === 'python' || val === 'numpy' || val === 'pandas') return acc + 1;
-              if (val === 'ml' || val === 'dl') return acc + 2;
-              if (val === 'ai_engineer') return acc + 3;
-              return acc;
-            }, 0);
-            setSkillPoints(Math.max(0, totalEarnedPoints - spent));
+            setProfilePhoto(loadedProfile.profilePhoto ?? data.profilePhoto ?? null);
           }
         } catch (err) {
           console.error('Failed to load user state:', err);
@@ -247,34 +283,103 @@ export default function App() {
         }
       };
       loadData();
+
+      // Realtime syncing listeners
+      if (isFirebaseConfigured && db) {
+        // Sync tasks
+        const tasksRef = ref(db, `users/${userKey}/tasks`);
+        const unsubTasks = onValue(tasksRef, (snap) => {
+          if (snap.exists()) {
+            const val = snap.val();
+            setTasks(val ? Object.values(val) : []);
+          } else {
+            setTasks([]);
+          }
+        });
+
+        // Sync courses
+        const coursesRef = ref(db, `users/${userKey}/courses`);
+        const unsubCourses = onValue(coursesRef, (snap) => {
+          if (snap.exists()) {
+            setCourses(snap.val() || []);
+          } else {
+            setCourses([]);
+          }
+        });
+
+        // Sync learning tracks
+        const tracksRef = ref(db, `users/${userKey}/learningTracks`);
+        const unsubTracks = onValue(tracksRef, (snap) => {
+          if (snap.exists()) {
+            setLearningTracks(snap.val() || []);
+          } else {
+            setLearningTracks([]);
+          }
+        });
+
+        return () => {
+          unsubTasks();
+          unsubCourses();
+          unsubTracks();
+        };
+      }
     }
   }, [loggedIn, user]);
 
-  // Auto-Save data to Database whenever State changes
+  // Sync shared notes for dashboard preview
+  useEffect(() => {
+    if (isFirebaseConfigured && db) {
+      const notesRef = ref(db, 'shared_notes');
+      const unsub = onValue(notesRef, (snap) => {
+        if (snap.exists()) {
+          const val = snap.val();
+          if (val) {
+            const list = Object.values(val).map((n: any) => ({
+              id: n.id,
+              title: n.title,
+              course: n.course || 'General',
+              authorName: n.author || 'Anonymous'
+            }));
+            setNotesList(list);
+          } else {
+            setNotesList([]);
+          }
+        } else {
+          setNotesList([]);
+        }
+      });
+      return () => unsub();
+    }
+  }, []);
+
+  // Auto-Save User Profile & Stats to Database whenever State updates
   const saveState = async () => {
     if (!isLoaded) return;
     if (loggedIn && user && !user.isGuest) {
       const data = {
         email: user.email,
-        name: user.name,
+        name: profile.name,
         level,
         xp,
         maxXp,
+        studyPoints,
         stats,
-        unlockedSkills,
-        quests,
         achievements,
-
-        course: profile.course,
+        profile: {
+          ...profile,
+          profilePhoto: profilePhoto
+        },
+        // compatibility fields
+        course: profile.specialization,
         degree: profile.degree,
         college: profile.college,
-        location: profile.location,
+        location: `${profile.city}, ${profile.state}`,
         profilePhoto: profilePhoto
       };
       try {
         await databaseService.saveUserData(user.email, data);
       } catch (err) {
-        console.error('Auto-save failure:', err);
+        console.error('Auto-save profile state failure:', err);
       }
     }
   };
@@ -283,14 +388,15 @@ export default function App() {
     if (isLoaded) {
       saveState();
     }
-  }, [level, xp, maxXp, stats, unlockedSkills, quests, achievements, profile, profilePhoto, isLoaded]);
+  }, [level, xp, maxXp, studyPoints, stats, profile, profilePhoto, achievements, isLoaded]);
 
+  // Heartbeat Presence updates
   useEffect(() => {
     if (loggedIn && user) {
       const userKey = user.email.replace(/\./g, '_');
       const presenceData = {
         email: user.email,
-        name: user.name,
+        name: profile.name || user.name,
         online: true,
         lastActive: Date.now(),
         profilePhoto: profilePhoto
@@ -303,33 +409,20 @@ export default function App() {
           } catch (e) {
             console.error('Error writing online presence:', e);
           }
-        } else {
-          console.warn('[Presence] Realtime service unavailable. Firebase not configured.');
         }
       };
 
       setOnline();
-
-      const heartbeat = setInterval(() => {
-        setOnline();
-      }, 20000);
+      const heartbeat = setInterval(setOnline, 20000);
 
       const setOffline = () => {
-        const offlineData = {
-          online: false,
-          lastActive: Date.now()
-        };
+        const offlineData = { online: false, lastActive: Date.now() };
         if (isFirebaseConfigured && db) {
           update(ref(db, 'community_users/' + userKey), offlineData).catch(() => {});
-        } else {
-          console.warn('[Presence] Realtime service unavailable. Firebase not configured.');
         }
       };
 
-      const handleUnload = () => {
-        setOffline();
-      };
-
+      const handleUnload = () => setOffline();
       window.addEventListener('beforeunload', handleUnload);
 
       return () => {
@@ -338,27 +431,45 @@ export default function App() {
         setOffline();
       };
     }
-  }, [loggedIn, user, profilePhoto, isLoaded]);
-
+  }, [loggedIn, user, profile.name, profilePhoto, isLoaded]);
 
   const handleLoginSuccess = (
-    email: string, 
+    email: string,
     name: string,
     course?: string,
     degree?: string,
     college?: string,
     location?: string,
-    isGuest?: boolean
+    isGuest?: boolean,
+    state?: string,
+    city?: string,
+    university?: string,
+    specialization?: string,
+    semester?: string,
+    careerGoal?: string,
+    interests?: string[],
+    photoUrl?: string | null,
+    phone?: string,
+    bio?: string
   ) => {
     setUser({ email, name, isGuest });
-    if (course || degree || college || location) {
-      setProfile({
-        course: course ?? 'Computer Science',
-        degree: degree ?? 'Bachelor of Science',
-        college: college ?? 'State University',
-        location: location ?? 'San Francisco, CA'
-      });
-    }
+    setProfile({
+      name: name,
+      email: email,
+      phone: phone ?? '',
+      state: state ?? (location?.split(',')[1]?.trim()) ?? 'Karnataka',
+      city: city ?? (location?.split(',')[0]?.trim()) ?? 'Bangalore',
+      university: university ?? 'Christ University',
+      college: college ?? 'Christ University, Bangalore',
+      degree: degree ?? 'BCA (Bachelor of Computer Applications)',
+      specialization: specialization ?? course ?? 'Computer Science',
+      semester: semester ?? '1st Semester',
+      careerGoal: careerGoal ?? 'Software Engineer',
+      interests: interests ?? [],
+      bio: bio ?? '',
+      profilePhoto: photoUrl ?? null
+    });
+    setProfilePhoto(photoUrl ?? null);
     setLoggedIn(true);
   };
 
@@ -368,137 +479,99 @@ export default function App() {
     setUser(null);
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Image file must be less than 2MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const renderSilhouette = (size: string) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: size, height: size, color: '#64748b', background: '#e2e8f0', borderRadius: '50%', padding: '15%' }}>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-
-  // Generic Reward Helpers
   const handleRewardXp = (amount: number, reason: string) => {
-    setSessionXpEarned(prev => prev + amount);
-    setStoryLog(prev => [reason, ...prev]);
-    const newXp = xp + amount;
-    if (newXp >= maxXp) {
-      const rolloverXp = newXp - maxXp;
-      const nextLevel = level + 1;
-      const nextMaxXp = Math.floor(maxXp * 1.15);
+    const newId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    setNotifications(prev => [
+      {
+        id: newId,
+        title: 'Study Points Awarded',
+        message: reason,
+        type: 'points',
+        timestamp: Date.now(),
+        read: false
+      },
+      ...prev
+    ].slice(0, 50));
+    setToasts(prev => [...prev, { id: newId, title: 'Study Points Awarded', message: reason, type: 'points' }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== newId));
+    }, 4000);
 
-      setLevel(nextLevel);
-      setXp(rolloverXp);
-      setMaxXp(nextMaxXp);
-      setSkillPoints(prev => prev + 1);
-      
-      setStoryLog(prev => [`LEVEL UP! Reached Level ${nextLevel}! +1 Skill Point awarded.`, ...prev]);
-    } else {
-      setXp(newXp);
-    }
-  };
-
-  const handleRewardStat = (statName: string, value: number) => {
-    const key = statName as keyof typeof stats;
-    setStats(prev => ({
-      ...prev,
-      [key]: Math.min(100, prev[key] + value)
-    }));
-  };
-
-  // Complete Daily Quests
-  const handleCompleteQuest = (questId: string) => {
-    const quest = quests.find(q => q.id === questId);
-    if (!quest || quest.completed) return;
-
-    // Mark as completed
-    const updatedQuests = quests.map(q => q.id === questId ? { ...q, completed: true } : q);
-    setQuests(updatedQuests);
-
-    // Apply stat adjustments
-    const newStats = { ...stats };
-    Object.entries(quest.statReward).forEach(([statName, value]) => {
-      const key = statName as keyof typeof stats;
-      newStats[key] = Math.min(100, newStats[key] + value);
-    });
-    setStats(newStats);
-
-    const logMsg = `Completed '${quest.title}'. Earned +${quest.xpReward} XP!`;
-    handleRewardXp(quest.xpReward, logMsg);
-
-    // Check level achievements
-    if (level >= 20) {
-      unlockAchievement('lvl_20');
-    }
-
-    if (quest.category === 'Coding') {
-      unlockAchievement('first_proj');
-    }
-  };
-
-  const unlockAchievement = (id: string) => {
-    setAchievements(prev => prev.map(badge => {
-      if (badge.id === id && !badge.unlocked) {
-        const notifyMsg = `ACHIEVEMENT UNLOCKED: '${badge.title}' (${badge.rarity})! Check achievements panel.`;
-        setStoryLog(prevLogs => [notifyMsg, ...prevLogs]);
-        return { ...badge, unlocked: true, unlockedAt: new Date().toLocaleDateString() };
+    setXp(prevXp => {
+      const newXp = prevXp + amount;
+      if (newXp >= maxXp) {
+        const rolloverXp = newXp - maxXp;
+        const nextLevel = level + 1;
+        const nextMaxXp = Math.floor(maxXp * 1.15);
+        setLevel(nextLevel);
+        setMaxXp(nextMaxXp);
+        setStudyPoints(prevPoints => prevPoints + amount);
+        return rolloverXp;
+      } else {
+        setStudyPoints(prevPoints => prevPoints + amount);
+        return newXp;
       }
-      return badge;
-    }));
+    });
   };
 
-  const handleAddQuest = (newQuest: Omit<Quest, 'id' | 'completed'>) => {
-    const quest: Quest = {
-      ...newQuest,
-      id: `q_${Date.now()}`,
-      completed: false
+  // Planner handlers
+  const handleAddTask = async (title: string, deadline: string, priority: string) => {
+    const userKey = user?.email.replace(/\./g, '_');
+    const taskId = `task_${Date.now()}`;
+    const newTask = {
+      id: taskId,
+      title,
+      deadline,
+      priority,
+      status: 'Not Started'
     };
-    setQuests(prev => [...prev, quest]);
-    const addMsg = `Mission registered: '${quest.title}'. Reward parameters loaded.`;
-    setStoryLog(prev => [addMsg, ...prev]);
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      await set(ref(db, `users/${userKey}/tasks/${taskId}`), newTask);
+    } else {
+      setTasks(prev => [...prev, newTask]);
+    }
   };
 
-  const handleUnlockSkill = (
-    skillId: string, 
-    cost: number, 
-    rewards: { intelligence?: number; career?: number; creativity?: number },
-    skillName: string
-  ) => {
-    if (skillPoints < cost) return;
-
-    setUnlockedSkills(prev => [...prev, skillId]);
-    setSkillPoints(prev => prev - cost);
-
-    // Apply stat rewards
-    const newStats = { ...stats };
-    if (rewards.intelligence) newStats.intelligence = Math.min(100, newStats.intelligence + rewards.intelligence);
-    if (rewards.career) newStats.career = Math.min(100, newStats.career + rewards.career);
-    if (rewards.creativity) newStats.creativity = Math.min(100, newStats.creativity + rewards.creativity);
-    setStats(newStats);
-
-    const unlockMsg = `Topic Mastered: [${skillName}]. Knowledge base expanded. Skills boosted!`;
-    setStoryLog(prev => [unlockMsg, ...prev]);
+  const handleUpdateTaskStatus = async (id: string, nextStatus: string) => {
+    const userKey = user?.email.replace(/\./g, '_');
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      await update(ref(db, `users/${userKey}/tasks/${id}`), { status: nextStatus });
+    } else {
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: nextStatus } : t));
+    }
   };
 
-  const handleDefeatBoss = (xpReward: number, badgeName: string) => {
-    handleRewardXp(xpReward, `Completed the Machine Learning Assessment and achieved the '${badgeName}' milestone!`);
-    unlockAchievement('ml_master');
+  const handleDeleteTask = async (id: string) => {
+    const userKey = user?.email.replace(/\./g, '_');
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      await set(ref(db, `users/${userKey}/tasks/${id}`), null);
+    } else {
+      setTasks(prev => prev.filter(t => t.id !== id));
+    }
   };
 
+  const handleUpdateProfile = (updatedProfile: any) => {
+    setProfile(updatedProfile);
+    if (updatedProfile.profilePhoto) {
+      setProfilePhoto(updatedProfile.profilePhoto);
+    }
+  };
 
+  const handleUpdateCourses = async (updatedCourses: Course[]) => {
+    setCourses(updatedCourses);
+    const userKey = user?.email.replace(/\./g, '_');
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      await set(ref(db, `users/${userKey}/courses`), updatedCourses);
+    }
+  };
+
+  const handleUpdateLearningTracks = async (updatedTracks: LearningTrack[]) => {
+    setLearningTracks(updatedTracks);
+    const userKey = user?.email.replace(/\./g, '_');
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      await set(ref(db, `users/${userKey}/learningTracks`), updatedTracks);
+    }
+  };
 
   if (!isFirebaseConfigured) {
     return (
@@ -557,9 +630,9 @@ export default function App() {
       gap: isMobile ? '0.75rem' : '1.25rem' 
     }}>
       <span data-testid="presence-indicator" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>online</span>
-      <button data-testid="create-room-button" onClick={() => setActiveMainTab('video_rooms')} style={{ position: 'fixed', top: 0, left: 0, width: '10px', height: '10px', opacity: 0.001, zIndex: 99999, border: 'none', background: 'none', padding: 0, margin: 0 }}>Create Room</button>
+      <button data-testid="create-room-button" onClick={() => setActiveMainTab('study_rooms')} style={{ position: 'fixed', top: 0, left: 0, width: '10px', height: '10px', opacity: 0.001, zIndex: 99999, border: 'none', background: 'none', padding: 0, margin: 0 }}>Create Room</button>
       
-      {/* Top Navbar */}
+      {/* Top Header */}
       <header style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -587,9 +660,9 @@ export default function App() {
           )}
         </div>
 
-        {/* User HUD Profile */}
+        {/* User Stats HUD */}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem' }}>
-          {/* Notification Bell */}
+          {/* Notification dropdown trigger */}
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
@@ -654,9 +727,7 @@ export default function App() {
                   <span style={{ fontSize: '0.75rem', fontWeight: 900 }}>NOTIFICATIONS</span>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
                     <button
-                      onClick={() => {
-                        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                      }}
+                      onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-purple)' }}
                     >
                       READ ALL
@@ -677,9 +748,7 @@ export default function App() {
                     notifications.map(n => (
                       <div
                         key={n.id}
-                        onClick={() => {
-                          setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
-                        }}
+                        onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item))}
                         style={{
                           background: n.read ? '#fcfcfc' : '#fff9db',
                           border: '1.5px solid #000',
@@ -715,14 +784,14 @@ export default function App() {
               style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #000', boxShadow: '1.5px 1.5px 0px #000' }} 
             />
           ) : (
-            <div style={{ width: '32px', height: '32px' }}>
-              {renderSilhouette('100%')}
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', border: '2px solid #000' }}>
+              👤
             </div>
           )}
           
           {!isMobile && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '0.8rem' }}>
-              <span style={{ fontWeight: 800, color: '#000' }}>{user.name}</span>
+              <span style={{ fontWeight: 800, color: '#000' }}>{profile.name || user.name}</span>
               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>{user.email}</span>
             </div>
           )}
@@ -759,19 +828,25 @@ export default function App() {
           borderRadius: '20px',
           padding: '0.35rem',
           gap: '0.4rem',
-          boxShadow: '4px 4px 0px #000'
+          boxShadow: '4px 4px 0px #000',
+          flexWrap: 'wrap'
         }}>
           {([
-            { id: 'dashboard', label: 'Dashboard' },
-            { id: 'notes', label: 'Shared Notes' },
-            { id: 'video_rooms', label: 'Study Rooms' },
-            { id: 'quiz_station', label: 'Study Quizzes' }
+            { id: 'dashboard', label: 'Overview' },
+            { id: 'shared_notes', label: 'Notes' },
+            { id: 'community_chat', label: 'Community' },
+            { id: 'study_groups', label: 'Groups' },
+            { id: 'study_rooms', label: 'Study Rooms' },
+            { id: 'ai_workspace', label: 'AI Workspace' },
+            { id: 'planner', label: 'Planner' },
+            { id: 'profile', label: 'Settings' }
           ] as const).map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveMainTab(tab.id)}
               style={{
                 flex: 1,
+                minWidth: '100px',
                 background: activeMainTab === tab.id ? 'var(--accent-purple)' : 'none',
                 border: activeMainTab === tab.id ? '2px solid #000' : '2px solid transparent',
                 borderRadius: '12px',
@@ -796,366 +871,113 @@ export default function App() {
         
         {/* Dashboard Tab */}
         {activeMainTab === 'dashboard' && (
-          <main className="dashboard-grid">
-
-
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* College Academic Profile Card */}
-              <div className="glass-panel" style={{
-                background: '#fffcf0',
-                border: '3.5px solid #000',
-                boxShadow: '4px 4px 0px #000',
-                borderRadius: '16px',
-                padding: '1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem'
-              }}>
-                <h3 style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '1.05rem',
-                  fontWeight: 800,
-                  borderBottom: '2px solid #000',
-                  paddingBottom: '0.4rem'
-                }}>
-                  ACADEMIC CREDENTIALS
-                </h3>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      width: '72px',
-                      height: '72px',
-                      borderRadius: '50%',
-                      border: '2.5px solid #000',
-                      position: 'relative',
-                      cursor: 'pointer',
-                      overflow: 'hidden',
-                      flexShrink: 0,
-                      boxShadow: '2px 2px 0px #000',
-                      transition: 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                    }}
-                    title="Click to upload photo"
-                  >
-                    {profilePhoto ? (
-                      <img 
-                        src={profilePhoto} 
-                        alt="Profile avatar" 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
-                    ) : (
-                      renderSilhouette('100%')
-                    )}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 0, left: 0, right: 0,
-                      background: 'rgba(0,0,0,0.65)',
-                      color: '#fff',
-                      fontSize: '0.45rem',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      padding: '0.2rem 0',
-                      fontFamily: 'var(--font-heading)'
-                    }}>
-                      EDIT
-                    </div>
-                  </div>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handlePhotoChange} 
-                    accept="image/*" 
-                    style={{ display: 'none' }} 
-                  />
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', fontWeight: 700, flex: 1 }}>
-                    <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>COURSE/MAJOR:</span>{' '}
-                      <strong style={{ color: 'var(--accent-purple)' }}>{profile.course.toUpperCase()}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>DEGREE LEVEL:</span>{' '}
-                      <strong style={{ color: 'var(--accent-pink)' }}>{profile.degree}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>COLLEGE:</span>{' '}
-                      <strong style={{ color: '#000' }}>{profile.college}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>LOCATION:</span>{' '}
-                      <strong style={{ color: '#009688' }}>{profile.location}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <StatPanel
-                stats={stats}
-                level={level}
-                xp={xp}
-                maxXp={maxXp}
-                completedQuestsCount={quests.filter(q => q.completed).length}
-                totalQuestsCount={quests.length}
-                unlockedSkillsCount={unlockedSkills.length}
-                unlockedAchievementsCount={achievements.length}
-                sessionXpEarned={sessionXpEarned}
-              />
-              <QuestBoard
-                quests={quests}
-                onCompleteQuest={handleCompleteQuest}
-                onAddQuest={handleAddQuest}
-                storyLog={storyLog}
-              />
-
-              {/* AI Quiz Station Card for Mobile & Desktop shortcut */}
-              <div className="glass-panel glowing-cyan" style={{
-                background: 'var(--accent-purple)',
-                border: '3.5px solid #000',
-                boxShadow: '4px 4px 0px #000',
-                borderRadius: '16px',
-                padding: '1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                color: '#000',
-                cursor: 'pointer',
-                marginTop: '1.25rem'
-              }} onClick={() => setActiveMainTab('quiz_station')}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800 }}>
-                    🤖 STUDY QUIZZES
-                  </h3>
-                  <span style={{ fontSize: '0.7rem', background: '#fff', border: '1.5px solid #000', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 800 }}>LAUNCH</span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700 }}>
-                  Generate customized AI tests, practice subject questions, and boost your collaboration/analysis parameters instantly!
-                </p>
-              </div>
-            </section>
-
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{
-                display: 'flex',
-                background: '#fff',
-                border: '3px solid #000',
-                borderRadius: '16px',
-                padding: '0.3rem',
-                gap: '0.25rem',
-                boxShadow: '3px 3px 0px #000'
-              }}>
-                {(['skills', 'boss', 'achievements'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveRightTab(tab)}
-                    style={{
-                      flex: 1,
-                      background: activeRightTab === tab ? 'var(--accent-cyan)' : 'none',
-                      border: activeRightTab === tab ? '2px solid #000' : '2px solid transparent',
-                      borderRadius: '10px',
-                      color: '#000',
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '0.75rem',
-                      fontWeight: 800,
-                      padding: '0.5rem 0',
-                      cursor: 'pointer',
-                      boxShadow: activeRightTab === tab ? '2px 2px 0px #000' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {tab === 'skills' ? 'LEARNING PROGRESS' : tab === 'boss' ? 'ASSESSMENT' : 'MILESTONES'}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {activeRightTab === 'skills' && (
-                  <SkillTree
-                    unlockedSkills={unlockedSkills}
-                    skillPoints={skillPoints}
-                    onUnlockSkill={handleUnlockSkill}
-                  />
-                )}
-                
-                {activeRightTab === 'boss' && (
-                  <BossBattle
-                    userStats={stats}
-                    onDefeatBoss={handleDefeatBoss}
-                  />
-                )}
-
-                {activeRightTab === 'achievements' && (
-                  <Achievements
-                    achievements={achievements}
-                    userName={user.name}
-                    userLevel={level}
-                  />
-                )}
-              </div>
-
-              <SocialHub
-                userName={user.name}
-                userLevel={level}
-                userXp={xp}
-              />
-            </section>
-          </main>
+          <Dashboard
+            profile={{
+              name: profile.name || user.name,
+              college: profile.college,
+              university: profile.university,
+              degree: profile.degree,
+              specialization: profile.specialization,
+              semester: profile.semester,
+              careerGoal: profile.careerGoal,
+              profilePhoto: profilePhoto
+            }}
+            tasks={tasks}
+            notes={notesList}
+            courses={courses}
+            studyPoints={studyPoints}
+            milestonesCount={achievements.filter((a: any) => a.unlocked).length}
+            onNavigate={(tab) => setActiveMainTab(tab as Tab)}
+          />
         )}
 
-
-
-        {/* Shared Notes / Chat Tab */}
-        {(activeMainTab === 'notes' || activeMainTab === 'chat') && (
-          <NotesBoard 
-            userName={user.name} 
-            userEmail={user.email} 
-            userCourse={profile.course} 
-            onRewardXp={handleRewardXp} 
-            activeSubView={isMobile ? activeMainTab : undefined}
+        {/* Shared Notes Tab */}
+        {activeMainTab === 'shared_notes' && (
+          <SharedNotes
+            userName={profile.name || user.name}
+            userEmail={user.email}
+            userCourse={profile.specialization}
+            onRewardXp={handleRewardXp}
             isGuest={user.isGuest}
             isAdmin={isAdmin}
           />
         )}
 
+        {/* Community Chat Tab */}
+        {activeMainTab === 'community_chat' && (
+          <CommunityChat
+            userName={profile.name || user.name}
+            userEmail={user.email}
+            isAdmin={isAdmin}
+          />
+        )}
+
+        {/* Study Groups Tab */}
+        {activeMainTab === 'study_groups' && (
+          <StudyGroups
+            userName={profile.name || user.name}
+            userEmail={user.email}
+            onRewardXp={handleRewardXp}
+            isGuest={user.isGuest}
+          />
+        )}
+
         {/* Video Study Rooms Tab */}
-        {activeMainTab === 'video_rooms' && (
+        {activeMainTab === 'study_rooms' && (
           <VideoStudyRoom 
-            userName={user.name} 
+            userName={profile.name || user.name} 
             userEmail={user.email}
             profilePhoto={profilePhoto}
             userStats={stats} 
-            userCourse={profile.course} 
+            userCourse={profile.specialization} 
             onRewardXp={handleRewardXp} 
             isGuest={user.isGuest}
           />
         )}
 
-        {/* AI Quiz Station Tab */}
-        {activeMainTab === 'quiz_station' && (
-          <QuizGenerator onRewardXp={handleRewardXp} onRewardStat={handleRewardStat} />
+        {/* AI Workspace Tab */}
+        {activeMainTab === 'ai_workspace' && (
+          <AIWorkspace
+            userEmail={user.email}
+            userName={profile.name || user.name}
+          />
         )}
 
-        {/* Mobile Profile Tab */}
-        {isMobile && activeMainTab === 'profile' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '40px' }}>
-            <div className="glass-panel" style={{
-              background: '#fffcf0',
-              border: '3.5px solid #000',
-              boxShadow: '4px 4px 0px #000',
-              borderRadius: '16px',
-              padding: '1rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem'
-            }}>
-              <h3 style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '1.05rem',
-                fontWeight: 800,
-                borderBottom: '2px solid #000',
-                paddingBottom: '0.4rem'
-              }}>
-                ACADEMIC CREDENTIALS
-              </h3>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: '72px',
-                    height: '72px',
-                    borderRadius: '50%',
-                    border: '2.5px solid #000',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    boxShadow: '2px 2px 0px #000'
-                  }}
-                  title="Click to upload photo"
-                >
-                  {profilePhoto ? (
-                    <img 
-                      src={profilePhoto} 
-                      alt="Profile avatar" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                  ) : (
-                    renderSilhouette('100%')
-                  )}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0, left: 0, right: 0,
-                    background: 'rgba(0,0,0,0.65)',
-                    color: '#fff',
-                    fontSize: '0.55rem',
-                    fontWeight: 800,
-                    textAlign: 'center',
-                    padding: '0.2rem 0',
-                    fontFamily: 'var(--font-heading)'
-                  }}>
-                    EDIT
-                  </div>
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handlePhotoChange} 
-                  accept="image/*" 
-                  style={{ display: 'none' }} 
-                />
+        {/* Planner Tab */}
+        {activeMainTab === 'planner' && (
+          <Planner
+            tasks={tasks}
+            onAddTask={handleAddTask}
+            onUpdateTaskStatus={handleUpdateTaskStatus}
+            onDeleteTask={handleDeleteTask}
+          />
+        )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', fontWeight: 700, flex: 1 }}>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)' }}>COURSE/MAJOR:</span>{' '}
-                    <strong style={{ color: 'var(--accent-purple)' }}>{profile.course.toUpperCase()}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)' }}>DEGREE LEVEL:</span>{' '}
-                    <strong style={{ color: 'var(--accent-pink)' }}>{profile.degree}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)' }}>COLLEGE:</span>{' '}
-                    <strong style={{ color: '#000' }}>{profile.college}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)' }}>LOCATION:</span>{' '}
-                    <strong style={{ color: '#009688' }}>{profile.location}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Profile Tab */}
+        {activeMainTab === 'profile' && (
+          <ProfilePage
+            profile={{
+              ...profile,
+              name: profile.name || user.name,
+              email: user.email,
+              profilePhoto: profilePhoto
+            }}
+            courses={courses}
+            learningTracks={learningTracks}
+            onUpdateProfile={handleUpdateProfile}
+            onUpdateCourses={handleUpdateCourses}
+            onUpdateLearningTracks={handleUpdateLearningTracks}
+            onLogOut={handleLogOut}
+            isGuest={user.isGuest}
+          />
+        )}
 
-            <StatPanel
-              stats={stats}
-              level={level}
-              xp={xp}
-              maxXp={maxXp}
-              completedQuestsCount={quests.filter(q => q.completed).length}
-              totalQuestsCount={quests.length}
-              unlockedSkillsCount={unlockedSkills.length}
-              unlockedAchievementsCount={achievements.length}
-              sessionXpEarned={sessionXpEarned}
-            />
-
-            <Achievements
-              achievements={achievements}
-              userName={user.name}
-              userLevel={level}
-            />
-
-            <button
-              onClick={handleLogOut}
-              className="cyber-btn pink-fill"
-              style={{ width: '100%', height: '44px', fontWeight: 900 }}
-            >
-              LOG OUT
-            </button>
-          </div>
+        {/* Study Quizzes Tab (Launcher option) */}
+        {activeMainTab === 'quiz_station' && (
+          <QuizGenerator onRewardXp={handleRewardXp} />
         )}
 
       </div>
-
-      {/* Floating AI Mentor Companion */}
-      <AIMentor userName={user.name} userLevel={level} />
 
       {/* Mobile Bottom Navigation Bar */}
       {isMobile && (
@@ -1168,32 +990,53 @@ export default function App() {
             <span>Home</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('notes')} 
-            className={`bottom-nav-btn ${activeMainTab === 'notes' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('shared_notes')} 
+            className={`bottom-nav-btn ${activeMainTab === 'shared_notes' ? 'active' : ''}`}
           >
             <span style={{ fontSize: '1.2rem' }}>📚</span>
             <span>Notes</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('video_rooms')} 
-            className={`bottom-nav-btn ${activeMainTab === 'video_rooms' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('community_chat')} 
+            className={`bottom-nav-btn ${activeMainTab === 'community_chat' ? 'active' : ''}`}
+          >
+            <span style={{ fontSize: '1.2rem' }}>💬</span>
+            <span>Chat</span>
+          </button>
+          <button 
+            onClick={() => setActiveMainTab('study_groups')} 
+            className={`bottom-nav-btn ${activeMainTab === 'study_groups' ? 'active' : ''}`}
+          >
+            <span style={{ fontSize: '1.2rem' }}>👥</span>
+            <span>Groups</span>
+          </button>
+          <button 
+            onClick={() => setActiveMainTab('study_rooms')} 
+            className={`bottom-nav-btn ${activeMainTab === 'study_rooms' ? 'active' : ''}`}
           >
             <span style={{ fontSize: '1.2rem' }}>🎥</span>
             <span>Rooms</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('chat')} 
-            className={`bottom-nav-btn ${activeMainTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('ai_workspace')} 
+            className={`bottom-nav-btn ${activeMainTab === 'ai_workspace' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>💬</span>
-            <span>Chat</span>
+            <span style={{ fontSize: '1.2rem' }}>🤖</span>
+            <span>AI Tools</span>
+          </button>
+          <button 
+            onClick={() => setActiveMainTab('planner')} 
+            className={`bottom-nav-btn ${activeMainTab === 'planner' ? 'active' : ''}`}
+          >
+            <span style={{ fontSize: '1.2rem' }}>📅</span>
+            <span>Planner</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('profile')} 
             className={`bottom-nav-btn ${activeMainTab === 'profile' ? 'active' : ''}`}
           >
             <span style={{ fontSize: '1.2rem' }}>👤</span>
-            <span>Profile</span>
+            <span>Settings</span>
           </button>
         </nav>
       )}
@@ -1254,4 +1097,3 @@ export default function App() {
     </div>
   );
 }
-
