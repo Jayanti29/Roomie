@@ -17,7 +17,7 @@ export default async function handler(req: any, res: any) {
   if (geminiApiKey) {
     provider = 'Gemini';
     status = 'healthy';
-    model = 'gemini-1.5-flash';
+    model = 'gemini-2.0-flash';
   } else if (openaiApiKey) {
     provider = 'OpenAI';
     status = 'healthy';
