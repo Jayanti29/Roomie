@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, update } from '../firebase';
+import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, update, onValue } from '../firebase';
 
 interface GroupNote {
   id: string;
@@ -82,7 +82,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const myEmailSlug = userEmail.replace(/\./g, '_');
 
-  // Load groups list
+  // Load groups list (metadata & members only)
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
 
@@ -98,11 +98,11 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
           description: val.metadata.description || '',
           createdBy: val.metadata.createdBy || '',
           members: val.members || {},
-          messages: val.messages || {},
-          notes: val.notes || {},
-          tasks: val.tasks || {},
-          announcements: val.announcements || {},
-          roadmap: val.roadmap || {}
+          messages: {},
+          notes: {},
+          tasks: {},
+          announcements: {},
+          roadmap: {}
         };
         setGroups(prev => {
           if (prev.some(g => g.id === gp.id)) return prev;
@@ -114,19 +114,13 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
     const onGpChanged = onChildChanged(groupsRef, (snap) => {
       const val = snap.val();
       if (val && val.metadata) {
-        const gp: StudyGroup = {
-          id: val.metadata.id,
+        setGroups(prev => prev.map(g => g.id === val.metadata.id ? {
+          ...g,
           name: val.metadata.name,
           description: val.metadata.description || '',
           createdBy: val.metadata.createdBy || '',
-          members: val.members || {},
-          messages: val.messages || {},
-          notes: val.notes || {},
-          tasks: val.tasks || {},
-          announcements: val.announcements || {},
-          roadmap: val.roadmap || {}
-        };
-        setGroups(prev => prev.map(g => g.id === gp.id ? gp : g));
+          members: val.members || {}
+        } : g));
       }
     });
 
@@ -145,6 +139,67 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       onGpRemoved();
     };
   }, [isFirebaseConfigured]);
+
+  // Load active group details
+  useEffect(() => {
+    if (!activeGroupId || !isFirebaseConfigured || !db) return;
+
+    const unsubs: (() => void)[] = [];
+
+    // Listen to messages
+    const msgsRef = ref(db, `community_groups/${activeGroupId}/messages`);
+    unsubs.push(onValue(msgsRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        messages: val
+      } : g));
+    }));
+
+    // Listen to notes
+    const notesRef = ref(db, `community_groups/${activeGroupId}/notes`);
+    unsubs.push(onValue(notesRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        notes: val
+      } : g));
+    }));
+
+    // Listen to tasks
+    const tasksRef = ref(db, `community_groups/${activeGroupId}/tasks`);
+    unsubs.push(onValue(tasksRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        tasks: val
+      } : g));
+    }));
+
+    // Listen to announcements
+    const annsRef = ref(db, `community_groups/${activeGroupId}/announcements`);
+    unsubs.push(onValue(annsRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        announcements: val
+      } : g));
+    }));
+
+    // Listen to roadmap
+    const roadmapRef = ref(db, `community_groups/${activeGroupId}/roadmap`);
+    unsubs.push(onValue(roadmapRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        roadmap: val
+      } : g));
+    }));
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
+  }, [activeGroupId, isFirebaseConfigured]);
 
   // Auto-scroll chat inside group
   useEffect(() => {

@@ -1,7 +1,7 @@
 // src/components/SharedNotes.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, set, update, get, onChildAdded, onChildChanged, onChildRemoved } from '../firebase';
-import { uploadPdf } from '../firebase';
+import { uploadFile } from '../firebase';
 
 interface StudyNote {
   id: string;
@@ -52,7 +52,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [course, setCourse] = useState(userCourse || 'General');
-  const [pdfFile, setPdfFile] = useState<{ name: string; size: string; dataUrl: string } | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,11 +60,83 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   // Filter & Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState('All');
-  const [filterType, setFilterType] = useState<'all' | 'bookmarks' | 'my-notes'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'bookmarks' | 'my-notes' | 'shared-with-me'>('all');
   
   // Note details modal state
   const [activeNote, setActiveNote] = useState<StudyNote | null>(null);
   const [commentText, setCommentText] = useState('');
+
+  // Personal Note Sharing States
+  const [sharedWithMeNotes, setSharedWithMeNotes] = useState<StudyNote[]>([]);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [noteToShare, setNoteToShare] = useState<StudyNote | null>(null);
+  const [shareSearchQuery, setShareSearchQuery] = useState('');
+  const [allUsers, setAllUsers] = useState<{ email: string; name: string }[]>([]);
+  const [selectedClassmate, setSelectedClassmate] = useState<{ email: string; name: string } | null>(null);
+  const [sharingError, setSharingError] = useState('');
+  const [sharingSuccess, setSharingSuccess] = useState(false);
+
+  const loadUsers = async () => {
+    if (isFirebaseConfigured && db) {
+      try {
+        const snap = await get(ref(db, 'users'));
+        if (snap.exists()) {
+          const val = snap.val();
+          const list = Object.values(val).map((u: any) => ({
+            email: u.email,
+            name: u.name
+          }));
+          setAllUsers(list);
+        }
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+    }
+  };
+
+  const handleOpenShareModal = (note: StudyNote) => {
+    setNoteToShare(note);
+    setShareModalOpen(true);
+    setShareSearchQuery('');
+    setSelectedClassmate(null);
+    setSharingError('');
+    setSharingSuccess(false);
+    loadUsers();
+  };
+
+  const handleShareNoteSubmit = async () => {
+    if (!noteToShare || !selectedClassmate) return;
+    if (isGuest) {
+      alert("Guest accounts cannot share notes.");
+      return;
+    }
+
+    const shareId = `share_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const receiverKey = selectedClassmate.email.replace(/\./g, '_');
+    
+    const sharedData = {
+      ...noteToShare,
+      id: shareId,
+      originalNoteId: noteToShare.id,
+      receiverEmail: selectedClassmate.email,
+      receiverName: selectedClassmate.name,
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await set(ref(db, `note_shares/${receiverKey}/${shareId}`), sharedData);
+        setSharingSuccess(true);
+        setTimeout(() => {
+          setShareModalOpen(false);
+          setNoteToShare(null);
+        }, 1500);
+      } catch (err) {
+        console.error('Error sharing note:', err);
+        setSharingError('Failed to share note.');
+      }
+    }
+  };
 
   // Course options
   const courseOptions = ['All', 'Computer Science', 'Mathematics', 'BCA', 'MCA', 'Engineering', 'Medical', 'Commerce', 'Management', 'Law', 'Design', 'Science', 'Agriculture', 'Education', 'Government Exams', 'General'];
@@ -101,6 +173,35 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       }
     });
 
+    // Subscribe to note shares
+    const myShareKey = userEmail.replace(/\./g, '_');
+    const sharesRef = ref(db, `note_shares/${myShareKey}`);
+    const onShareAdded = onChildAdded(sharesRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setSharedWithMeNotes(prev => {
+          if (prev.some(n => n.id === val.id)) return prev;
+          return [val, ...prev].sort((a, b) => b.date.localeCompare(a.date));
+        });
+      }
+    });
+
+    const onShareChanged = onChildChanged(sharesRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setSharedWithMeNotes(prev => prev.map(n => n.id === val.id ? val : n));
+        setActiveNote(current => current && current.id === val.id ? val : current);
+      }
+    });
+
+    const onShareRemoved = onChildRemoved(sharesRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setSharedWithMeNotes(prev => prev.filter(n => n.id !== val.id));
+        setActiveNote(current => current && current.id === val.id ? null : current);
+      }
+    });
+
     // Fetch Bookmarks
     const userKey = userEmail.replace(/\./g, '_');
     get(ref(db, 'bookmarks/' + userKey)).then((snap) => {
@@ -113,6 +214,9 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       onNoteAdded();
       onNoteChanged();
       onNoteRemoved();
+      onShareAdded();
+      onShareChanged();
+      onShareRemoved();
     };
   }, [isFirebaseConfigured, userEmail]);
 
@@ -122,27 +226,28 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     setUploadError('');
     if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      setUploadError('Only PDF files are supported.');
+    const allowedExtensions = ['.pdf', '.docx', '.pptx', '.txt', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const lowerName = file.name.toLowerCase();
+    const isAllowedType = allowedExtensions.some(ext => lowerName.endsWith(ext)) || 
+      file.type === 'application/pdf' || 
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+      file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
+      file.type === 'text/plain' || 
+      file.type.startsWith('image/');
+
+    if (!isAllowedType) {
+      setUploadError('File type not supported. Supported formats: PDF, DOCX, PPTX, TXT, and Images.');
       setPdfFile(null);
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setUploadError('PDF exceeds 2MB limit.');
+    if (file.size > 100 * 1024 * 1024) {
+      setUploadError('File exceeds 100MB limit.');
       setPdfFile(null);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPdfFile({
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        dataUrl: reader.result as string
-      });
-    };
-    reader.readAsDataURL(file);
+    setPdfFile(file);
   };
 
   // Create Note
@@ -160,9 +265,9 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     
     if (pdfFile) {
       try {
-        pdfUrl = await uploadPdf(pdfFile.name, pdfFile.dataUrl, userEmail);
+        pdfUrl = await uploadFile(pdfFile, pdfFile.name, userEmail);
       } catch (err) {
-        console.error('PDF upload failed:', err);
+        console.error('File upload failed:', err);
       }
     }
 
@@ -176,7 +281,11 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       likes: 0,
       date: new Date().toISOString().split('T')[0],
       comments: [],
-      pdfAttachment: pdfFile ? { name: pdfFile.name, size: pdfFile.size, url: pdfUrl } : undefined
+      pdfAttachment: pdfFile ? { 
+        name: pdfFile.name, 
+        size: pdfFile.size > 1024 * 1024 ? (pdfFile.size / (1024 * 1024)).toFixed(1) + ' MB' : (pdfFile.size / 1024).toFixed(1) + ' KB', 
+        url: pdfUrl 
+      } : undefined
     };
 
     if (isFirebaseConfigured && db) {
@@ -280,7 +389,8 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   };
 
   // Filters logic
-  const filteredNotes = notes.filter(n => {
+  const sourceNotes = filterType === 'shared-with-me' ? sharedWithMeNotes : notes;
+  const filteredNotes = sourceNotes.filter(n => {
     const matchesSearch = n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           n.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           n.author.toLowerCase().includes(searchQuery.toLowerCase());
@@ -410,24 +520,25 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               </select>
             </div>
 
-            <div style={{ display: 'flex', border: '2px solid #000', borderRadius: '10px', overflow: 'hidden' }}>
-              {(['all', 'bookmarks', 'my-notes'] as const).map(type => (
+            <div style={{ display: 'flex', border: '2px solid #000', borderRadius: '10px', overflow: 'hidden', flexWrap: 'wrap' }}>
+              {(['all', 'bookmarks', 'my-notes', 'shared-with-me'] as const).map((type, idx) => (
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}
                   style={{
                     flex: 1,
+                    minWidth: '50px',
                     background: filterType === type ? 'var(--accent-cyan)' : '#fff',
                     border: 'none',
-                    borderRight: type !== 'my-notes' ? '2px solid #000' : 'none',
-                    fontSize: '0.7rem',
+                    borderRight: idx !== 3 ? '2px solid #000' : 'none',
+                    fontSize: '0.65rem',
                     fontWeight: 800,
-                    padding: '0.5rem 0',
+                    padding: '0.5rem 0.25rem',
                     cursor: 'pointer',
                     outline: 'none'
                   }}
                 >
-                  {type === 'all' ? 'ALL' : type === 'bookmarks' ? 'SAVED' : 'MINE'}
+                  {type === 'all' ? 'ALL' : type === 'bookmarks' ? 'SAVED' : type === 'my-notes' ? 'MINE' : 'SHARED'}
                 </button>
               ))}
             </div>
@@ -524,6 +635,13 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
                       >
                         {bookmarks.includes(note.id) ? '⭐' : '☆'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenShareModal(note)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+                        title="Share Note"
+                      >
+                        📤
                       </button>
                     </div>
                   </div>
@@ -643,6 +761,96 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* SHARE NOTE MODAL */}
+      {shareModalOpen && noteToShare && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 999999, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div className="glass-panel anim-pop" style={{
+            maxWidth: '450px', width: '100%',
+            background: '#fff', border: '3.5px solid #000', borderRadius: '20px',
+            padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
+              <strong style={{ fontSize: '1.1rem', fontFamily: 'var(--font-heading)', color: '#000' }}>SHARE NOTE</strong>
+              <button onClick={() => setShareModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 900 }}>✕</button>
+            </div>
+            
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Sharing note: <strong>{noteToShare.title}</strong>
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>SEARCH CLASSMATE</label>
+              <input
+                type="text"
+                className="cyber-input"
+                placeholder="Type name or email..."
+                value={shareSearchQuery}
+                onChange={(e) => setShareSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Classmates Results */}
+            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '2px solid #000', borderRadius: '10px', background: '#fafafa', padding: '0.25rem' }}>
+              {allUsers
+                .filter(u => u.email !== userEmail && (u.name.toLowerCase().includes(shareSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(shareSearchQuery.toLowerCase())))
+                .slice(0, 10)
+                .map(u => (
+                  <div
+                    key={u.email}
+                    onClick={() => setSelectedClassmate(u)}
+                    style={{
+                      padding: '0.4rem 0.5rem',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      background: selectedClassmate?.email === u.email ? 'var(--accent-cyan)' : 'transparent',
+                      border: selectedClassmate?.email === u.email ? '1.5px solid #000' : '1.5px solid transparent',
+                      marginBottom: '0.2rem',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>{u.name}</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{u.email}</span>
+                  </div>
+                ))}
+              {allUsers.length === 0 && (
+                <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>No classmates found.</div>
+              )}
+            </div>
+
+            {selectedClassmate && (
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#009688', background: '#e0f2f1', border: '1.5px solid #000', borderRadius: '8px', padding: '0.5rem' }}>
+                Selected: {selectedClassmate.name} ({selectedClassmate.email})
+              </div>
+            )}
+
+            {sharingError && (
+              <div style={{ fontSize: '0.75rem', color: 'red', fontWeight: 800 }}>{sharingError}</div>
+            )}
+
+            {sharingSuccess && (
+              <div style={{ fontSize: '0.75rem', color: 'green', fontWeight: 800 }}>Note shared successfully!</div>
+            )}
+
+            <button
+              onClick={handleShareNoteSubmit}
+              disabled={!selectedClassmate || sharingSuccess}
+              className="cyber-btn cyan-fill"
+              style={{ width: '100%', padding: '0.6rem' }}
+            >
+              CONFIRM SHARE
+            </button>
           </div>
         </div>
       )}

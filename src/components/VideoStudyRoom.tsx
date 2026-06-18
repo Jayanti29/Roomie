@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
-import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf, uploadFile } from '../firebase';
 
 const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
-  if (idOrUrl.startsWith('mock-pdf-url:')) {
+  if (idOrUrl.startsWith('mock-pdf-url:') || idOrUrl.startsWith('mock-file-url:')) {
     const mockId = idOrUrl.split(':')[1];
     if (isFirebaseConfigured && db) {
       try {
@@ -95,6 +95,75 @@ interface VideoStudyRoomProps {
   isGuest?: boolean;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AudioUnlockOverlay: One-tap unlock for mobile audio autoplay restriction.
+// Remote audio plays through <video> elements. Mobile browsers block audio
+// until a user gesture. This component shows a banner that triggers .play()
+// on all remote video elements when tapped.
+// ─────────────────────────────────────────────────────────────────────────────
+const AudioUnlockOverlay: React.FC<{ remoteStreams: Record<string, MediaStream> }> = ({ remoteStreams }) => {
+  const [needsUnlock, setNeedsUnlock] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (unlocked || Object.keys(remoteStreams).length === 0) return;
+    // Check if any video element has audio blocked
+    const videos = document.querySelectorAll<HTMLVideoElement>('video[data-remote="true"]');
+    if (videos.length === 0) {
+      // Give DOM time to mount
+      const t = setTimeout(() => setNeedsUnlock(true), 500);
+      return () => clearTimeout(t);
+    }
+    for (const v of videos) {
+      if (v.paused) { setNeedsUnlock(true); break; }
+    }
+  }, [remoteStreams, unlocked]);
+
+  if (!needsUnlock || unlocked) return null;
+
+  const handleUnlock = () => {
+    const videos = document.querySelectorAll<HTMLVideoElement>('video');
+    videos.forEach(v => {
+      if (v.srcObject && v.paused) {
+        v.muted = false;
+        v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+      }
+    });
+    setUnlocked(true);
+    setNeedsUnlock(false);
+  };
+
+  return (
+    <div
+      onClick={handleUnlock}
+      style={{
+        position: 'fixed',
+        bottom: '80px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(0,0,0,0.85)',
+        color: '#fff',
+        padding: '10px 20px',
+        borderRadius: '24px',
+        fontSize: '0.85rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        zIndex: 99999,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        animation: 'fadeIn 0.3s ease',
+      }}
+    >
+      <span style={{ fontSize: '1.1rem' }}>🔊</span>
+      Tap to enable audio
+    </div>
+  );
+};
+
 export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEmail, profilePhoto, userStats, userCourse, onRewardXp, isGuest }) => {
   const myPeerId = useRef('peer_' + Math.random().toString(36).substring(2, 9)).current;
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
@@ -123,6 +192,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
 
   useEffect(() => {
     setRoomNickname(userName);
@@ -169,16 +239,33 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   // WebRTC Peer Connections and Remote Streams
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const pendingIceCandidates = useRef<Record<string, any[]>>({});
+  const processedCandidates = useRef<Record<string, Set<string>>>({});
+  // Unified per-peer streams (audio + video combined) — no split audio element
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
-  // Separate audio-only streams per peer — so remote video stays muted (no echo) while audio plays separately
-  const [remoteAudioStreams, setRemoteAudioStreams] = useState<Record<string, MediaStream>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  // ICE restart timers per peer
+  const iceRestartTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Ref mirrors for mutable state — used inside WebRTC closures to avoid stale captures
+  const micOnRef = useRef(true);
+  const cameraOnRef = useRef(true);
+  const screenSharingRef = useRef(false);
+  const activeRoomRef = useRef<StudyRoom | null>(null);
+  // Tracks added per peer to avoid duplicate addTrack
+  const tracksAddedToPeer = useRef<Record<string, boolean>>({});
 
   // User Media & Collaborative States
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
+
+  // Keep ref mirrors in sync with state so WebRTC closures always read current values
+  // Placed AFTER state declarations to avoid TS "used before declaration" errors
+  useEffect(() => { micOnRef.current = micOn; }, [micOn]);
+  useEffect(() => { cameraOnRef.current = cameraOn; }, [cameraOn]);
+  useEffect(() => { screenSharingRef.current = screenSharing; }, [screenSharing]);
+  useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
+
   const [roomFullError, setRoomFullError] = useState<string | null>(null);
   const [galleryPage, setGalleryPage] = useState(0);
   const [roomPdfs, setRoomPdfs] = useState<{ id: string; name: string; size: string; dataUrl: string; uploadedBy: string; timestamp: number }[]>([]);
@@ -238,76 +325,47 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     }
   }, [isFirebaseConfigured, reconnectKey]);
 
+  // ══════════════════════════════════════════════════════════════════
+  // FIREBASE: Targeted room listeners — split to minimize unnecessary re-renders
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!activeRoom) return;
+    if (!activeRoom || !isFirebaseConfigured || !db) return;
+    const roomId = activeRoom.id;
 
-    if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      const unsub = onValue(roomRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          setActiveRoomDoc(data);
-          const isHost = data.hostPeerId === myPeerId || data.hostEmail === userEmail;
-          const isMod = isHost || (data.moderators && data.moderators.includes(userEmail));
-          
-          if (isMod) {
-            const reqs = data.joinRequests || {};
-            Object.values(reqs).forEach((req: any) => {
-              if (req.status === 'pending' && (!prevRequestsRef.current[req.peerId] || prevRequestsRef.current[req.peerId].status !== 'pending')) {
-                window.dispatchEvent(new CustomEvent('new-notification', {
-                  detail: {
-                    title: 'Join Request',
-                    message: `${req.name} wants to join the room.`,
-                    type: 'request'
-                  }
-                }));
-              }
-            });
-            prevRequestsRef.current = reqs;
-          }
-          
-          const pMap = data.participants || {};
-          
-          // Check if the host has muted US
-          const myData = pMap[myPeerId];
-          if (myData && !isHost) {
-            if (myData.isMuted && micOn) {
-              console.log("[Host Control] We have been muted by the host.");
-              setMicOn(false);
-              if (localStreamRef.current) {
-                localStreamRef.current.getAudioTracks().forEach(track => {
-                  track.enabled = false;
-                });
-              }
-              window.dispatchEvent(new CustomEvent('new-notification', {
-                detail: {
-                  title: 'Muted by Host',
-                  message: 'The host has muted your microphone.',
-                  type: 'info'
-                }
-              }));
+    const unsubs: (() => void)[] = [];
+
+    // Listen to ID to check if room is deleted
+    unsubs.push(onValue(ref(db, `study_rooms/${roomId}/id`), (snap) => {
+      if (!snap.exists()) {
+        setActiveRoom(null);
+        setActiveRoomDoc(null);
+      }
+    }));
+
+    const simpleFields = ['title', 'topic', 'hostPeerId', 'hostEmail', 'moderators', 'isLocked', 'bannedEmails', 'participants'];
+    simpleFields.forEach(field => {
+      unsubs.push(onValue(ref(db, `study_rooms/${roomId}/${field}`), (snap) => {
+        const val = snap.val();
+        // FIX: Do NOT call other setState functions inside a setState updater (React 18 violation).
+        // Extract side-effects and build derived state BEFORE calling setActiveRoomDoc.
+        if (field === 'participants') {
+          // Host-mute enforcement — runs outside the updater
+          const myData = val?.[myPeerId];
+          if (myData && myData.isMuted && micOnRef.current) {
+            console.log('[Host Control] Muted by host');
+            setMicOn(false);
+            micOnRef.current = false;
+            if (localStreamRef.current) {
+              localStreamRef.current.getAudioTracks().forEach(track => { track.enabled = false; });
             }
-          }
-          
-          // Check if we are kicked or banned by host
-          if (!isHost) {
-            if (!pMap[myPeerId]) {
-              setActiveRoom(null);
-              setActiveRoomDoc(null);
-              alert("You have been kicked from the room by the host.");
-              return;
-            }
-            if (data.bannedEmails && data.bannedEmails.includes(userEmail)) {
-              setActiveRoom(null);
-              setActiveRoomDoc(null);
-              alert("You have been banned from this room by the host.");
-              return;
-            }
+            window.dispatchEvent(new CustomEvent('new-notification', {
+              detail: { title: 'Muted by Host', message: 'The host has muted your microphone.', type: 'info' }
+            }));
           }
 
-          // Filter out the current user (YOU) from classmate grid using peerId
-          const list = Object.values(pMap)
-            .filter((p: any) => p.peerId !== myPeerId)
+          // Build participants list (exclude self) — runs outside the updater
+          const list = Object.values(val || {})
+            .filter((p: any) => p.peerId && p.peerId !== myPeerId)
             .map((p: any) => ({
               peerId: p.peerId,
               name: p.name,
@@ -320,24 +378,83 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               joinedAt: p.joinedAt ?? 0,
               raisedHand: p.raisedHand ?? false
             }));
-          
           setParticipants(list);
-          const messagesVal = data.messages || [];
-          setChatMessages(Array.isArray(messagesVal) ? messagesVal : Object.values(messagesVal));
-          const notesVal = data.notes || [];
-          const parsedNotes = Array.isArray(notesVal) ? notesVal : Object.values(notesVal);
-          parsedNotes.sort((a: any, b: any) => b.id.localeCompare(a.id));
-          setRoomNotes(parsedNotes);
-          const pdfsVal = data.pdfs || [];
-          setRoomPdfs(Array.isArray(pdfsVal) ? pdfsVal : Object.values(pdfsVal));
-        } else {
-          setActiveRoom(null);
-          setActiveRoomDoc(null);
         }
+        // Now safely update the room doc
+        setActiveRoomDoc((prev: any) => ({ ...(prev || {}), [field]: val }));
+      }));
+    });
+
+    // Listen to join requests separately to run notifications logic
+    unsubs.push(onValue(ref(db, `study_rooms/${roomId}/joinRequests`), (snap) => {
+      const reqs = snap.val() || {};
+      // Derive host/mod status from the current ref value of activeRoomDoc before setState
+      setActiveRoomDoc((prev: any) => {
+        const updated = { ...(prev || {}), joinRequests: reqs };
+        const isHostNow = updated.hostPeerId === myPeerId || updated.hostEmail === userEmail;
+        const isModNow = isHostNow || (updated.moderators && updated.moderators.includes(userEmail));
+        if (isModNow) {
+          Object.values(reqs).forEach((req: any) => {
+            if (req.status === 'pending' && (!prevRequestsRef.current[req.peerId] || prevRequestsRef.current[req.peerId].status !== 'pending')) {
+              window.dispatchEvent(new CustomEvent('new-notification', {
+                detail: { title: 'Join Request', message: `${req.name} wants to join the room.`, type: 'request' }
+              }));
+            }
+          });
+          prevRequestsRef.current = reqs;
+        }
+        return updated;
       });
-      return () => unsub();
-    }
+    }));
+
+    // 3. Messages: append-only, use onChildAdded for efficiency
+    let firstMsg = true;
+    const existingMsgIds = new Set<string>();
+    const unsubMessages = onChildAdded(ref(db, `study_rooms/${roomId}/messages`), (snap) => {
+      const msg = snap.val();
+      if (!msg) return;
+      const msgId = snap.key || msg.id;
+      if (existingMsgIds.has(msgId)) return;
+      existingMsgIds.add(msgId);
+      if (firstMsg) {
+        // Initial load: collect all then set at once
+        setChatMessages(prev => {
+          const exists = prev.some(m => m.id === msg.id || m.id === msgId);
+          if (exists) return prev;
+          return [...prev, { ...msg, id: msgId }];
+        });
+      } else {
+        setChatMessages(prev => {
+          const exists = prev.some(m => m.id === msg.id || m.id === msgId);
+          if (exists) return prev;
+          return [...prev, { ...msg, id: msgId }];
+        });
+      }
+    });
+    firstMsg = false;
+
+    // 4. Notes
+    const unsubNotes = onValue(ref(db, `study_rooms/${roomId}/notes`), (snap) => {
+      const notesVal = snap.val() || {};
+      const parsedNotes: any[] = Array.isArray(notesVal) ? notesVal : Object.values(notesVal);
+      parsedNotes.sort((a: any, b: any) => String(b.id).localeCompare(String(a.id)));
+      setRoomNotes(parsedNotes);
+    });
+
+    // 5. PDFs
+    const unsubPdfs = onValue(ref(db, `study_rooms/${roomId}/pdfs`), (snap) => {
+      const pdfsVal = snap.val() || {};
+      setRoomPdfs(Array.isArray(pdfsVal) ? pdfsVal : Object.values(pdfsVal));
+    });
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+      unsubMessages();
+      unsubNotes();
+      unsubPdfs();
+    };
   }, [activeRoom?.id, isFirebaseConfigured, reconnectKey]);
+
 
 
   // Manage webcam stream lifecycle via useEffect to avoid ref race conditions
@@ -355,15 +472,19 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: true 
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
-        } catch {
+          console.log(`[WebRTC] getUserMedia SUCCESS: audioTracks=${stream.getAudioTracks().length}, videoTracks=${stream.getVideoTracks().length}`);
+          stream.getTracks().forEach(t => console.log(`[WebRTC]   track: ${t.kind} id=${t.id} readyState=${t.readyState} enabled=${t.enabled}`));
+        } catch (mediaErr: any) {
+          console.warn('[WebRTC] Camera/mic denied, trying audio-only:', mediaErr.name, mediaErr.message);
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          } catch {
-            console.log('[WebRTC] Camera initialization failed/denied, falling back to audio only');
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Fall back to audio only if camera denied
+            stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            console.log(`[WebRTC] getUserMedia audio-only fallback SUCCESS: audioTracks=${stream.getAudioTracks().length}`);
+          } catch (audioErr) {
+            throw audioErr;
           }
         }
         
@@ -372,9 +493,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           return;
         }
 
-        // Apply device configurations
-        stream.getAudioTracks().forEach(track => { track.enabled = micOn; });
-        stream.getVideoTracks().forEach(track => { track.enabled = cameraOn; });
+        // Apply initial states using REFS (not stale state closures)
+        stream.getAudioTracks().forEach(track => { track.enabled = micOnRef.current; });
+        stream.getVideoTracks().forEach(track => { track.enabled = cameraOnRef.current; });
 
         activeStream = stream;
         localStreamRef.current = stream;
@@ -384,10 +505,16 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
-      } catch (err) {
+
+        // Signal to any already-existing peer connections that local tracks are now available
+        // This handles the race where a peer joined before getUserMedia resolved
+        window.dispatchEvent(new CustomEvent('local-stream-ready'));
+      } catch (err: any) {
         if (isCancelled) return;
-        console.error('Study room webcam initialization failed:', err);
+        console.error('[WebRTC] getUserMedia FAILED:', err.name, err.message);
         setCameraError(true);
+        // Even without camera, signal ready so receivers-only mode works
+        window.dispatchEvent(new CustomEvent('local-stream-ready'));
       }
     };
 
@@ -404,6 +531,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       setCameraStream(null);
     };
   }, [activeRoom?.id]);
+
 
   const prevRequestsRef = useRef<Record<string, any>>({});
 
@@ -611,13 +739,24 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     if (isFirebaseConfigured && db) {
       try {
-        const roomRef = ref(db, 'study_rooms/' + room.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const pMap = data.participants || {};
-          isAlreadyIn = !!pMap[myPeerId];
-          currentParticipantCount = Object.keys(pMap).length;
+        const [idSnap, isLockedSnap, bannedEmailsSnap, hostPeerIdSnap, hostEmailSnap, participantsSnap] = await Promise.all([
+          get(ref(db, `study_rooms/${room.id}/id`)),
+          get(ref(db, `study_rooms/${room.id}/isLocked`)),
+          get(ref(db, `study_rooms/${room.id}/bannedEmails`)),
+          get(ref(db, `study_rooms/${room.id}/hostPeerId`)),
+          get(ref(db, `study_rooms/${room.id}/hostEmail`)),
+          get(ref(db, `study_rooms/${room.id}/participants`))
+        ]);
+
+        if (idSnap.exists()) {
+          const isLocked = isLockedSnap.val() || false;
+          const bannedEmails = bannedEmailsSnap.val() || [];
+          const hostPeerId = hostPeerIdSnap.val();
+          const hostEmail = hostEmailSnap.val();
+          const participantsVal = participantsSnap.val() || {};
+
+          isAlreadyIn = !!participantsVal[myPeerId];
+          currentParticipantCount = Object.keys(participantsVal).length;
 
           // Capacity check: Max 50 participants
           if (currentParticipantCount >= 50 && !isAlreadyIn) {
@@ -626,19 +765,19 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           }
 
           // Ban check
-          if (data.bannedEmails && data.bannedEmails.includes(userEmail)) {
+          if (bannedEmails.includes(userEmail)) {
             alert("You are banned from this room!");
             return;
           }
 
           // Lock check
-          if (data.isLocked && !isAlreadyIn) {
+          if (isLocked && !isAlreadyIn) {
             alert("This room is currently locked by the host.");
             return;
           }
 
           // Check if we are host or already in
-          const isHost = data.hostPeerId === myPeerId || data.hostEmail === userEmail || !data.hostPeerId;
+          const isHost = hostPeerId === myPeerId || hostEmail === userEmail || !hostPeerId;
           if (isHost || isAlreadyIn) {
             handleJoinRoom(room);
             return;
@@ -670,26 +809,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
           // Set up approval listener
           if (waitingListenerRef.current) waitingListenerRef.current();
-          waitingListenerRef.current = onValue(roomRef, (snap) => {
+          waitingListenerRef.current = onValue(ref(db, `study_rooms/${room.id}/joinRequests/${myPeerId}`), (snap) => {
             if (snap.exists()) {
-              const snapData = snap.val();
-              const myReq = (snapData.joinRequests || {})[myPeerId];
-              if (myReq) {
-                if (myReq.status === 'approved') {
-                  setWaitingRoomForId(null);
-                  if (waitingListenerRef.current) {
-                    waitingListenerRef.current();
-                    waitingListenerRef.current = null;
-                  }
-                  handleJoinRoom(room);
-                } else if (myReq.status === 'rejected') {
-                  setWaitingRoomForId(null);
-                  if (waitingListenerRef.current) {
-                    waitingListenerRef.current();
-                    waitingListenerRef.current = null;
-                  }
-                  alert("Your request to join the room was rejected by the host.");
+              const myReq = snap.val();
+              if (myReq.status === 'approved') {
+                setWaitingRoomForId(null);
+                if (waitingListenerRef.current) {
+                  waitingListenerRef.current();
+                  waitingListenerRef.current = null;
                 }
+                handleJoinRoom(room);
+              } else if (myReq.status === 'rejected') {
+                setWaitingRoomForId(null);
+                if (waitingListenerRef.current) {
+                  waitingListenerRef.current();
+                  waitingListenerRef.current = null;
+                }
+                alert("Your request to join the room was rejected by the host.");
               }
             }
           });
@@ -728,9 +864,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + room.id);
-      get(roomRef).then((roomSnap) => {
-        if (roomSnap.exists()) {
+      const idRef = ref(db, `study_rooms/${room.id}/id`);
+      get(idRef).then((idSnap) => {
+        if (idSnap.exists()) {
           const participantRef = ref(db, `study_rooms/${room.id}/participants/${myPeerId}`);
           const msgRef = ref(db, `study_rooms/${room.id}/messages`);
           Promise.all([
@@ -743,6 +879,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             setActiveRoom(room);
           });
         } else {
+          const roomRef = ref(db, 'study_rooms/' + room.id);
           set(roomRef, {
             id: room.id,
             title: room.title,
@@ -772,12 +909,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   const handleLeaveRoom = async () => {
     if (!activeRoom) return;
 
-    // 1. Close all active peer connections
+    // 1. Clear ICE restart timers first
+    Object.keys(iceRestartTimers.current).forEach(peerId => {
+      clearTimeout(iceRestartTimers.current[peerId]);
+    });
+    iceRestartTimers.current = {};
+
+    // 2. Close all active peer connections
     Object.keys(peerConnections.current).forEach(peerId => {
       closePeerConnection(peerId);
     });
 
-    // 2. Stop local tracks
+    // 3. Stop local tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
@@ -788,21 +931,25 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     }
     setCameraStream(null);
     setScreenSharing(false);
+    screenSharingRef.current = false;
 
-    // 3. Remove signaling and participants data
+    // 4. Reset WebRTC state refs
+    pendingIceCandidates.current = {};
+    processedCandidates.current = {};
+    tracksAddedToPeer.current = {};
+
+    // 5. Remove signaling and participants data
     if (isFirebaseConfigured && db) {
       try {
-        const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          const updatedParticipants = { ...(data.participants || {}) };
-          delete updatedParticipants[myPeerId];
+        const participantsRef = ref(db, `study_rooms/${activeRoom.id}/participants`);
+        const participantsSnap = await get(participantsRef);
+        if (participantsSnap.exists()) {
+          const participantsData = participantsSnap.val() || {};
+          const remainingIds = Object.keys(participantsData).filter(id => id !== myPeerId);
 
-          if (Object.keys(updatedParticipants).length === 0 && !['room_101', 'room_202', 'room_303'].includes(activeRoom.id)) {
-            await remove(roomRef);
+          if (remainingIds.length === 0 && !['room_101', 'room_202', 'room_303'].includes(activeRoom.id)) {
+            await remove(ref(db, 'study_rooms/' + activeRoom.id));
           } else {
-            // Log that user left
             const sysMsg: Message = {
               id: `sys_left_${Date.now()}`,
               sender: 'System',
@@ -814,7 +961,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           }
         }
       } catch (e) {
-        console.error("Error leaving room:", e);
+        console.error('[WebRTC] Error leaving room:', e);
       }
     }
 
@@ -825,6 +972,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     setParticipants([]);
     setRemoteStreams({});
   };
+
 
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
@@ -840,6 +988,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     const finalName = userName;
     setRoomNickname(finalName);
 
+    // Use refs for initial presence — avoids stale state closure
     const newRoom = {
       id: roomId,
       title: newTitle,
@@ -854,55 +1003,47 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           name: finalName,
           email: userEmail,
           profilePhoto: profilePhoto,
-          isMuted: !micOn,
-          cameraOn: cameraOn,
-          micOn: micOn,
-          screenSharing: screenSharing,
+          isMuted: !micOnRef.current,
+          cameraOn: cameraOnRef.current,
+          micOn: micOnRef.current,
+          screenSharing: false,
           joinedAt: Date.now()
         }
       },
-      messages: [
-        { id: 'join_system', sender: 'System', text: `Welcome to ${newTitle}. Connect your webcam stream below!`, time: '' }
-      ],
-      notes: [],
-      pdfs: []
+      // Use objects (not arrays) for Firebase RTDB — arrays cause inconsistent parsing
+      messages: {
+        welcome: { id: 'join_system', sender: 'System', text: `Welcome to ${newTitle}!`, time: '' }
+      },
+      notes: {},
+      pdfs: {}
+    };
+
+    const roomObj = {
+      id: roomId,
+      title: newTitle,
+      topic: newTopic,
+      participants: 1
     };
 
     if (isFirebaseConfigured && db) {
-      set(ref(db, 'study_rooms/' + roomId), newRoom).then(() => {
-        setActiveRoom({
-          id: roomId,
-          title: newTitle,
-          topic: newTopic,
-          participants: 1
+      set(ref(db, 'study_rooms/' + roomId), newRoom)
+        .then(() => {
+          // Creator auto-enters immediately — no modal
+          setActiveRoom(roomObj);
+        })
+        .catch((err) => {
+          console.error('[WebRTC] Error creating study room:', err);
+          // Still enter even if Firebase write partially failed
+          setActiveRoom(roomObj);
         });
-      }).catch((err) => {
-        console.error("Error creating study room:", err);
-        setActiveRoom({
-          id: roomId,
-          title: newTitle,
-          topic: newTopic,
-          participants: 1
-        });
-      });
-
-      try {
-        set(ref(db, 'rooms/' + newTitle), newRoom).catch(console.error);
-      } catch (err) {
-        console.warn('[Firebase] Legacy path write error:', err);
-      }
     } else {
-      setActiveRoom({
-        id: roomId,
-        title: newTitle,
-        topic: newTopic,
-        participants: 1
-      });
+      setActiveRoom(roomObj);
     }
 
     setNewTitle('');
     setNewTopic('General');
   };
+
 
 
 
@@ -942,33 +1083,36 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   };
 
   const toggleScreenShare = async () => {
-    if (!screenSharing) {
+    if (!screenSharingRef.current) {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 15, max: 30 } },
+          audio: false // Screen audio causes issues on mobile; use mic only
+        });
         screenStreamRef.current = stream;
+        screenSharingRef.current = true;
+        setScreenSharing(true);
         
-        // Replace video track in all peer connections
         const videoTrack = stream.getVideoTracks()[0];
+        if (!videoTrack) return;
+
+        // Replace video sender track in all active peer connections
         Object.values(peerConnections.current).forEach(pc => {
           const sender = pc.getSenders().find(s => s.track?.kind === 'video');
           if (sender) {
-            sender.replaceTrack(videoTrack);
+            sender.replaceTrack(videoTrack).catch(console.error);
           }
         });
 
-        // Also replace in local video preview
+        // Update local video preview
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
 
-        videoTrack.onended = () => {
-          stopScreenShare();
-        };
-
-        setScreenSharing(true);
+        videoTrack.onended = () => stopScreenShare();
         updateMyPresence({ screenSharing: true });
       } catch (err) {
-        console.error("Error starting screen share:", err);
+        console.error('[WebRTC] Error starting screen share:', err);
       }
     } else {
       stopScreenShare();
@@ -980,14 +1124,21 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       screenStreamRef.current.getTracks().forEach(t => t.stop());
       screenStreamRef.current = null;
     }
+    screenSharingRef.current = false;
+    setScreenSharing(false);
     
-    // Restore webcam track in all peer connections
+    // Restore webcam video track in all peer connections
     if (localStreamRef.current) {
       const webcamTrack = localStreamRef.current.getVideoTracks()[0];
       Object.values(peerConnections.current).forEach(pc => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-        if (sender && webcamTrack) {
-          sender.replaceTrack(webcamTrack);
+        if (sender) {
+          if (webcamTrack && webcamTrack.readyState === 'live') {
+            sender.replaceTrack(webcamTrack).catch(console.error);
+          } else {
+            // No webcam available — replace with null track (black frame)
+            sender.replaceTrack(null).catch(console.error);
+          }
         }
       });
 
@@ -996,32 +1147,50 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       }
     }
 
-    setScreenSharing(false);
     updateMyPresence({ screenSharing: false });
   };
 
-  const createPeerConnection = (peerId: string): RTCPeerConnection => {
+
+  const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
     if (peerConnections.current[peerId]) {
       return peerConnections.current[peerId];
     }
 
     pendingIceCandidates.current[peerId] = [];
+    processedCandidates.current[peerId] = new Set();
+    tracksAddedToPeer.current[peerId] = false;
 
     const turnUrl = import.meta.env.VITE_TURN_URL;
     const turnUsername = import.meta.env.VITE_TURN_USERNAME;
     const turnPassword = import.meta.env.VITE_TURN_PASSWORD;
     const iceServersEnv = import.meta.env.VITE_ICE_SERVERS;
 
+    // Base STUN servers
     let iceServers: RTCIceServer[] = [
-      { urls: 'stun:stun.l.google.com:19302' }
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
     ];
 
+    // Free OpenRelay TURN server (public, no credentials needed)
+    // Provides TURN relay for cross-network calls (mobile ↔ desktop)
+    const openRelayTurn: RTCIceServer[] = [
+      { urls: 'turn:openrelay.metered.ca:80',       username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443',      username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    ];
+    iceServers = [...iceServers, ...openRelayTurn];
+
+    // Override with custom TURN if provided via env
     if (turnUrl && turnUsername && turnPassword) {
+      console.log('[WebRTC] Using custom TURN server:', turnUrl);
       iceServers.push({
         urls: turnUrl,
         username: turnUsername,
         credential: turnPassword
       });
+    } else {
+      console.log('[WebRTC] Using OpenRelay public TURN (no VITE_TURN_URL configured)');
     }
 
     if (iceServersEnv) {
@@ -1033,371 +1202,456 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       }
     }
 
-    const configuration = { iceServers };
-    console.log(`[WebRTC] Creating RTCPeerConnection for peer: ${peerId} with config:`, configuration);
+    const configuration: RTCConfiguration = {
+      iceServers,
+      iceTransportPolicy: 'all',
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+    };
+    console.log(`[WebRTC] Creating RTCPeerConnection for peer: ${peerId}`);
     const pc = new RTCPeerConnection(configuration);
     peerConnections.current[peerId] = pc;
 
-    const logWebRtcStates = (eventSource: string, track?: MediaStreamTrack, stream?: MediaStream) => {
-      console.log(`[WebRTC Debug] [${eventSource}] Context Peer: ${peerId}`);
-      console.log(`  - ICE Gathering/Connection State: gatheringState=${pc.iceGatheringState}, connectionState=${pc.iceConnectionState}`);
-      console.log(`  - Peer Connection State: ${pc.connectionState}`);
-      console.log(`  - Signaling State: ${pc.signalingState}`);
-      if (track) {
-        console.log(`  - Track Info: kind=${track.kind}, readyState=${track.readyState}, enabled=${track.enabled}, id=${track.id}`);
+    // Add transceivers immediately to pre-negotiate audio/video slots
+    const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+    const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+
+    // ── Helper: add local tracks to this PC ──
+    const addLocalTracksToPc = () => {
+      const sourceStream = screenSharingRef.current && screenStreamRef.current
+        ? screenStreamRef.current
+        : localStreamRef.current;
+      if (!sourceStream) return;
+
+      const audioTrack = sourceStream.getAudioTracks()[0];
+      const videoTrack = sourceStream.getVideoTracks()[0];
+
+      if (audioTransceiver && audioTrack && audioTrack.readyState === 'live') {
+        audioTransceiver.sender.replaceTrack(audioTrack).catch(err => {
+          console.error('[WebRTC] replaceTrack audio error:', err);
+        });
       }
-      if (stream) {
-        console.log(`  - Stream Info: id=${stream.id}, active=${stream.active}, videoCount=${stream.getVideoTracks().length}, audioCount=${stream.getAudioTracks().length}`);
+      if (videoTransceiver && videoTrack && videoTrack.readyState === 'live') {
+        videoTransceiver.sender.replaceTrack(videoTrack).catch(err => {
+          console.error('[WebRTC] replaceTrack video error:', err);
+        });
       }
     };
 
-    // Add logging for connection state changes
+    // Add tracks immediately if stream is available
+    addLocalTracksToPc();
+
+    // Also listen for the stream-ready event (handles race where PC is created before getUserMedia)
+    const onStreamReady = () => addLocalTracksToPc();
+    window.addEventListener('local-stream-ready', onStreamReady);
+
+    // ── ICE restart helper ──
+    const scheduleIceRestart = (delayMs = 3000) => {
+      if (iceRestartTimers.current[peerId]) clearTimeout(iceRestartTimers.current[peerId]);
+      iceRestartTimers.current[peerId] = setTimeout(async () => {
+        if (!peerConnections.current[peerId]) return;
+        const room = activeRoomRef.current;
+        if (!room || !db || !isFirebaseConfigured) return;
+        const isCaller = myPeerId > peerId;
+        if (!isCaller) return; // Only caller restarts ICE
+        console.log(`[WebRTC] ICE restart for peer ${peerId}`);
+        try {
+          if (typeof pc.restartIce === 'function') {
+            pc.restartIce();
+          }
+          const offer = await pc.createOffer({ iceRestart: true });
+          await pc.setLocalDescription(offer);
+          const callRef = ref(db, `study_rooms/${room.id}/calls/${myPeerId}_${peerId}`);
+          await update(callRef, { offer: { type: offer.type, sdp: offer.sdp }, answer: null });
+        } catch (e) {
+          console.error(`[WebRTC] ICE restart failed for peer ${peerId}:`, e);
+        }
+      }, delayMs);
+    };
+
+    // ── Connection state handlers ──
     pc.onconnectionstatechange = () => {
-      logWebRtcStates("ConnectionStateChange");
+      console.log(`[WebRTC] Connection state with ${peerId}: ${pc.connectionState}`);
       if (pc.connectionState === 'failed') {
-        console.error(`[WebRTC] Connection failed with peer ${peerId}. Retrying/restarting ICE if possible.`);
+        console.warn(`[WebRTC] Connection FAILED with ${peerId}. Scheduling ICE restart.`);
+        scheduleIceRestart(2000);
+      }
+      if (pc.connectionState === 'disconnected') {
+        // Give 5s for reconnection before forcing ICE restart
+        scheduleIceRestart(5000);
+      }
+      if (pc.connectionState === 'connected') {
+        // Clear any pending restart timers on successful connection
+        if (iceRestartTimers.current[peerId]) {
+          clearTimeout(iceRestartTimers.current[peerId]);
+          delete iceRestartTimers.current[peerId];
+        }
       }
     };
+
     pc.oniceconnectionstatechange = () => {
-      logWebRtcStates("IceConnectionStateChange");
+      console.log(`[WebRTC] ICE connection state with ${peerId}: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === 'failed') {
+        scheduleIceRestart(1000);
+      }
     };
+
     pc.onsignalingstatechange = () => {
-      logWebRtcStates("SignalingStateChange");
+      console.log(`[WebRTC] Signaling state with ${peerId}: ${pc.signalingState}`);
     };
 
-    // Add local tracks (microphone track is always bound, even during screen share)
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(track => {
-        console.log(`[WebRTC] Adding local mic track to peer connection for ${peerId}, track ID: ${track.id}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
-        pc.addTrack(track, localStreamRef.current!);
-      });
-    }
-
-    if (screenSharing && screenStreamRef.current) {
-      console.log(`[WebRTC] Adding local screen tracks to peer connection for ${peerId}`);
-      screenStreamRef.current.getVideoTracks().forEach(track => {
-        console.log(`[WebRTC] Adding local screen video track: ${track.id}, enabled: ${track.enabled}`);
-        pc.addTrack(track, screenStreamRef.current!);
-      });
-    } else if (localStreamRef.current) {
-      console.log(`[WebRTC] Adding local camera tracks to peer connection for ${peerId}`);
-      localStreamRef.current.getVideoTracks().forEach(track => {
-        console.log(`[WebRTC] Adding local camera video track: ${track.id}, enabled: ${track.enabled}`);
-        pc.addTrack(track, localStreamRef.current!);
-      });
-    } else {
-      console.warn(`[WebRTC] No local streams active while connecting to ${peerId}. Creating one-way receiver connection.`);
-    }
-
+    // ── ICE candidate handler — uses activeRoomRef to avoid stale closure ──
     pc.onicecandidate = async (event) => {
-      if (event.candidate) {
-        console.log(`[WebRTC] Generated ICE Candidate for peer ${peerId}:`, event.candidate.candidate);
-        logWebRtcStates("IceCandidate");
-      } else {
-        console.log(`[WebRTC] ICE candidate gathering complete for peer ${peerId}`);
+      if (!event.candidate) {
+        console.log(`[WebRTC] ICE gathering complete for peer ${peerId}`);
+        return;
       }
-      if (!event.candidate || !activeRoom) return;
+      const room = activeRoomRef.current;
+      if (!room || !isFirebaseConfigured || !db) return;
+
       const candidateObj = event.candidate.toJSON();
-
       const isCaller = myPeerId > peerId;
-      
-      if (isCaller) {
-        if (isFirebaseConfigured && db) {
-          const callCandidatesRef = ref(db, `study_rooms/${activeRoom.id}/calls/${myPeerId}_${peerId}/callerCandidates`);
-          try {
-            await push(callCandidatesRef, candidateObj);
-          } catch (e) {
-            console.error(`[WebRTC] Error writing caller ICE candidate for peer ${peerId}:`, e);
-          }
+
+      console.log(`[WebRTC] ICE candidate gathered for peer ${peerId}: type=${event.candidate.type}, candidate=${event.candidate.candidate}`);
+      if (event.candidate.candidate.includes('typ relay')) {
+        console.log(`[WebRTC] SUCCESS: Relay candidate found for peer ${peerId}!`);
+      }
+
+      try {
+        if (isCaller) {
+          await push(ref(db, `study_rooms/${room.id}/calls/${myPeerId}_${peerId}/callerCandidates`), candidateObj);
+        } else {
+          await push(ref(db, `study_rooms/${room.id}/calls/${peerId}_${myPeerId}/receiverCandidates`), candidateObj);
         }
-      } else {
-        if (isFirebaseConfigured && db) {
-          const callCandidatesRef = ref(db, `study_rooms/${activeRoom.id}/calls/${peerId}_${myPeerId}/receiverCandidates`);
-          try {
-            await push(callCandidatesRef, candidateObj);
-          } catch (e) {
-            console.error(`[WebRTC] Error writing receiver ICE candidate for peer ${peerId}:`, e);
-          }
-        }
+      } catch (e) {
+        console.error(`[WebRTC] Error writing ICE candidate for peer ${peerId}:`, e);
       }
     };
 
+    // ── ontrack: unified audio+video into one stream per peer ──
     pc.ontrack = (event) => {
-      logWebRtcStates("ontrack", event.track, event.streams[0]);
       const track = event.track;
-      console.log(`[WebRTC] [ontrack] Received track: kind=${track.kind}, id=${track.id}, readyState=${track.readyState}`);
+      console.log(`[WebRTC] ontrack: ${track.kind} from peer ${peerId}, readyState=${track.readyState}`);
 
-      if (track.kind === 'video') {
-        // Video tracks go to remoteStreams (used by <video> element, muted to prevent echo)
+      setRemoteStreams(prev => {
+        const existing = prev[peerId];
+        const tracks = existing ? existing.getTracks() : [];
+        if (!tracks.some(t => t.id === track.id)) {
+          tracks.push(track);
+        }
+        return { ...prev, [peerId]: new MediaStream(tracks) };
+      });
+
+      track.onended = () => {
+        console.log(`[WebRTC] Track ended: ${track.kind} from peer ${peerId}`);
         setRemoteStreams(prev => {
-          let oldStream = prev[peerId];
-          if (!oldStream) oldStream = new MediaStream();
-          if (!oldStream.getTracks().some(t => t.id === track.id)) {
-            console.log(`[WebRTC] [ontrack] Adding video track to remoteStreams for peer ${peerId}`);
-            oldStream.addTrack(track);
-          }
-          return { ...prev, [peerId]: oldStream };
+          const existing = prev[peerId];
+          if (!existing) return prev;
+          const remainingTracks = existing.getTracks().filter(t => t.id !== track.id);
+          return { ...prev, [peerId]: new MediaStream(remainingTracks) };
         });
-      } else if (track.kind === 'audio') {
-        // Audio tracks go to remoteAudioStreams (used by hidden <audio> element, NOT muted)
-        setRemoteAudioStreams(prev => {
-          let oldAudioStream = prev[peerId];
-          if (!oldAudioStream) oldAudioStream = new MediaStream();
-          if (!oldAudioStream.getTracks().some(t => t.id === track.id)) {
-            console.log(`[WebRTC] [ontrack] Adding audio track to remoteAudioStreams for peer ${peerId}`);
-            oldAudioStream.addTrack(track);
-          }
-          return { ...prev, [peerId]: oldAudioStream };
-        });
-      }
+      };
+
+      track.onmute = () => {
+        console.log(`[WebRTC] Track muted: ${track.kind} from peer ${peerId}`);
+      };
+
+      track.onunmute = () => {
+        console.log(`[WebRTC] Track unmuted: ${track.kind} from peer ${peerId}`);
+      };
     };
 
+    // Cleanup listener when PC is closed
+    const origClose = pc.close.bind(pc);
+    (pc as any).close = () => {
+      window.removeEventListener('local-stream-ready', onStreamReady);
+      origClose();
+    };
 
     return pc;
-  };
+  }, [myPeerId]);
 
-  const closePeerConnection = (peerId: string) => {
+  const closePeerConnection = useCallback((peerId: string) => {
+    // Clear any ICE restart timer
+    if (iceRestartTimers.current[peerId]) {
+      clearTimeout(iceRestartTimers.current[peerId]);
+      delete iceRestartTimers.current[peerId];
+    }
     const pc = peerConnections.current[peerId];
     if (pc) {
-      pc.close();
+      try { pc.close(); } catch (_) {}
       delete peerConnections.current[peerId];
     }
+    delete pendingIceCandidates.current[peerId];
+    delete processedCandidates.current[peerId];
+    delete tracksAddedToPeer.current[peerId];
     setRemoteStreams(prev => {
       const next = { ...prev };
       delete next[peerId];
       return next;
     });
-    setRemoteAudioStreams(prev => {
-      const next = { ...prev };
-      delete next[peerId];
-      return next;
-    });
-  };
+  }, []);
 
-  // Listen for WebRTC signals (Offers, Answers, ICE Candidates)
+
+  // ══════════════════════════════════════════════════════════════════
+  // SIGNALING: Listen for WebRTC Offers, Answers, ICE Candidates
+  // ══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!activeRoom) return;
+    if (!isFirebaseConfigured || !db) return;
+
+    const callsRef = ref(db, `study_rooms/${activeRoom.id}/calls`);
+    const roomId = activeRoom.id;
+
+    // Helper: flush pending ICE candidates for a peer
+    const flushPendingCandidates = async (pc: RTCPeerConnection, remotePeerId: string) => {
+      const pending = pendingIceCandidates.current[remotePeerId] || [];
+      if (pending.length === 0) return;
+      pendingIceCandidates.current[remotePeerId] = [];
+      for (const cand of pending) {
+        const key = JSON.stringify(cand);
+        if (processedCandidates.current[remotePeerId]?.has(key)) continue;
+        processedCandidates.current[remotePeerId]?.add(key);
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+        } catch (e) {
+          console.warn(`[WebRTC] Failed to add queued ICE candidate for ${remotePeerId}:`, e);
+        }
+      }
+    };
+
+    // Helper: add incoming ICE candidates with deduplication
+    const addCandidates = async (pc: RTCPeerConnection, remotePeerId: string, candidates: any[]) => {
+      for (const cand of candidates) {
+        const key = JSON.stringify(cand);
+        if (!processedCandidates.current[remotePeerId]) {
+          processedCandidates.current[remotePeerId] = new Set();
+        }
+        if (processedCandidates.current[remotePeerId].has(key)) continue;
+        processedCandidates.current[remotePeerId].add(key);
+
+        if (!pc.remoteDescription) {
+          // Queue until remote description is set
+          if (!pendingIceCandidates.current[remotePeerId]) {
+            pendingIceCandidates.current[remotePeerId] = [];
+          }
+          // Avoid double-queueing
+          const pendingKey = JSON.stringify(cand);
+          const alreadyQueued = pendingIceCandidates.current[remotePeerId].some(c => JSON.stringify(c) === pendingKey);
+          if (!alreadyQueued) {
+            pendingIceCandidates.current[remotePeerId].push(cand);
+          }
+        } else {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+          } catch (e) {
+            console.warn(`[WebRTC] addIceCandidate failed for ${remotePeerId}:`, e);
+          }
+        }
+      }
+    };
+
+    const handleCallUpdate = async (snapshot: any) => {
+      const callData = snapshot.val();
+      const callId = snapshot.key;
+      if (!callId || !callData) return;
+
+      // callId format: "callerPeerId_receiverPeerId"
+      const underscoreIdx = callId.indexOf('_');
+      if (underscoreIdx === -1) return;
+      const callerId = callId.substring(0, underscoreIdx);
+      const receiverId = callId.substring(underscoreIdx + 1);
+
+      // Only handle calls that involve us
+      if (callerId !== myPeerId && receiverId !== myPeerId) return;
+
+      // ── WE ARE THE RECEIVER: process incoming offer ──
+      if (receiverId === myPeerId) {
+        let pc = peerConnections.current[callerId];
+        if (!pc) {
+          console.log(`[WebRTC] Receiver: incoming call from ${callerId}, creating PC`);
+          pc = createPeerConnection(callerId);
+        }
+
+        // Set remote offer if not already set and not in wrong signaling state
+        if (callData.offer && (!pc.remoteDescription || pc.remoteDescription.type !== 'offer')) {
+          if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
+            try {
+              if (pc.signalingState === 'have-local-offer') {
+                // Glare condition: both sides made offers. Lower peer ID wins as offerer.
+                if (myPeerId > callerId) {
+                  // We roll back and accept theirs
+                  await pc.setLocalDescription({ type: 'rollback' } as any);
+                } else {
+                  // They should rollback and accept ours — ignore their offer
+                  return;
+                }
+              }
+              console.log(`[WebRTC] Setting remote offer from ${callerId}`);
+              await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+              await flushPendingCandidates(pc, callerId);
+
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              console.log(`[WebRTC] Sending answer to ${callerId}`);
+              await update(ref(db, `study_rooms/${roomId}/calls/${callId}`), {
+                answer: { type: answer.type, sdp: answer.sdp }
+              });
+            } catch (e) {
+              console.error(`[WebRTC] Error processing offer from ${callerId}:`, e);
+            }
+          }
+        }
+
+        // Process caller's ICE candidates
+        const callerCands = callData.callerCandidates ? Object.values(callData.callerCandidates) : [];
+        await addCandidates(pc, callerId, callerCands);
+      }
+
+      // ── WE ARE THE CALLER: process incoming answer ──
+      if (callerId === myPeerId) {
+        const pc = peerConnections.current[receiverId];
+        if (!pc) return;
+
+        if (callData.answer && pc.signalingState === 'have-local-offer') {
+          try {
+            console.log(`[WebRTC] Setting remote answer from ${receiverId}`);
+            await pc.setRemoteDescription(new RTCSessionDescription(callData.answer));
+            await flushPendingCandidates(pc, receiverId);
+          } catch (e) {
+            console.error(`[WebRTC] Error processing answer from ${receiverId}:`, e);
+          }
+        }
+
+        // Process receiver's ICE candidates
+        const receiverCands = callData.receiverCandidates ? Object.values(callData.receiverCandidates) : [];
+        await addCandidates(pc, receiverId, receiverCands);
+      }
+    };
+
+    const unsubAdded = onChildAdded(callsRef, handleCallUpdate);
+    const unsubChanged = onChildChanged(callsRef, handleCallUpdate);
+
+    return () => {
+      unsubAdded();
+      unsubChanged();
+    };
+  }, [activeRoom?.id, reconnectKey, createPeerConnection]);
+
+
+  // ══════════════════════════════════════════════════════════════════
+  // PEER MANAGEMENT: Connect/disconnect as participants change
+  // Only depends on participants — NOT cameraStream (avoids reconnection on camera toggle)
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!activeRoom) return;
 
-    let unsubAdded: (() => void) | null = null;
-    let unsubChanged: (() => void) | null = null;
+    const initiateConnection = async (peerId: string) => {
+      if (peerConnections.current[peerId]) return;
+      const isCaller = myPeerId > peerId;
+      if (!isCaller) return; // Receiver waits for the caller's offer via signaling
 
-    if (isFirebaseConfigured && db) {
-      const callsRef = ref(db, `study_rooms/${activeRoom.id}/calls`);
-      
-      const handleCallUpdate = async (snapshot: any) => {
-        const callData = snapshot.val();
-        const callId = snapshot.key;
-        console.log(`[WebRTC] [Signaling] handleCallUpdate entry - callId: ${callId}, myPeerId: ${myPeerId}`);
-        if (!callId) return;
-        const [callerId, receiverId] = callId.split('_');
+      console.log(`[WebRTC] Initiating call to peer ${peerId} (I am caller)`);
+      const pc = createPeerConnection(peerId);
 
-        if (callerId !== myPeerId && receiverId !== myPeerId) return;
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
 
-        if (receiverId === myPeerId) {
-          let pc = peerConnections.current[callerId];
-          
-          if (!pc) {
-            console.log(`[WebRTC] [Signaling] Added/Updated call ${callId}. Initializing receiver connection.`);
-            pc = createPeerConnection(callerId);
-          }
-          if (callData.offer && !pc.remoteDescription) {
-            console.log(`[WebRTC] [Signaling] Setting remote offer from caller ${callerId}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            
-            // Apply queued candidates once remote description is set
-            const pending = pendingIceCandidates.current[callerId] || [];
-            for (const cand of pending) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
-              } catch (e) {
-                console.error("[WebRTC] Failed to add queued ICE candidate:", e);
-              }
-            }
-            pendingIceCandidates.current[callerId] = [];
-
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            console.log(`[WebRTC] [Signaling] Creating and sending answer to caller ${callerId}`);
-            await update(ref(db, `study_rooms/${activeRoom.id}/calls/${callId}`), {
-              answer: { type: answer.type, sdp: answer.sdp }
-            });
-          }
-
-          const callerCandidates = callData.callerCandidates ? Object.values(callData.callerCandidates) : [];
-          if (pc && callerCandidates.length > 0) {
-            for (const cand of callerCandidates) {
-              if (!pc.remoteDescription) {
-                if (!pendingIceCandidates.current[callerId]) {
-                  pendingIceCandidates.current[callerId] = [];
-                }
-                pendingIceCandidates.current[callerId].push(cand as any);
-              } else {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(cand as any));
-                } catch (e) {}
-              }
-            }
-          }
+        if (isFirebaseConfigured && db) {
+          const callRef = ref(db, `study_rooms/${activeRoom.id}/calls/${myPeerId}_${peerId}`);
+          await set(callRef, {
+            callerId: myPeerId,
+            receiverId: peerId,
+            offer: { type: offer.type, sdp: offer.sdp },
+            answer: null,
+            callerCandidates: {},
+            receiverCandidates: {}
+          });
         }
-
-        if (callerId === myPeerId) {
-          const pc = peerConnections.current[receiverId];
-          if (pc) {
-            if (callData.answer && !pc.remoteDescription) {
-              console.log(`[WebRTC] [Signaling] Received and setting remote answer from receiver ${receiverId}`);
-              await pc.setRemoteDescription(new RTCSessionDescription(callData.answer));
-              
-              // Apply queued candidates once remote description is set
-              const pending = pendingIceCandidates.current[receiverId] || [];
-              for (const cand of pending) {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(cand));
-                } catch (e) {
-                  console.error("[WebRTC] Failed to add queued ICE candidate:", e);
-                }
-              }
-              pendingIceCandidates.current[receiverId] = [];
-            }
-
-            const receiverCandidates = callData.receiverCandidates ? Object.values(callData.receiverCandidates) : [];
-            if (receiverCandidates.length > 0) {
-              for (const cand of receiverCandidates) {
-                if (!pc.remoteDescription) {
-                  if (!pendingIceCandidates.current[receiverId]) {
-                    pendingIceCandidates.current[receiverId] = [];
-                  }
-                  pendingIceCandidates.current[receiverId].push(cand as any);
-                } else {
-                  try {
-                    await pc.addIceCandidate(new RTCIceCandidate(cand as any));
-                  } catch (e) {}
-                }
-              }
-            }
-          }
-        }
-      };
-
-      unsubAdded = onChildAdded(callsRef, handleCallUpdate);
-      unsubChanged = onChildChanged(callsRef, handleCallUpdate);
-    }
-
-    return () => {
-      if (unsubAdded) unsubAdded();
-      if (unsubChanged) unsubChanged();
-    };
-  }, [activeRoom?.id, reconnectKey]);
-
-
-  // Manage peer connection sessions based on active participant updates
-  useEffect(() => {
-    if (!activeRoom || (!cameraStream && !cameraError)) return;
-
-    participants.forEach(async (p: any) => {
-      const peerId = p.peerId;
-      if (!peerId) return;
-
-      if (!peerConnections.current[peerId]) {
-        const isCaller = myPeerId > peerId;
-
-        if (isCaller) {
-          console.log(`[WebRTC] Initiating peer connection session with peer ${peerId} (I am caller)`);
-          const pc = createPeerConnection(peerId);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-
-          if (isFirebaseConfigured && db) {
-            const callRef = ref(db, `study_rooms/${activeRoom.id}/calls/${myPeerId}_${peerId}`);
-            console.log(`[WebRTC] Writing signaling offer to RTDB for peer ${peerId}`);
-            await set(callRef, {
-              callerId: myPeerId,
-              receiverId: peerId,
-              offer: { type: offer.type, sdp: offer.sdp },
-              answer: null,
-              callerCandidates: {},
-              receiverCandidates: {}
-            });
-          }
-        }
+      } catch (e) {
+        console.error(`[WebRTC] Error creating offer for ${peerId}:`, e);
+        closePeerConnection(peerId);
       }
+    };
+
+    // Connect to new participants
+    participants.forEach((p: any) => {
+      if (p.peerId) initiateConnection(p.peerId);
     });
 
+    // Disconnect from participants who left
     Object.keys(peerConnections.current).forEach((peerId) => {
       const stillActive = participants.some((p: any) => p.peerId === peerId);
       if (!stillActive) {
-        console.log(`[WebRTC] Closing peer connection with ${peerId} (left the room)`);
+        console.log(`[WebRTC] Peer ${peerId} left. Closing connection.`);
         closePeerConnection(peerId);
       }
     });
-  }, [participants, cameraStream, cameraError]);
+  }, [participants, activeRoom?.id, createPeerConnection, closePeerConnection]);
+
 
   const handleShareRoomPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeRoom) return;
     if (isGuest) {
-      alert("Guest accounts cannot upload PDFs.");
+      alert("Guest accounts cannot upload files.");
       return;
     }
 
-    if (file.type !== 'application/pdf') {
-      alert('Only PDF files are supported.');
+    const allowedExtensions = ['.pdf', '.docx', '.pptx', '.txt', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const lowerName = file.name.toLowerCase();
+    const isAllowedType = allowedExtensions.some(ext => lowerName.endsWith(ext)) || 
+      file.type === 'application/pdf' || 
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+      file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
+      file.type === 'text/plain' || 
+      file.type.startsWith('image/');
+
+    if (!isAllowedType) {
+      alert('File type not supported. Supported formats: PDF, DOCX, PPTX, TXT, and Images.');
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('PDF exceeds 2MB limit.');
+    if (file.size > 100 * 1024 * 1024) {
+      alert('File exceeds 100MB limit.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const sysMsg: Message = {
-        id: `sys_pdf_${Date.now()}`,
-        sender: 'System',
-        text: `${roomNickname} uploaded a PDF: "${file.name}"!`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      if (isFirebaseConfigured && db) {
-        try {
-          const pdfUrl = await uploadPdf(file.name, reader.result as string, userEmail);
-          const newPdf = {
-            id: pdfUrl,
-            name: file.name,
-            size: (file.size / 1024).toFixed(1) + ' KB',
-            uploadedBy: roomNickname,
-            timestamp: Date.now()
-          };
-          await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
-          await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
-          onRewardXp(40, `Uploaded PDF to room: "${file.name}". Gained +40 Study Points!`);
-        } catch (err) {
-          console.error("Failed to upload PDF:", err);
-          alert("Failed to upload PDF file.");
-        }
-      }
+    const sysMsg: Message = {
+      id: `sys_pdf_${Date.now()}`,
+      sender: 'System',
+      text: `${roomNickname} uploaded a file: "${file.name}"!`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    reader.readAsDataURL(file);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        const fileUrl = await uploadFile(file, file.name, userEmail);
+        const newPdf = {
+          id: fileUrl,
+          name: file.name,
+          size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(1) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
+          uploadedBy: roomNickname,
+          timestamp: Date.now()
+        };
+        await push(ref(db, `study_rooms/${activeRoom.id}/pdfs`), newPdf);
+        await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
+        onRewardXp(40, `Uploaded file to room: "${file.name}". Gained +40 Study Points!`);
+      } catch (err) {
+        console.error("Failed to upload file:", err);
+        alert("Failed to upload file.");
+      }
+    }
   };
 
   const handleDeleteRoomNote = async (noteId: string) => {
     if (!activeRoom) return;
     if (isFirebaseConfigured && db) {
-      const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-      const roomSnap = await get(roomRef);
-      if (roomSnap.exists()) {
-        const data = roomSnap.val();
-        if (data.notes) {
-          if (Array.isArray(data.notes)) {
-            const updatedNotes = data.notes.filter((n: any) => n.id !== noteId);
-            await update(roomRef, { notes: updatedNotes });
-          } else {
-            const keyToDelete = Object.keys(data.notes).find(k => data.notes[k].id === noteId);
-            if (keyToDelete) {
-              await remove(ref(db, `study_rooms/${activeRoom.id}/notes/${keyToDelete}`));
-            }
-          }
-        }
+      try {
+        await remove(ref(db, `study_rooms/${activeRoom.id}/notes/${noteId}`));
+      } catch (err) {
+        console.error('Error deleting room note:', err);
       }
     }
   };
@@ -1408,27 +1662,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     if (isFirebaseConfigured && db) {
       try {
-        const roomRef = ref(db, 'study_rooms/' + activeRoom.id);
-        const roomSnap = await get(roomRef);
-        if (roomSnap.exists()) {
-          const data = roomSnap.val();
-          if (data.notes) {
-            if (Array.isArray(data.notes)) {
-              const updatedNotes = data.notes.map((n: any) =>
-                n.id === editingNoteId ? { ...n, title: editingNoteTitle, content: editingNoteContent } : n
-              );
-              await update(roomRef, { notes: updatedNotes });
-            } else {
-              const keyToUpdate = Object.keys(data.notes).find(k => data.notes[k].id === editingNoteId);
-              if (keyToUpdate) {
-                await update(ref(db, `study_rooms/${activeRoom.id}/notes/${keyToUpdate}`), {
-                  title: editingNoteTitle,
-                  content: editingNoteContent
-                });
-              }
-            }
-          }
-        }
+        await update(ref(db, `study_rooms/${activeRoom.id}/notes/${editingNoteId}`), {
+          title: editingNoteTitle,
+          content: editingNoteContent
+        });
       } catch (err) {
         console.error('Database update room note error:', err);
       }
@@ -1596,7 +1833,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db && activeRoom) {
-      await push(ref(db, `study_rooms/${activeRoom.id}/notes`), newRn);
+      await set(ref(db, `study_rooms/${activeRoom.id}/notes/${newRn.id}`), newRn);
       await push(ref(db, `study_rooms/${activeRoom.id}/messages`), sysMsg);
     }
 
@@ -1617,15 +1854,28 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           <video
             autoPlay
             playsInline
-            muted
             ref={(el) => {
-              if (el) el.srcObject = stream;
+              if (el && el.srcObject !== stream) {
+                el.srcObject = stream;
+                // Force play — handles mobile autoplay policy after user gesture
+                el.play().catch(() => {
+                  // Muted play as fallback — user can unmute via browser UI
+                  el.muted = true;
+                  el.play().catch(console.error);
+                });
+              }
             }}
-            style={{ 
+            style={hasVideo ? {
               width: '100%', 
               height: '100%', 
               objectFit: 'cover',
-              display: hasVideo ? 'block' : 'none' 
+              display: 'block'
+            } : {
+              width: '1px',
+              height: '1px',
+              opacity: 0.001,
+              position: 'absolute',
+              pointerEvents: 'none'
             }}
           />
         )}
@@ -1633,6 +1883,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       </div>
     );
   };
+
 
   const renderParticipantAvatar = (friend: any) => {
     if (friend.profilePhoto) {
@@ -2300,29 +2551,12 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   return (
     <div style={{ height: '100%', position: 'relative' }}>
 
-      {/* Hidden audio-only elements per peer — NOT muted so remote voice is heard.
-           These use remoteAudioStreams (audio tracks only) to avoid double-audio from video element. */}
-      {Object.entries(remoteAudioStreams).map(([peerId, audioStream]) => (
-        <audio
-          key={`audio_${peerId}`}
-          autoPlay
-          playsInline
-          ref={(el) => {
-            if (el) {
-              el.srcObject = audioStream;
-              const audioTracks = audioStream.getAudioTracks();
-              console.log(`[Audio] Attaching audio-only stream for peer ${peerId}: ${audioTracks.length} audio track(s)`);
-              audioTracks.forEach(track => {
-                console.log(`  - track.enabled: ${track.enabled}, readyState: ${track.readyState}`);
-              });
-              el.play().catch((err) => {
-                console.warn(`[WebRTC] Autoplay audio blocked for peer ${peerId}:`, err);
-              });
-            }
-          }}
-          style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
-        />
-      ))}
+      {/* Audio is now carried by the remote <video> elements (not muted).
+           On mobile, browsers block audio autoplay without a user gesture.
+           This overlay appears once and unlocks all remote audio with one tap. */}
+      {Object.keys(remoteStreams).length > 0 && (
+        <AudioUnlockOverlay remoteStreams={remoteStreams} />
+      )}
 
       {/* Room Full capacity overlay warning modal */}
       {roomFullError && (
@@ -2651,6 +2885,24 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                   </button>
                 </div>
               </div>
+
+              {(!import.meta.env.VITE_TURN_URL || !import.meta.env.VITE_TURN_USERNAME || !import.meta.env.VITE_TURN_PASSWORD) && (
+                <div style={{
+                  background: '#ffeef2',
+                  border: '2.5px solid #000',
+                  borderRadius: '14px',
+                  padding: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '3px 3px 0px #000',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: 'var(--accent-pink)'
+                }}>
+                  ⚠️ WARNING: WebRTC TURN server is not configured. Media connections may fail across different network firewalls.
+                </div>
+              )}
 
               {/* Room Dashboard stats */}
               <div style={{

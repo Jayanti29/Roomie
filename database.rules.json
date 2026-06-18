@@ -28,6 +28,28 @@
         ".write": "auth != null && (!data.exists() || data.child('authorEmail').val() === auth.token.email || auth.token.admin === true)"
       }
     },
+    "note_shares": {
+      "$userKey": {
+        ".read": "auth != null && (auth.token.email.replace('.', '_') === $userKey || auth.token.admin === true)",
+        "$shareId": {
+          ".write": "auth != null && (!data.exists() || auth.token.email === data.child('authorEmail').val() || auth.token.admin === true)"
+        }
+      }
+    },
+    "custom_communities": {
+      ".read": "auth != null",
+      "$communityId": {
+        ".write": "auth != null && (!data.exists() || data.child('createdBy').val() === auth.token.email || auth.token.admin === true)",
+        "channels": {
+          ".write": "auth != null && (!data.exists() || root.child('custom_communities').child($communityId).child('createdBy').val() === auth.token.email || auth.token.admin === true)",
+          "$channelId": {
+            "messages": {
+              ".write": "auth != null"
+            }
+          }
+        }
+      }
+    },
     "pdf_contents": {
       ".read": "auth != null",
       ".write": "auth != null"

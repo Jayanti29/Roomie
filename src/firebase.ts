@@ -416,22 +416,42 @@ if (typeof window !== 'undefined') {
   };
 }
 
-export async function uploadPdf(fileName: string, fileDataUrl: string, ownerEmail: string): Promise<string> {
+export async function uploadFile(file: File | Blob, fileName: string, ownerEmail: string): Promise<string> {
+  // 100MB Limit: 100 * 1024 * 1024 = 104,857,600 bytes
+  if (file.size > 104857600) {
+    throw new Error('File size exceeds 100MB limit.');
+  }
+
   if (useMockDb) {
-    const mockId = 'pdf_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
-    await set(ref(db, 'pdf_contents/' + mockId), fileDataUrl);
-    return `mock-pdf-url:${mockId}`;
+    const mockId = 'file_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          await set(ref(db, 'pdf_contents/' + mockId), reader.result as string);
+          resolve(`mock-file-url:${mockId}`);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   } else {
     if (!storage) {
       throw new Error('Firebase Storage is not initialized');
     }
-    const response = await fetch(fileDataUrl);
-    const blob = await response.blob();
     const cleanEmail = ownerEmail.replace(/[^a-zA-Z0-9]/g, '_');
-    const path = `pdfs/${cleanEmail}/${Date.now()}_${fileName}`;
+    const path = `files/${cleanEmail}/${Date.now()}_${fileName}`;
     const storageRefInstance = sRef(storage, path);
-    await uploadBytes(storageRefInstance, blob);
+    await uploadBytes(storageRefInstance, file);
     const downloadUrl = await getDownloadURL(storageRefInstance);
     return downloadUrl;
   }
+}
+
+export async function uploadPdf(fileName: string, fileDataUrl: string, ownerEmail: string): Promise<string> {
+  const response = await fetch(fileDataUrl);
+  const blob = await response.blob();
+  return uploadFile(blob, fileName, ownerEmail);
 }
