@@ -142,46 +142,147 @@ export const Dashboard: React.FC<DashboardProps> = ({
     { name: 'Sun', hours: 5.0 }
   ];
 
+  const getAiRecommendations = () => {
+    const recs = [];
+    
+    // DBMS or low progress course recommendation
+    const lowProgressCourse = courses.find(c => c.progress < 50);
+    if (lowProgressCourse) {
+      recs.push({
+        id: 'rec_course',
+        title: `Boost ${lowProgressCourse.name}`,
+        desc: `Your progress is currently at ${lowProgressCourse.progress}%. Spend 45 minutes reviewing normal forms and queries today.`,
+        actionLabel: 'Study Course',
+        tab: 'profile'
+      });
+    } else if (courses.length > 0) {
+      recs.push({
+        id: 'rec_course_generic',
+        title: 'Maintain Study Momentum',
+        desc: `You are doing great! Dedicate some time to review ${courses[0].name} to keep your progress high.`,
+        actionLabel: 'Study Course',
+        tab: 'profile'
+      });
+    } else {
+      recs.push({
+        id: 'rec_course_empty',
+        title: 'Initialize Course Catalog',
+        desc: 'Add your active academic courses in your Profile Settings to get tailored progress tracking and recommendations.',
+        actionLabel: 'Go to Profile',
+        tab: 'profile'
+      });
+    }
+
+    // Task deadline recommendation
+    const nextTask = tasks.find(t => t.status !== 'Completed' && t.deadline);
+    if (nextTask) {
+      recs.push({
+        id: 'rec_task',
+        title: `Prepare for: ${nextTask.title}`,
+        desc: `This task is pending with a deadline set for ${nextTask.deadline}. Break it down into 3 smaller sub-tasks today.`,
+        actionLabel: 'Open Planner',
+        tab: 'planner'
+      });
+    } else {
+      recs.push({
+        id: 'rec_task_generic',
+        title: 'Plan Your Next Milestone',
+        desc: 'All clear! Create new learning goals or tasks in the Planner to organize your week.',
+        actionLabel: 'Open Planner',
+        tab: 'planner'
+      });
+    }
+
+    // Community / Group recommendation
+    if (recentGroups.length > 0) {
+      recs.push({
+        id: 'rec_group',
+        title: `Connect in: ${recentGroups[0].name}`,
+        desc: 'Share your study progress or ask questions in your active group chat to reinforce your learnings.',
+        actionLabel: 'Open Groups',
+        tab: 'study_groups'
+      });
+    } else {
+      recs.push({
+        id: 'rec_group_generic',
+        title: 'Join Education Communities',
+        desc: 'Collaborative learning is 2x more effective. Join a study group or enter a live study room to study with peers.',
+        actionLabel: 'Join Groups',
+        tab: 'study_groups'
+      });
+    }
+
+    return recs;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem', textAlign: 'left' }}>
       
-      {/* 1. Welcome Title and Metrics */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '0.25rem' }}>
-        <div>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
-            Welcome back, {profile.name}!
-          </h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 700, margin: '0.25rem 0 0 0' }}>
-            {profile.degree} in {profile.specialization} • {profile.semester} • {profile.college}
-          </p>
+      {/* 1. Welcoming Banner Greeting */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.25rem' }}>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+          Welcome back to your workspace!
+        </h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0 }}>
+          Manage your schedule, collaborate with classmates, and view your academic performance analytics in real-time.
+        </p>
+      </div>
+
+      {/* 2. Four Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', width: '100%' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '16px', boxShadow: 'var(--shadow-flat-sm)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--accent-primary)', fontWeight: 900 }}>{calculateOverallProgress()}%</strong>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <div style={{ background: '#ffffff', border: '1.5px solid #0f172a', padding: '0.5rem 1rem', borderRadius: '16px', textAlign: 'center', minWidth: '95px', boxShadow: '0 4px 0 #0f172a' }}>
-            <strong style={{ fontSize: '1.25rem', display: 'block', color: 'var(--accent-primary)', fontWeight: 900 }}>{studyPoints}</strong>
-            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>STUDY POINTS</span>
-          </div>
-          <div style={{ background: '#ffffff', border: '1.5px solid #0f172a', padding: '0.5rem 1rem', borderRadius: '16px', textAlign: 'center', minWidth: '95px', boxShadow: '0 4px 0 #0f172a' }}>
-            <strong style={{ fontSize: '1.25rem', display: 'block', color: 'var(--accent-cyan)', fontWeight: 900 }}>{milestonesCount}</strong>
-            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>MILESTONES</span>
-          </div>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '16px', boxShadow: 'var(--shadow-flat-sm)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Hours</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--accent-cyan)', fontWeight: 900 }}>31.0h</strong>
+        </div>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '16px', boxShadow: 'var(--shadow-flat-sm)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Points</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--accent-purple)', fontWeight: 900 }}>{studyPoints}</strong>
+        </div>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '16px', boxShadow: 'var(--shadow-flat-sm)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Milestones</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--accent-pink)', fontWeight: 900 }}>{milestonesCount}</strong>
         </div>
       </div>
 
-      {/* 2. Compact Leaderboard Widget */}
-      <Leaderboard
-        isCompact={true}
-        currentUserEmail={profile.email}
-        currentCollege={profile.college}
-        currentDegree={profile.degree}
-        currentStudyPoints={studyPoints}
-      />
-
-      {/* 2. Grid Sections */}
+      {/* 3. Grid Sections */}
       <div className="dashboard-grid">
         
-        {/* Left Side Column */}
+        {/* Left Side Column: Analytics & Courses */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
+          {/* AI Recommendations Widget */}
+          <div className="glass-panel" style={{ background: '#fdfbf7', border: '1.5px dashed var(--accent-purple)', borderRadius: '16px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '20px', height: '20px', color: 'var(--accent-purple)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096m.813 5.096a3.21 3.21 0 106.396-1.396 3.21 3.21 0 00-6.396 1.396zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, color: 'var(--accent-purple)', margin: 0 }}>
+                AI Recommendations
+              </h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {getAiRecommendations().map(rec => (
+                <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', border: '1px solid #e2e8f0', padding: '0.85rem 1rem', borderRadius: '12px', gap: '1rem', boxShadow: 'var(--shadow-flat-sm)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', textAlign: 'left', flex: 1 }}>
+                    <strong style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 800 }}>{rec.title}</strong>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}>{rec.desc}</span>
+                  </div>
+                  <button
+                    onClick={() => onNavigate(rec.tab)}
+                    className="cyber-btn"
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 'auto', whiteSpace: 'nowrap', background: 'var(--accent-purple-light)', color: 'var(--accent-purple)', border: 'none', fontWeight: 700 }}
+                  >
+                    {rec.actionLabel}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Active Courses Progress */}
           <div className="glass-panel" style={{ background: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
@@ -221,6 +322,47 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             )}
           </div>
+
+          {/* Weekly Academic Activity */}
+          <div className="glass-panel" style={{ background: '#fff' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              WEEKLY STUDY ACTIVITY
+            </h3>
+            
+            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', justifyContent: 'space-between', height: '140px', padding: '0 0.5rem' }}>
+              {weekDays.map(day => {
+                const heightPercent = Math.round((day.hours / 8) * 100);
+                return (
+                  <div key={day.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>{day.hours}h</span>
+                    <div style={{
+                      width: '100%',
+                      height: `${heightPercent}px`,
+                      background: 'var(--accent-primary)',
+                      borderRadius: '4px 4px 0 0',
+                      minHeight: '4px',
+                      transition: 'height 0.3s ease'
+                    }} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{day.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Side Column: Leaderboard, Tasks & Communities */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
+          {/* Top 5 Leaderboard Widget */}
+          <Leaderboard
+            isCompact={true}
+            currentUserEmail={profile.email}
+            currentCollege={profile.college}
+            currentDegree={profile.degree}
+            currentStudyPoints={studyPoints}
+          />
 
           {/* Recent Tasks */}
           <div className="glass-panel" style={{ background: '#fff' }}>
@@ -262,38 +404,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          {/* Weekly Academic Activity (Static/Calculated SVG graph) */}
-          <div className="glass-panel" style={{ background: '#fff' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
-              WEEKLY STUDY ACTIVITY
-            </h3>
-            
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', justifyContent: 'space-between', height: '140px', padding: '0 0.5rem' }}>
-              {weekDays.map(day => {
-                const heightPercent = Math.round((day.hours / 8) * 100);
-                return (
-                  <div key={day.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>{day.hours}h</span>
-                    <div style={{
-                      width: '100%',
-                      height: `${heightPercent}px`,
-                      background: 'var(--accent-primary)',
-                      borderRadius: '4px 4px 0 0',
-                      minHeight: '4px',
-                      transition: 'height 0.3s ease'
-                    }} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{day.name}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right Side Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
           {/* Upcoming Deadlines */}
           <div className="glass-panel" style={{ background: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>

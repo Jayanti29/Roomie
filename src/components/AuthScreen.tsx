@@ -232,39 +232,50 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       overflow: 'hidden'
     }}>
       <style>{`
-        @keyframes float-book {
-          0%, 100% { transform: translateY(0) rotate(-10deg); }
-          50% { transform: translateY(-10px) rotate(-5deg); }
+        @keyframes float-slow {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-12px) rotate(2deg); }
         }
-        @keyframes float-pencil {
-          0%, 100% { transform: translateY(0) rotate(15deg); }
-          50% { transform: translateY(-12px) rotate(20deg); }
+        @keyframes float-medium {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-16px) rotate(-3deg); }
         }
-        @keyframes pulse-connection {
-          0%, 100% { stroke-dashoffset: 0; opacity: 0.6; }
-          50% { stroke-dashoffset: -20; opacity: 1; }
+        @keyframes pulse-ring {
+          0% { transform: scale(0.95); opacity: 0.4; }
+          50% { transform: scale(1.05); opacity: 0.8; }
+          100% { transform: scale(0.95); opacity: 0.4; }
         }
-        @keyframes chat-bubble {
-          0%, 100% { transform: scale(1) translateY(0); }
-          50% { transform: scale(1.05) translateY(-5px); }
+        @keyframes dash {
+          to {
+            stroke-dashoffset: -40;
+          }
         }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes typing-dot {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 1; }
         }
-        .animated-book {
-          animation: float-book 4s ease-in-out infinite;
+        @keyframes blink-record {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
         }
-        .animated-pencil {
-          animation: float-pencil 3.5s ease-in-out infinite;
+        .anim-float-slow {
+          animation: float-slow 6s ease-in-out infinite;
         }
-        .animated-pulse-line {
+        .anim-float-medium {
+          animation: float-medium 5s ease-in-out infinite;
+        }
+        .anim-pulse-ring {
+          animation: pulse-ring 4s ease-in-out infinite;
+          transform-origin: center;
+        }
+        .anim-dash-line {
           stroke-dasharray: 8, 4;
-          animation: pulse-connection 6s linear infinite;
+          animation: dash 3s linear infinite;
         }
-        .animated-bubble {
-          animation: chat-bubble 5s ease-in-out infinite;
-        }
+        .typing-dot-1 { animation: typing-dot 1.2s infinite; }
+        .typing-dot-2 { animation: typing-dot 1.2s infinite 0.2s; }
+        .typing-dot-3 { animation: typing-dot 1.2s infinite 0.4s; }
+        .anim-blink-record { animation: blink-record 1.5s infinite; }
         .decorative-dot-pattern {
           position: absolute;
           opacity: 0.15;
@@ -272,6 +283,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           z-index: 1;
         }
       `}</style>
+
       <div className="decorative-dot-pattern" style={{ top: '10%', left: '5%', width: '120px', height: '120px' }}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none">
           <circle cx="10" cy="10" r="3" fill="var(--accent-primary)" />
@@ -285,6 +297,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           <circle cx="50" cy="50" r="3" fill="var(--accent-primary)" />
         </svg>
       </div>
+
       <div className="decorative-dot-pattern" style={{ bottom: '8%', right: '4%', width: '150px', height: '150px' }}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none">
           <circle cx="20" cy="20" r="4" fill="var(--accent-purple)" />
@@ -295,6 +308,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           <circle cx="60" cy="40" r="4" fill="var(--accent-purple)" />
         </svg>
       </div>
+
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1.2fr 1fr',
@@ -305,6 +319,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         position: 'relative',
         zIndex: 2
       }} className="notes-board-grid">
+        
+        {/* LEFT PANEL (60% Desktop layout) */}
         <div style={{
           background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #3730a3 100%)',
           display: 'flex',
@@ -337,58 +353,120 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             right: '-100px',
             pointerEvents: 'none'
           }} />
+
+          {/* Interactive CSS SVG Scene */}
           <div style={{
             position: 'relative',
             width: '100%',
             maxWidth: '460px',
-            height: '340px',
+            height: '360px',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center'
           }}>
-            <svg width="100%" height="100%" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M40 230 C 140 250, 260 250, 360 230" stroke="#a5b4fc" strokeWidth="4" strokeLinecap="round" />
-              <g transform="translate(60, 110)">
-                <path d="M15 80 C 15 50, 55 50, 55 80" fill="#818cf8" stroke="#ffffff" strokeWidth="2.5" />
-                <circle cx="35" cy="35" r="18" fill="#fbcfe8" stroke="#ffffff" strokeWidth="2.5" />
-                <path d="M17 35 C 17 15, 53 15, 53 35 C 45 28, 25 28, 17 35 Z" fill="#312e81" />
-                <rect x="25" y="32" width="20" height="8" rx="2" stroke="#ffffff" strokeWidth="2" fill="none" />
-                <path d="M50 78 L78 50 L84 56 L56 84 Z" fill="#1e1b4b" stroke="#ffffff" strokeWidth="2" />
-                <path d="M54 77 L73 58" stroke="#818cf8" strokeWidth="2" className="animated-pulse-line" />
-                <circle cx="48" cy="72" r="5" fill="#fbcfe8" />
+            <svg width="100%" height="100%" viewBox="0 0 500 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="aiGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#c084fc" />
+                  <stop offset="100%" stopColor="#818cf8" />
+                </linearGradient>
+              </defs>
+
+              {/* Connected pulsing network lines */}
+              <path d="M 100 250 L 250 120 L 400 250" stroke="#a5b4fc" strokeWidth="2.5" strokeLinecap="round" className="anim-dash-line" />
+              <path d="M 100 250 L 250 300 L 400 250" stroke="#fbcfe8" strokeWidth="2.5" strokeLinecap="round" className="anim-dash-line" />
+              <path d="M 250 120 L 250 300" stroke="#c7d2fe" strokeWidth="2" strokeLinecap="round" className="anim-dash-line" />
+
+              {/* Center Pulsing Network Hub */}
+              <circle cx="250" cy="210" r="40" fill="none" stroke="#fff" strokeWidth="1.5" strokeOpacity="0.3" className="anim-pulse-ring" />
+              <circle cx="250" cy="210" r="60" fill="none" stroke="#fff" strokeWidth="1.5" strokeOpacity="0.15" className="anim-pulse-ring" />
+
+              {/* Left Student (Developer): Desk, Monitor, Typing animation */}
+              <g transform="translate(40, 190)">
+                <path d="M 20 100 C 20 70, 80 70, 80 100" fill="#818cf8" stroke="#0f172a" strokeWidth="2.5" />
+                <circle cx="50" cy="45" r="20" fill="#fed7aa" stroke="#0f172a" strokeWidth="2.5" />
+                <path d="M 28 45 C 28 20, 72 20, 72 45 C 65 35, 35 35, 28 45 Z" fill="#312e81" stroke="#0f172a" strokeWidth="2" />
+                <rect x="38" y="40" width="10" height="8" rx="2" stroke="#0f172a" strokeWidth="2" fill="#fff" />
+                <rect x="52" y="40" width="10" height="8" rx="2" stroke="#0f172a" strokeWidth="2" fill="#fff" />
+                <line x1="48" y1="44" x2="52" y2="44" stroke="#0f172a" strokeWidth="2" />
+                
+                {/* Desk/Laptop */}
+                <rect x="15" y="95" width="70" height="8" rx="4" fill="#cbd5e1" stroke="#0f172a" strokeWidth="2.5" />
+                <path d="M 30 95 L 40 75 L 60 75 L 70 95 Z" fill="#475569" stroke="#0f172a" stroke-width="2" />
+                
+                {/* Typing dots */}
+                <circle cx="43" cy="85" r="2.5" fill="#34d399" className="typing-dot-1" />
+                <circle cx="50" cy="85" r="2.5" fill="#34d399" className="typing-dot-2" />
+                <circle cx="57" cy="85" r="2.5" fill="#34d399" className="typing-dot-3" />
               </g>
-              <g transform="translate(260, 100)">
-                <path d="M15 90 C 15 60, 55 60, 55 90" fill="#34d399" stroke="#ffffff" strokeWidth="2.5" />
-                <circle cx="35" cy="40" r="18" fill="#fed7aa" stroke="#ffffff" strokeWidth="2.5" />
-                <path d="M17 35 C 20 15, 50 15, 53 35" stroke="#1e1b4b" strokeWidth="4" fill="none" />
-                <circle cx="35" cy="22" r="6" fill="#fbbf24" />
-                <path d="M10 82 L25 72 L32 82 L17 92 Z" fill="#f43f5e" stroke="#ffffff" strokeWidth="2" />
+
+              {/* Right Student (Roadmap Planner): Desk, floating Roadmap */}
+              <g transform="translate(320, 190)">
+                <path d="M 20 100 C 20 70, 80 70, 80 100" fill="#34d399" stroke="#0f172a" stroke-width="2.5" />
+                <circle cx="50" cy="45" r="20" fill="#fed7aa" stroke="#0f172a" stroke-width="2.5" />
+                <path d="M 30 35 C 35 15, 65 15, 70 35" stroke="#1e1b4b" strokeWidth="4.5" fill="none" />
+                <circle cx="43" cy="42" r="2" fill="#0f172a" />
+                <circle cx="57" cy="42" r="2" fill="#0f172a" />
+                <path d="M 47 48 Q 50 51 53 48" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+                
+                {/* Roadmap Dashboard Paper */}
+                <g transform="translate(-40, 40)" className="anim-float-medium">
+                  <rect x="0" y="0" width="45" height="50" rx="6" fill="#fff" stroke="#0f172a" strokeWidth="2.5" />
+                  <path d="M 8 12 C 15 8, 30 18, 38 12" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                  <circle cx="38" cy="12" r="3.5" fill="#34d399" stroke="#0f172a" strokeWidth="1.5" />
+                  <line x1="8" y1="26" x2="35" y2="26" stroke="#cbd5e1" strokeWidth="2" />
+                  <line x1="8" y1="34" x2="25" y2="34" stroke="#cbd5e1" strokeWidth="2" />
+                </g>
               </g>
-              <path d="M125 155 Q 200 110 275 160" stroke="#e0e7ff" strokeWidth="3" fill="none" className="animated-pulse-line" />
-              <path d="M130 180 Q 200 210 270 180" stroke="#fbcfe8" strokeWidth="2" fill="none" className="animated-pulse-line" />
-              <g transform="translate(170, 110)">
-                <rect x="0" y="30" width="60" height="50" rx="16" fill="#ffffff" stroke="#0f172a" strokeWidth="3" />
-                <rect x="6" y="36" width="48" height="38" rx="10" fill="#e0e7ff" />
-                <rect x="12" y="80" width="8" height="6" rx="2" fill="#0f172a" />
-                <rect x="40" y="80" width="8" height="6" rx="2" fill="#0f172a" />
-                <circle cx="20" cy="52" r="3" fill="#6366f1" />
-                <path d="M36 54 L40 50 L44 54" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M26 62 Q30 65 34 62" stroke="#6366f1" strokeWidth="2" fill="none" strokeLinecap="round" />
+
+              {/* AI Assistant Mentor (Center-Top): Robot face on monitor */}
+              <g transform="translate(200, 30)" className="anim-float-slow">
+                <path d="M 40 85 L 60 85 L 50 100 Z" fill="#475569" stroke="#0f172a" strokeWidth="2.5" />
+                <rect x="25" y="95" width="50" height="6" rx="3" fill="#334155" stroke="#0f172a" strokeWidth="2.5" />
+                <rect x="10" y="15" width="80" height="70" rx="16" fill="#fff" stroke="#0f172a" strokeWidth="3" />
+                <rect x="18" y="23" width="64" height="54" rx="10" fill="url(#aiGlow)" />
+                
+                {/* Winking Face details */}
+                <path d="M 28 47 Q 34 42 40 47" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+                <circle cx="62" cy="48" r="4.5" fill="#fff" />
+                <path d="M 40 60 Q 50 66 60 60" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+                
+                {/* Speech Bubble */}
+                <g transform="translate(70, -20)" className="anim-float-medium">
+                  <rect x="0" y="0" width="110" height="36" rx="12" fill="#fff" stroke="#0f172a" strokeWidth="2" />
+                  <path d="M 12 36 L 6 42 L 18 36 Z" fill="#fff" stroke="#0f172a" strokeWidth="2" />
+                  <rect x="10" y="34" width="15" height="3" fill="#fff" />
+                  <text x="14" y="22" fill="#4f46e5" fontSize="9" fontFamily="sans-serif" fontWeight="900">AI Mentor Active</text>
+                </g>
               </g>
-              <g transform="translate(100, 40)" className="animated-book">
-                <rect x="0" y="0" width="30" height="40" rx="4" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
-                <line x1="5" y1="10" x2="25" y2="10" stroke="#cbd5e1" strokeWidth="2.5" />
-                <line x1="5" y1="18" x2="20" y2="18" stroke="#cbd5e1" strokeWidth="2.5" />
-                <line x1="5" y1="26" x2="25" y2="26" stroke="#cbd5e1" strokeWidth="2.5" />
+
+              {/* Video Study Room Widget Card (Center-Bottom) */}
+              <g transform="translate(160, 260)" className="anim-float-medium">
+                <rect x="0" y="0" width="180" height="85" rx="16" fill="#fff" stroke="#0f172a" strokeWidth="3" />
+                <rect x="12" y="12" width="22" height="14" rx="3" fill="#818cf8" stroke="#0f172a" strokeWidth="1.5" />
+                <path d="M 34 14 L 42 10 L 42 28 L 34 24 Z" fill="#818cf8" stroke="#0f172a" strokeWidth="1.5" />
+                
+                <circle cx="150" cy="18" r="4.5" fill="#ef4444" className="anim-blink-record" />
+                <text x="115" y="21" fill="#475569" fontSize="8" fontFamily="sans-serif" fontWeight="800">LIVE ROOM</text>
+
+                <circle cx="30" cy="55" r="14" fill="#fbcfe8" stroke="#0f172a" strokeWidth="1.5" />
+                <circle cx="50" cy="55" r="14" fill="#fef08a" stroke="#0f172a" strokeWidth="1.5" />
+                <circle cx="70" cy="55" r="14" fill="#bfdbfe" stroke="#0f172a" strokeWidth="1.5" />
+                
+                <text x="96" y="58" fill="#1e293b" fontSize="9" fontFamily="sans-serif" fontWeight="900">DBMS Review</text>
+                <text x="96" y="68" fill="#64748b" fontSize="7.5" fontFamily="sans-serif" fontWeight="700">4 studying</text>
               </g>
-              <g transform="translate(270, 30)" className="animated-bubble">
-                <circle cx="20" cy="20" r="16" fill="#fef08a" stroke="#eab308" strokeWidth="2" />
-                <path d="M17 26 L23 26" stroke="#eab308" strokeWidth="3" />
-                <path d="M20 12 L20 22 M16 17 L24 17" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+
+              {/* Floating Documents */}
+              <g transform="translate(180, 160)" className="anim-float-slow">
+                <rect x="0" y="0" width="24" height="32" rx="4" fill="#e0e7ff" stroke="#4f46e5" strokeWidth="1.5" />
+                <line x1="4" y1="8" x2="20" y2="8" stroke="#4f46e5" strokeWidth="1.5" />
+                <line x1="4" y1="16" x2="16" y2="16" stroke="#4f46e5" strokeWidth="1.5" />
               </g>
             </svg>
           </div>
-          <div style={{ zIndex: 2, textAlign: 'center', maxWidth: '420px', marginTop: '1rem' }}>
+
+          <div style={{ zIndex: 2, textAlign: 'center', maxWidth: '420px', marginTop: '1.5rem' }}>
             <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.1rem', fontWeight: 900, marginBottom: '0.75rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
               Study better, together
             </h2>
@@ -396,6 +474,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               Join the collaboration platform built for students. Organize your planner, share documents, launch video rooms, and utilize AI academic assistance in a motivated environment.
             </p>
           </div>
+
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -420,6 +499,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             ))}
           </div>
         </div>
+
+        {/* RIGHT PANEL (40% Desktop layout) */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -444,12 +525,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             <h2 style={{ fontSize: '1.3rem', fontWeight: 900, margin: '0.2rem 0' }}>Study better, together.</h2>
             <p style={{ fontSize: '0.75rem', color: '#e0e7ff', margin: '0.2rem 0' }}>Join the collaboration platform built for students.</p>
           </div>
+
           <div style={{
             maxWidth: '400px',
             width: '100%',
             position: 'relative',
             marginTop: '30px'
           }}>
+            
+            {/* Winking Mascot Peeking Over */}
             <div style={{
               position: 'absolute',
               top: '-58px',
@@ -458,21 +542,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               pointerEvents: 'none'
             }}>
               <svg width="110" height="60" viewBox="0 0 110 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Hood/Hair */}
                 <path d="M15 45 C15 15, 95 15, 95 45 Z" fill="#6366f1" />
-                <circle cx="55" cy="40" r="20" fill="#fed7aa" />
+                {/* Face */}
+                <circle cx="55" cy="40" r="20" fill="#fed7aa" stroke="#0f172a" strokeWidth="2" />
+                {/* Hair cap */}
                 <path d="M35 30 C42 20, 68 20, 75 30 C68 27, 42 27, 35 30 Z" fill="#3730a3" />
-                <circle cx="45" cy="38" r="7" stroke="#0f172a" strokeWidth="2" fill="none" />
-                <circle cx="65" cy="38" r="7" stroke="#0f172a" strokeWidth="2" fill="none" />
-                <line x1="52" y1="38" x2="58" y2="38" stroke="#0f172a" strokeWidth="2" />
-                <circle cx="45" cy="38" r="1.5" fill="#0f172a" />
-                <path d="M62 39 L65 36 L68 39" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M50 48 Q55 52 60 48" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
-                <circle cx="37" cy="42" r="1.5" fill="#f43f5e" opacity="0.6" />
-                <circle cx="73" cy="42" r="1.5" fill="#f43f5e" opacity="0.6" />
+                {/* Left Eye (Normal) */}
+                <circle cx="44" cy="38" r="6" stroke="#0f172a" strokeWidth="2" fill="#fff" />
+                <circle cx="44" cy="38" r="2" fill="#0f172a" />
+                {/* Right Eye (Winking) */}
+                <path d="M 60 38 Q 65 33 70 38" stroke="#0f172a" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                {/* Nose line */}
+                <line x1="52" y1="38" x2="58" y2="38" stroke="#0f172a" strokeWidth="1.5" />
+                {/* Smile */}
+                <path d="M49 46 Q54 50 59 46" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+                {/* Blush */}
+                <circle cx="36" cy="42" r="1.5" fill="#f43f5e" opacity="0.6" />
+                <circle cx="74" cy="42" r="1.5" fill="#f43f5e" opacity="0.6" />
+                {/* Shoulders peeking */}
                 <rect x="30" y="52" width="10" height="8" rx="4" fill="#fed7aa" stroke="#0f172a" strokeWidth="1.5" />
                 <rect x="70" y="52" width="10" height="8" rx="4" fill="#fed7aa" stroke="#0f172a" strokeWidth="1.5" />
               </svg>
             </div>
+
             <div className="glass-panel" style={{
               background: '#ffffff',
               borderRadius: '24px',
@@ -493,7 +586,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.7rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
                   {isRegistering ? 'Create Student Account' : 'Sign in to Roomie'}
                 </h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
+                  Connect. Collaborate. Learn Together.
+                </p>
               </div>
+
               {errorMessage && (
                 <div style={{
                   background: '#fef2f2',
@@ -508,6 +605,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   {errorMessage}
                 </div>
               )}
+
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {isRegistering && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -582,6 +680,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   {loading ? 'Verifying Session...' : isRegistering ? 'Create Account' : 'Sign In'}
                 </button>
               </form>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem' }}>
                 <button
                   onClick={() => {
@@ -620,6 +719,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   CONTINUE AS GUEST
                 </button>
               </div>
+
               <div className="show-on-mobile" style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -634,9 +734,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   </div>
                 ))}
               </div>
+
             </div>
           </div>
+
         </div>
+
       </div>
     </div>
   );

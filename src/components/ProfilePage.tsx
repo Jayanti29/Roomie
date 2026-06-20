@@ -40,6 +40,7 @@ interface ProfilePageProps {
   onUpdateLearningTracks: (updatedTracks: LearningTrack[]) => void;
   onLogOut: () => void;
   isGuest?: boolean;
+  activeSubTab?: 'personal' | 'academic';
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
@@ -50,10 +51,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onUpdateCourses,
   onUpdateLearningTracks,
   onLogOut,
-  isGuest
+  isGuest,
+  activeSubTab = 'personal'
 }) => {
   // Editing state toggles
   const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [isEditingAcademic, setIsEditingAcademic] = useState(false);
+  const [localSubTab, setLocalSubTab] = useState<'personal' | 'academic'>(activeSubTab);
+
+  React.useEffect(() => {
+    setLocalSubTab(activeSubTab);
+  }, [activeSubTab]);
   
   // Profile Form state
   const [name, setName] = useState(profile.name);
@@ -344,329 +352,477 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const overallProgress = courses.length > 0 ? Math.round(courses.reduce((s, c) => s + c.progress, 0) / courses.length) : 0;
 
   return (
-    <div className="notes-board-grid" style={{ paddingBottom: '2rem', textAlign: 'left' }}>
+    <div style={{ paddingBottom: '2rem', textAlign: 'left' }}>
       
-      {/* LEFT PANEL: Profile summary */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        
-        {/* Profile Card Summary */}
-        <div className="glass-panel" style={{ background: '#fff', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', border: '1px solid #e2e8f0', boxShadow: 'var(--shadow-flat-sm)' }}>
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              width: '100px', height: '100px', borderRadius: '50%', border: '1px solid #cbd5e1',
-              cursor: 'pointer', overflow: 'hidden', position: 'relative', boxShadow: 'var(--shadow-flat-sm)'
-            }}
-          >
-            {profilePhoto ? (
-              <img src={profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
-                👤
-              </div>
-            )}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(15,23,42,0.8)', color: '#fff', fontSize: '0.65rem', fontWeight: 600, padding: '4px 0' }}>
-              Change Photo
-            </div>
-          </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            accept="image/*"
-            onChange={handlePhotoUpload}
-          />
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>{profile.name}</h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>{profile.email}</span>
-            {profile.phone && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Phone: {profile.phone}</span>}
-          </div>
-
-          {profile.bio && (
-            <p style={{ fontSize: '0.8rem', fontStyle: 'normal', color: 'var(--text-secondary)', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '8px', width: '100%' }}>
-              {profile.bio}
-            </p>
-          )}
-
-          {!isEditingInfo ? (
-            <button
-              onClick={() => setIsEditingInfo(true)}
-              className="cyber-btn purple-fill"
-              style={{ width: '100%' }}
-            >
-              Edit Profile Info
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsEditingInfo(false)}
-              className="cyber-btn"
-              style={{ width: '100%', background: '#fff' }}
-            >
-              Close Editor
-            </button>
-          )}
-        </div>
-
-        {/* Profile Info Form Editor */}
-        {isEditingInfo && (
-          <div className="glass-panel" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
-              Personal Details
-            </h3>
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Full Name</label>
-                <input type="text" className="cyber-input" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Phone Number</label>
-                <input type="tel" className="cyber-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. +91 99999 88888" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Bio Statement</label>
-                <input type="text" className="cyber-input" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="e.g. Computer Science Student" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>State</label>
-                <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={state} onChange={(e) => setState(e.target.value)}>
-                  {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>City</label>
-                <input type="text" className="cyber-input" value={city} onChange={(e) => setCity(e.target.value)} />
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>University</label>
-                <input type="text" className="cyber-input" value={university} onChange={handleUnivChange} onFocus={() => university.trim().length > 1 && setShowUnivDropdown(true)} onBlur={() => setTimeout(() => setShowUnivDropdown(false), 200)} autoComplete="off" />
-                {showUnivDropdown && univSuggestions.length > 0 && (
-                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
-                    {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{u}</li>)}
-                  </ul>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>College</label>
-                <input type="text" className="cyber-input" value={college} onChange={handleCollegeChange} onFocus={() => college.trim().length > 1 && setShowCollegeDropdown(true)} onBlur={() => setTimeout(() => setShowCollegeDropdown(false), 200)} autoComplete="off" />
-                {showCollegeDropdown && collegeSuggestions.length > 0 && (
-                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
-                    {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{c}</li>)}
-                  </ul>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Degree</label>
-                <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={degree} onChange={(e) => setDegree(e.target.value)}>
-                  {degrees.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Specialization</label>
-                <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={specialization} onChange={(e) => setSpecialization(e.target.value)}>
-                  {specializations.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Semester / Year</label>
-                <input type="text" className="cyber-input" value={semester} onChange={(e) => setSemester(e.target.value)} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Career Goal</label>
-                <input type="text" className="cyber-input" value={careerGoal} onChange={(e) => setCareerGoal(e.target.value)} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Interests (comma separated)</label>
-                <input type="text" className="cyber-input" value={interestsText} onChange={(e) => setInterestsText(e.target.value)} />
-              </div>
-
-              <button type="submit" className="cyber-btn pink-fill" style={{ width: '100%', fontWeight: 700 }}>
-                Save Changes
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Security / Account management Card */}
-        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
-            Account Settings
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button
-              onClick={() => setAccountAction('change_email')}
-              className="cyber-btn"
-              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
-            >
-              Change Email Address
-            </button>
-            
-            <button
-              onClick={() => setAccountAction('change_password')}
-              className="cyber-btn"
-              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
-            >
-              Change Password
-            </button>
-            
-            <button
-              onClick={() => setAccountAction('delete_account')}
-              className="cyber-btn pink-fill"
-              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
-            >
-              Delete Account Permanently
-            </button>
-          </div>
-        </div>
-
+      {/* Sub-tab Navigation */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+        <button
+          onClick={() => {
+            setLocalSubTab('personal');
+            setIsEditingInfo(false);
+          }}
+          style={{
+            padding: '0.5rem 1.25rem',
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: localSubTab === 'personal' ? '3px solid var(--accent-purple)' : '3px solid transparent',
+            color: localSubTab === 'personal' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            fontFamily: 'var(--font-heading)'
+          }}
+        >
+          Personal Profile
+        </button>
+        <button
+          onClick={() => {
+            setLocalSubTab('academic');
+            setIsEditingAcademic(false);
+          }}
+          style={{
+            padding: '0.5rem 1.25rem',
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: localSubTab === 'academic' ? '3px solid var(--accent-purple)' : '3px solid transparent',
+            color: localSubTab === 'academic' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            fontFamily: 'var(--font-heading)'
+          }}
+        >
+          Academic Profile
+        </button>
       </div>
 
-      {/* RIGHT PANEL: Courses & AI Learning Tracks */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        
-        {/* Course Catalog CRUD */}
-        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-              Academic Courses
-            </h3>
-            <button
-              onClick={() => setShowAddCourse(!showAddCourse)}
-              className="cyber-btn"
-              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
-            >
-              {showAddCourse ? 'Cancel' : 'Add Course'}
-            </button>
-          </div>
-
-          {showAddCourse && (
-            <form onSubmit={handleAddCourse} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Course Name</label>
-                <input type="text" className="cyber-input" value={newCourseName} onChange={(e) => setNewCourseName(e.target.value)} placeholder="e.g. Operating Systems" required />
+      {localSubTab === 'personal' ? (
+        /* PERSONAL SUB-TAB WORKSPACE */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+          
+          {/* Left Column: Photo & Details Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="glass-panel" style={{ background: '#fff', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center', border: '1px solid #e2e8f0', boxShadow: 'var(--shadow-flat-sm)', padding: '1.5rem', borderRadius: '16px' }}>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: '120px', height: '120px', borderRadius: '50%', border: '2px solid var(--accent-purple)',
+                  cursor: 'pointer', overflow: 'hidden', position: 'relative', boxShadow: 'var(--shadow-flat-sm)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc'
+                }}
+              >
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '48px', height: '48px', color: '#64748b' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                )}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(15,23,42,0.8)', color: '#fff', fontSize: '0.65rem', fontWeight: 600, padding: '4px 0' }}>
+                  Change Photo
+                </div>
               </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="image/*"
+                onChange={handlePhotoUpload}
+              />
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Progress (%)</label>
-                <input type="number" className="cyber-input" value={newCourseProgress} onChange={(e) => setNewCourseProgress(parseInt(e.target.value) || 0)} min="0" max="100" />
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>{profile.name}</h3>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>{profile.email}</span>
+                {profile.phone && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Phone: {profile.phone}</span>}
               </div>
-              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Course</button>
-            </form>
-          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Curriculum Progress</span>
-              <span style={{ color: 'var(--accent-primary)' }}>{overallProgress}%</span>
-            </div>
+              {profile.bio && (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.75rem 1rem', borderRadius: '12px', width: '100%', lineHeight: '1.4' }}>
+                  {profile.bio}
+                </p>
+              )}
 
-            {courses.length === 0 ? (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No courses added yet.</span>
-            ) : (
-              courses.map(c => (
-                <div key={c.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</strong>
-                    <button
-                      onClick={() => handleRemoveCourse(c.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
-                      title="Remove Course"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={c.progress}
-                      onChange={(e) => handleProgressChange(c.id, parseInt(e.target.value))}
-                      style={{ flex: 1, cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{c.progress}%</span>
+              {/* Interests chips */}
+              {profile.interests && profile.interests.length > 0 && (
+                <div style={{ width: '100%', textAlign: 'left', marginTop: '0.5rem' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Interests</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {profile.interests.map((interest, idx) => (
+                      <span key={idx} style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', background: 'var(--accent-purple-light)', color: 'var(--accent-purple)', borderRadius: '9999px', fontWeight: 600 }}>
+                        {interest}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              ))
+              )}
+
+              {!isEditingInfo ? (
+                <button
+                  onClick={() => setIsEditingInfo(true)}
+                  className="cyber-btn purple-fill"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                >
+                  Edit Profile Info
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsEditingInfo(false)}
+                  className="cyber-btn"
+                  style={{ width: '100%', background: '#fff', marginTop: '0.5rem' }}
+                >
+                  Close Editor
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Personal Edit Form / Account Settings */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {isEditingInfo ? (
+              <div className="glass-panel" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+                  Edit Personal Details
+                </h3>
+                <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Full Name</label>
+                    <input type="text" className="cyber-input" value={name} onChange={(e) => setName(e.target.value)} required />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Phone Number</label>
+                    <input type="tel" className="cyber-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. +91 99999 88888" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Bio Statement</label>
+                    <input type="text" className="cyber-input" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="e.g. Computer Science Student" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Interests (comma separated)</label>
+                    <input type="text" className="cyber-input" value={interestsText} onChange={(e) => setInterestsText(e.target.value)} placeholder="e.g. Coding, Reading, Math" />
+                  </div>
+
+                  <button type="submit" className="cyber-btn pink-fill" style={{ width: '100%', fontWeight: 700, marginTop: '0.5rem' }}>
+                    Save Personal Details
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="glass-panel" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center', height: '100%', minHeight: '200px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: '48px', height: '48px', margin: '0 auto', color: 'var(--accent-purple)' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <div>
+                  <h4 style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.25rem' }}>Personal Settings Workspace</h4>
+                  <p style={{ fontSize: '0.8rem' }}>Click Edit Profile Info on the left to modify your personal bio, phone, name, and interest categories.</p>
+                </div>
+              </div>
             )}
+
+            {/* Account Settings Card */}
+            <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+                Account Settings
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setAccountAction('change_email')}
+                  className="cyber-btn"
+                  style={{ width: '100%', fontSize: '0.85rem', fontWeight: 600 }}
+                >
+                  Change Email Address
+                </button>
+                
+                <button
+                  onClick={() => setAccountAction('change_password')}
+                  className="cyber-btn"
+                  style={{ width: '100%', fontSize: '0.85rem', fontWeight: 600 }}
+                >
+                  Change Password
+                </button>
+                
+                <button
+                  onClick={() => setAccountAction('delete_account')}
+                  className="cyber-btn pink-fill"
+                  style={{ width: '100%', fontSize: '0.85rem', fontWeight: 600 }}
+                >
+                  Delete Account Permanently
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      ) : (
+        /* ACADEMIC SUB-TAB WORKSPACE */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+          
+          {/* Left Column: Academic Metadata Card */}
+          <div>
+            {!isEditingAcademic ? (
+              <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', color: '#0f172a' }}>
+                  Academic Info
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>University</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{profile.university || 'Not specified'}</span>
+                  </div>
 
-        {/* AI Learning Tracks & roadmaps */}
-        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-              AI Learning Tracks
-            </h3>
-            <button
-              onClick={() => setShowAddTrack(!showAddTrack)}
-              className="cyber-btn"
-              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
-            >
-              {showAddTrack ? 'Cancel' : 'Add Track'}
-            </button>
-          </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>College</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{profile.college || 'Not specified'}</span>
+                  </div>
 
-          {showAddTrack && (
-            <form onSubmit={handleAddTrack} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Subject Name</label>
-                <input type="text" className="cyber-input" value={trackName} onChange={(e) => setTrackName(e.target.value)} placeholder="e.g. Java Programming, UPSC History" required />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Goal</label>
-                <input type="text" className="cyber-input" value={trackGoal} onChange={(e) => setTrackGoal(e.target.value)} placeholder="e.g. Master OOP concepts" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Target Date</label>
-                <input type="date" className="cyber-input" value={trackDate} onChange={(e) => setTrackDate(e.target.value)} />
-              </div>
-              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Track</button>
-            </form>
-          )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Degree & Specialization</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{profile.degree} - {profile.specialization}</span>
+                  </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            {learningTracks.length === 0 ? (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No active learning tracks.</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Semester / Year</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{profile.semester || 'Not specified'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Career Goal</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{profile.careerGoal || 'Not specified'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>
+                      {profile.city && profile.state ? `${profile.city}, ${profile.state}` : (profile.city || profile.state || 'Not specified')}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsEditingAcademic(true)}
+                  className="cyber-btn purple-fill"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                >
+                  Edit Academic Details
+                </button>
+              </div>
             ) : (
-              learningTracks.map(track => (
-                <div key={track.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{track.name}</strong>
-                    <button
-                      onClick={() => handleRemoveTrack(track.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
-                      title="Remove Track"
-                    >
-                      ✕
+              <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+                  Edit Academic Info
+                </h3>
+                <form onSubmit={(e) => { handleSaveProfile(e); setIsEditingAcademic(false); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>State</label>
+                    <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={state} onChange={(e) => setState(e.target.value)}>
+                      {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>City</label>
+                    <input type="text" className="cyber-input" value={city} onChange={(e) => setCity(e.target.value)} />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>University</label>
+                    <input type="text" className="cyber-input" value={university} onChange={handleUnivChange} onFocus={() => university.trim().length > 1 && setShowUnivDropdown(true)} onBlur={() => setTimeout(() => setShowUnivDropdown(false), 200)} autoComplete="off" />
+                    {showUnivDropdown && univSuggestions.length > 0 && (
+                      <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                        {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{u}</li>)}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>College</label>
+                    <input type="text" className="cyber-input" value={college} onChange={handleCollegeChange} onFocus={() => college.trim().length > 1 && setShowCollegeDropdown(true)} onBlur={() => setTimeout(() => setShowCollegeDropdown(false), 200)} autoComplete="off" />
+                    {showCollegeDropdown && collegeSuggestions.length > 0 && (
+                      <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                        {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{c}</li>)}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Degree</label>
+                    <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={degree} onChange={(e) => setDegree(e.target.value)}>
+                      {degrees.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Specialization</label>
+                    <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={specialization} onChange={(e) => setSpecialization(e.target.value)}>
+                      {specializations.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Semester / Year</label>
+                    <input type="text" className="cyber-input" value={semester} onChange={(e) => setSemester(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Career Goal</label>
+                    <input type="text" className="cyber-input" value={careerGoal} onChange={(e) => setCareerGoal(e.target.value)} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button type="button" onClick={() => setIsEditingAcademic(false)} className="cyber-btn" style={{ flex: 1, background: '#fff' }}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="cyber-btn pink-fill" style={{ flex: 1, fontWeight: 700 }}>
+                      Save
                     </button>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Goal: {track.goal || 'No specified goal'} | Due: {track.targetDate || 'No date'}</span>
-                  
-                  {track.roadmapMarkdown ? (
-                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.6rem', maxHeight: '180px', overflowY: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                      {track.roadmapMarkdown}
+                </form>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Academic Courses & AI Learning Tracks */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            
+            {/* Courses Tracker */}
+            <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                  Academic Courses
+                </h3>
+                <button
+                  onClick={() => setShowAddCourse(!showAddCourse)}
+                  className="cyber-btn"
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
+                >
+                  {showAddCourse ? 'Cancel' : 'Add Course'}
+                </button>
+              </div>
+
+              {showAddCourse && (
+                <form onSubmit={handleAddCourse} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Course Name</label>
+                    <input type="text" className="cyber-input" value={newCourseName} onChange={(e) => setNewCourseName(e.target.value)} placeholder="e.g. Operating Systems" required />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Progress (%)</label>
+                    <input type="number" className="cyber-input" value={newCourseProgress} onChange={(e) => setNewCourseProgress(parseInt(e.target.value) || 0)} min="0" max="100" />
+                  </div>
+                  <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Course</button>
+                </form>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Curriculum Progress</span>
+                  <span style={{ color: 'var(--accent-primary)' }}>{overallProgress}%</span>
+                </div>
+
+                {courses.length === 0 ? (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No courses added yet.</span>
+                ) : (
+                  courses.map(c => (
+                    <div key={c.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</strong>
+                        <button
+                          onClick={() => handleRemoveCourse(c.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+                          title="Remove Course"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={c.progress}
+                          onChange={(e) => handleProgressChange(c.id, parseInt(e.target.value))}
+                          style={{ flex: 1, cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{c.progress}%</span>
+                      </div>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => handleGenerateRoadmap(track)}
-                      disabled={isGeneratingRoadmap === track.id}
-                      className="cyber-btn cyan-fill"
-                      style={{ padding: '0.35rem 0.8rem', fontSize: '0.7rem', minHeight: 'auto', border: 'none', fontWeight: 600 }}
-                    >
-                      {isGeneratingRoadmap === track.id ? 'Generating Roadmap...' : 'Generate Roadmap with AI'}
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* AI Learning Tracks & roadmaps */}
+            <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                  AI Learning Tracks
+                </h3>
+                <button
+                  onClick={() => setShowAddTrack(!showAddTrack)}
+                  className="cyber-btn"
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
+                >
+                  {showAddTrack ? 'Cancel' : 'Add Track'}
+                </button>
+              </div>
+
+              {showAddTrack && (
+                <form onSubmit={handleAddTrack} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Subject Name</label>
+                    <input type="text" className="cyber-input" value={trackName} onChange={(e) => setTrackName(e.target.value)} placeholder="e.g. Java Programming, UPSC History" required />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Goal</label>
+                    <input type="text" className="cyber-input" value={trackGoal} onChange={(e) => setTrackGoal(e.target.value)} placeholder="e.g. Master OOP concepts" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Target Date</label>
+                    <input type="date" className="cyber-input" value={trackDate} onChange={(e) => setTrackDate(e.target.value)} />
+                  </div>
+                  <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Track</button>
+                </form>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {learningTracks.length === 0 ? (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No active learning tracks.</span>
+                ) : (
+                  learningTracks.map(track => (
+                    <div key={track.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{track.name}</strong>
+                        <button
+                          onClick={() => handleRemoveTrack(track.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+                          title="Remove Track"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Goal: {track.goal || 'No specified goal'} | Due: {track.targetDate || 'No date'}</span>
+                      
+                      {track.roadmapMarkdown ? (
+                        <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.6rem', maxHeight: '180px', overflowY: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                          {track.roadmapMarkdown}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleGenerateRoadmap(track)}
+                          disabled={isGeneratingRoadmap === track.id}
+                          className="cyber-btn cyan-fill"
+                          style={{ padding: '0.35rem 0.8rem', fontSize: '0.7rem', minHeight: 'auto', border: 'none', fontWeight: 600 }}
+                        >
+                          {isGeneratingRoadmap === track.id ? 'Generating Roadmap...' : 'Generate Roadmap with AI'}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
-
-      </div>
+      )}
 
       {/* ACCOUNT MODAL ACTIONS (Re-authentication) */}
       {accountAction && (

@@ -74,6 +74,7 @@ export default function App() {
 
   // Navigation state
   const [activeMainTab, setActiveMainTab] = useState<Tab>('dashboard');
+  const [profileSubTab, setProfileSubTab] = useState<'personal' | 'academic'>('personal');
 
   // Modular Data States
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -974,8 +975,10 @@ export default function App() {
                   style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #cbd5e1', boxShadow: 'var(--shadow-flat-sm)' }} 
                 />
               ) : (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', border: '1px solid #cbd5e1' }}>
-                  👤
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #cbd5e1' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px', color: '#64748b' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
                 </div>
               )}
               {!isMobile && (
@@ -985,7 +988,7 @@ export default function App() {
                 </div>
               )}
             </div>
-
+ 
             {showProfileDropdown && (
               <div style={{
                 position: 'absolute',
@@ -1004,6 +1007,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setActiveMainTab('profile');
+                    setProfileSubTab('personal');
                     setShowProfileDropdown(false);
                   }}
                   style={{
@@ -1014,7 +1018,23 @@ export default function App() {
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                 >
-                  Profile
+                  My Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveMainTab('profile');
+                    setProfileSubTab('academic');
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', textAlign: 'left',
+                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                    color: 'var(--text-primary)', fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  Academic Profile
                 </button>
                 <button
                   onClick={() => {
@@ -1235,6 +1255,7 @@ export default function App() {
             onUpdateLearningTracks={handleUpdateLearningTracks}
             onLogOut={handleLogOut}
             isGuest={user.isGuest}
+            activeSubTab={profileSubTab}
           />
         )}
 
