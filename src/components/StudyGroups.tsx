@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, onValue, uploadFile, get, auth } from '../firebase';
+import { downloadFileHelper } from '../utils/downloadHelper';
 
 interface GroupNote {
   id: string;
@@ -465,17 +466,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       return;
     }
 
-    const url = previewDataUrl || attachment.url;
-    const fileName = attachment.name;
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await downloadFileHelper(attachment.url, attachment.name);
   };
 
   // Create Group

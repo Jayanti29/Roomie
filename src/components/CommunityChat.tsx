@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db, isFirebaseConfigured, ref, push, onChildAdded, get, set, onValue, uploadFile, auth } from '../firebase';
+import { downloadFileHelper } from '../utils/downloadHelper';
 
 interface ChatMessage {
   id: string;
@@ -252,17 +253,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
       return;
     }
 
-    const url = previewDataUrl || attachment.url;
-    const fileName = attachment.name;
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await downloadFileHelper(attachment.url, attachment.name);
   };
 
   // Handle standard file selection

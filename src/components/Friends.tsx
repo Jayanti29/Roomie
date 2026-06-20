@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, push, set, update, onValue, uploadFile, get, auth } from '../firebase';
+import { downloadFileHelper } from '../utils/downloadHelper';
 
 interface UserProfile {
   uid: string;
@@ -644,7 +645,7 @@ export const Friends: React.FC<FriendsProps> = ({
   };
 
   // File Download handler
-  const handleDownloadFile = (attachment: any) => {
+  const handleDownloadFile = async (attachment: any) => {
     if (!attachment) return;
     if (attachment.isNoteRef) {
       const text = `${attachment.noteDetails.title}\n\nSubject: ${attachment.noteDetails.course}\nAuthor: ${attachment.noteDetails.author}\n\n${attachment.noteDetails.content}`;
@@ -655,16 +656,7 @@ export const Friends: React.FC<FriendsProps> = ({
       link.click();
       return;
     }
-    const url = previewDataUrl || attachment.url;
-    const fileName = attachment.name;
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await downloadFileHelper(attachment.url, attachment.name);
   };
 
   // File checkers

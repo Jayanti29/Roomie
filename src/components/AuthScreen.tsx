@@ -224,44 +224,60 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     <div style={{
       minHeight: '100vh',
       display: 'flex',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+      background: '#fdfbf7', // warm paper background
       fontFamily: 'var(--font-body)',
       justifyContent: 'center',
       alignItems: 'center',
       overflow: 'hidden'
     }}>
+      
+      {/* Cartoon Animation Styles */}
       <style>{`
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-10px) rotate(1deg); }
-        }
-        @keyframes float-medium {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-14px) rotate(-1.5deg); }
-        }
-        @keyframes pulse-path {
-          0% { stroke-dashoffset: 0; opacity: 0.5; }
-          50% { opacity: 1; }
-          100% { stroke-dashoffset: -30; opacity: 0.5; }
+        @keyframes sway {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(-3deg); }
         }
         @keyframes nod {
           0%, 100% { transform: rotate(0deg); }
           50% { transform: rotate(4deg); }
         }
-        @keyframes sway {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-3deg); }
+        @keyframes ai-float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-12px) rotate(2deg); }
         }
-        @keyframes blink-light {
-          0%, 100% { opacity: 0.3; }
+        @keyframes chat-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.9; }
+          50% { transform: scale(1.08); opacity: 1; }
+        }
+        @keyframes book-slide {
+          0%, 100% { transform: translateX(0px); }
+          50% { transform: translateX(8px); }
+        }
+        @keyframes task-tick {
+          0%, 100% { opacity: 0.2; }
           50% { opacity: 1; }
         }
-        .anim-float-s { animation: float-slow 7s ease-in-out infinite; }
-        .anim-float-m { animation: float-medium 5s ease-in-out infinite; }
-        .anim-nod { animation: nod 3s ease-in-out infinite; transform-origin: 50% 50%; }
-        .anim-sway { animation: sway 4s ease-in-out infinite; transform-origin: 50% 50%; }
-        .anim-pulse-path { stroke-dasharray: 6, 4; animation: pulse-path 4s linear infinite; }
-        .anim-blink-red { animation: blink-light 1.5s infinite; }
+        @keyframes path-flow {
+          0% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: -40; }
+        }
+        @keyframes card-bob {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes pencil-write {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(4px, -3px); }
+        }
+        .anim-sway { animation: sway 4s ease-in-out infinite; transform-origin: 50% 100%; }
+        .anim-nod { animation: nod 3.5s ease-in-out infinite; transform-origin: 50% 50%; }
+        .anim-ai-float { animation: ai-float 5s ease-in-out infinite; }
+        .anim-chat-pulse { animation: chat-pulse 3s ease-in-out infinite; }
+        .anim-book-slide { animation: book-slide 4.5s ease-in-out infinite; }
+        .anim-task-tick { animation: task-tick 2s ease-in-out infinite; }
+        .anim-path-flow { stroke-dasharray: 8, 6; animation: path-flow 5s linear infinite; }
+        .anim-card-bob { animation: card-bob 4s ease-in-out infinite; }
+        .anim-pencil-write { animation: pencil-write 1.5s ease-in-out infinite; }
       `}</style>
 
       <div style={{
@@ -272,9 +288,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         alignItems: 'stretch'
       }} className="notes-board-grid">
         
-        {/* LEFT PANEL: Fully Animated Cartoon Scene with No Text */}
+        {/* LEFT PANEL: 100% Cartoon Loop Animation, No Text */}
         <div style={{
-          background: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 50%, #059669 100%)',
+          background: 'linear-gradient(135deg, #a7f3d0 0%, #a5f3fc 100%)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -284,100 +300,160 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           borderRight: '3px solid #0f172a'
         }} className="hide-on-mobile">
           
-          <div style={{ width: '100%', maxWidth: '520px', height: '420px' }}>
-            <svg width="100%" height="100%" viewBox="0 0 500 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Scrapbook pin borders */}
+          <div style={{ position: 'absolute', top: '15px', left: '15px', width: '30px', height: '15px', background: 'rgba(0,0,0,0.1)', transform: 'rotate(-40deg)' }} />
+          <div style={{ position: 'absolute', bottom: '15px', right: '15px', width: '30px', height: '15px', background: 'rgba(0,0,0,0.1)', transform: 'rotate(-45deg)' }} />
+          
+          <div style={{ width: '100%', maxWidth: '580px', height: '480px' }}>
+            <svg width="100%" height="100%" viewBox="0 0 600 500" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <linearGradient id="aiGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#f472b6" />
-                  <stop offset="100%" stopColor="#c084fc" />
+                <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#c084fc" />
+                  <stop offset="100%" stopColor="#818cf8" />
                 </linearGradient>
               </defs>
 
-              {/* Pulsing Collaboration Network Paths */}
-              <path d="M 80 250 L 250 110 L 420 250" stroke="#fef08a" strokeWidth="3" strokeLinecap="round" className="anim-pulse-path" />
-              <path d="M 80 250 L 250 310 L 420 250" stroke="#a7f3d0" strokeWidth="3" strokeLinecap="round" className="anim-pulse-path" />
-              <path d="M 250 110 L 250 310" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" className="anim-pulse-path" />
+              {/* STUDY PATH: Glowing paths connecting characters */}
+              <path d="M 100 350 Q 200 240 300 120 T 500 350" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" className="anim-path-flow" fill="none" />
+              <path d="M 100 350 Q 300 450 500 350" stroke="#10b981" strokeWidth="4" strokeLinecap="round" className="anim-path-flow" fill="none" />
+              <path d="M 300 120 L 300 350" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" className="anim-path-flow" fill="none" />
 
-              {/* 1. Students Studying Together (Left) */}
-              <g transform="translate(30, 180)" className="anim-sway">
-                {/* Desk & Laptop */}
-                <rect x="10" y="90" width="80" height="8" rx="4" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
-                <path d="M 25 90 L 35 68 L 65 68 L 75 90 Z" fill="#475569" stroke="#0f172a" strokeWidth="2" />
-                <rect x="42" y="74" width="16" height="12" rx="2" fill="#38bdf8" />
+              {/* 1. STUDENTS STUDYING (Left Side Desk) */}
+              <g transform="translate(60, 260)">
+                {/* Desk */}
+                <rect x="0" y="90" width="130" height="10" rx="5" fill="#f59e0b" stroke="#0f172a" strokeWidth="3.5" />
+                <line x1="20" y1="100" x2="20" y2="140" stroke="#0f172a" strokeWidth="4" />
+                <line x1="110" y1="100" x2="110" y2="140" stroke="#0f172a" strokeWidth="4" />
                 
-                {/* Character */}
-                <path d="M 20 100 C 20 75, 80 75, 80 100" fill="#f43f5e" stroke="#0f172a" strokeWidth="2" />
-                <circle cx="50" cy="45" r="18" fill="#fbcfe8" stroke="#0f172a" strokeWidth="2" />
-                {/* Hair */}
-                <path d="M 32 45 C 32 25, 68 25, 68 45 C 60 38, 40 38, 32 45 Z" fill="#1e1b4b" stroke="#0f172a" strokeWidth="2" />
-                <circle cx="44" cy="45" r="2" fill="#0f172a" />
-                <circle cx="56" cy="45" r="2" fill="#0f172a" />
-                <path d="M 47 52 Q 50 55 53 52" stroke="#0f172a" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                {/* Character Studying */}
+                <g className="anim-sway">
+                  <path d="M 25 90 Q 20 50 65 50 Q 110 50 105 90 Z" fill="#ec4899" stroke="#0f172a" strokeWidth="3" />
+                  <circle cx="65" cy="40" r="22" fill="#fed7aa" stroke="#0f172a" strokeWidth="3" />
+                  {/* Hair */}
+                  <path d="M 43 40 C 43 15, 87 15, 87 40 Z" fill="#1e1b4b" stroke="#0f172a" strokeWidth="3" />
+                  <circle cx="58" cy="38" r="2" fill="#0f172a" />
+                  <circle cx="72" cy="38" r="2" fill="#0f172a" />
+                  <path d="M 62 48 Q 65 51 68 48" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+                </g>
+
+                {/* Laptop on desk */}
+                <path d="M 90 90 L 105 70 L 125 70 L 120 90 Z" fill="#cbd5e1" stroke="#0f172a" strokeWidth="2" />
+                <rect x="100" y="73" width="20" height="12" fill="#38bdf8" />
               </g>
 
-              {/* 2. Group Discussions & Chat Bubbles (Right) */}
-              <g transform="translate(330, 180)" className="anim-nod">
-                {/* Desk & Notebook */}
-                <rect x="10" y="90" width="80" height="8" rx="4" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
-                <rect x="35" y="80" width="30" height="10" rx="2" fill="#fef08a" stroke="#0f172a" strokeWidth="1.5" />
+              {/* 2. STUDENTS TALKING & CHAT BUBBLE (Right Side Desk) */}
+              <g transform="translate(410, 260)">
+                {/* Desk */}
+                <rect x="0" y="90" width="130" height="10" rx="5" fill="#f59e0b" stroke="#0f172a" strokeWidth="3.5" />
+                <line x1="20" y1="100" x2="20" y2="140" stroke="#0f172a" strokeWidth="4" />
+                <line x1="110" y1="100" x2="110" y2="140" stroke="#0f172a" strokeWidth="4" />
+
+                {/* Character Talking */}
+                <g className="anim-nod">
+                  <path d="M 25 90 Q 20 45 65 45 Q 110 45 105 90 Z" fill="#3b82f6" stroke="#0f172a" strokeWidth="3" />
+                  <circle cx="65" cy="35" r="22" fill="#fbcfe8" stroke="#0f172a" strokeWidth="3" />
+                  <path d="M 43 30 C 50 10, 80 10, 87 30" fill="none" stroke="#78350f" strokeWidth="5" strokeLinecap="round" />
+                  <circle cx="58" cy="35" r="2" fill="#0f172a" />
+                  <circle cx="72" cy="35" r="2" fill="#0f172a" />
+                  <path d="M 60 44 Q 65 47 70 44" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+                </g>
+
+                {/* Animated Chat Bubble */}
+                <g transform="translate(-30, -35)" className="anim-chat-pulse">
+                  <rect x="0" y="0" width="55" height="30" rx="10" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
+                  <path d="M 40 30 L 45 38 L 48 30 Z" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
+                  <circle cx="15" cy="15" r="2.5" fill="#0f172a" />
+                  <circle cx="27.5" cy="15" r="2.5" fill="#0f172a" />
+                  <circle cx="40" cy="15" r="2.5" fill="#0f172a" />
+                </g>
+              </g>
+
+              {/* 3. VIDEO COLLABORATION SCREEN (Center Bottom) */}
+              <g transform="translate(220, 320)" className="anim-card-bob">
+                <rect x="0" y="0" width="160" height="90" rx="16" fill="#ffffff" stroke="#0f172a" strokeWidth="3.5" />
+                <rect x="8" y="8" width="144" height="74" rx="10" fill="#1e293b" />
                 
-                {/* Character */}
-                <path d="M 20 100 C 20 75, 80 75, 80 100" fill="#3b82f6" stroke="#0f172a" strokeWidth="2" />
-                <circle cx="50" cy="45" r="18" fill="#fed7aa" stroke="#0f172a" strokeWidth="2" />
-                {/* Hair */}
-                <path d="M 32 35 C 40 22, 60 22, 68 35" fill="none" stroke="#7c2d12" strokeWidth="5" strokeLinecap="round" />
-                <circle cx="44" cy="45" r="2" fill="#0f172a" />
-                <circle cx="56" cy="45" r="2" fill="#0f172a" />
-                <path d="M 47 52 Q 50 55 53 52" stroke="#0f172a" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-              </g>
-
-              {/* 3. AI Mentor Helping Students (Center Top) */}
-              <g transform="translate(200, 30)" className="anim-float-s">
-                <rect x="15" y="20" width="70" height="60" rx="14" fill="#ffffff" stroke="#0f172a" strokeWidth="2.5" />
-                <rect x="22" y="27" width="56" height="46" rx="8" fill="url(#aiGlow)" />
-                <circle cx="38" cy="46" r="3.5" fill="#fff" />
-                <circle cx="62" cy="46" r="3.5" fill="#fff" />
-                <path d="M 45 58 Q 50 62 55 58" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                <path d="M 35 80 L 45 92 L 55 80" stroke="#0f172a" strokeWidth="2" fill="#fff" />
-              </g>
-
-              {/* 4. Friends Sharing Notes & Floating Documents (Center Left) */}
-              <g transform="translate(90, 110)" className="anim-float-m">
-                <rect x="0" y="0" width="30" height="40" rx="4" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
-                <line x1="6" y1="10" x2="24" y2="10" stroke="#3b82f6" strokeWidth="2.5" />
-                <line x1="6" y1="20" x2="20" y2="20" stroke="#3b82f6" strokeWidth="2" />
-                <line x1="6" y1="30" x2="16" y2="30" stroke="#3b82f6" strokeWidth="2" />
-                <circle cx="23" cy="28" r="3" fill="#10b981" />
-              </g>
-
-              {/* 5. Video Study Rooms Widget Card (Center Bottom) */}
-              <g transform="translate(170, 260)" className="anim-float-m">
-                <rect x="0" y="0" width="160" height="80" rx="16" fill="#ffffff" stroke="#0f172a" strokeWidth="2.5" />
-                {/* Live Indicator */}
-                <circle cx="140" cy="18" r="4" fill="#ef4444" className="anim-blink-red" />
-                <rect x="12" y="12" width="22" height="14" rx="3" fill="#818cf8" stroke="#0f172a" strokeWidth="1.5" />
-                <path d="M 34 14 L 40 10 L 40 28 L 34 24 Z" fill="#818cf8" stroke="#0f172a" strokeWidth="1.5" />
+                {/* Live dot indicator */}
+                <circle cx="140" cy="18" r="4.5" fill="#ef4444" className="anim-task-tick" />
                 
-                {/* Member Avatars */}
-                <circle cx="26" cy="54" r="10" fill="#fca5a5" stroke="#0f172a" strokeWidth="1.5" />
-                <circle cx="42" cy="54" r="10" fill="#fde047" stroke="#0f172a" strokeWidth="1.5" />
-                <circle cx="58" cy="54" r="10" fill="#93c5fd" stroke="#0f172a" strokeWidth="1.5" />
+                {/* Simulated webcam avatars */}
+                <circle cx="45" cy="45" r="18" fill="#fca5a5" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="115" cy="45" r="18" fill="#93c5fd" stroke="#ffffff" strokeWidth="1.5" />
+                <path d="M 33 55 C 33 48, 57 48, 57 55" stroke="#ffffff" strokeWidth="2" fill="none" />
+                <path d="M 103 55 C 103 48, 127 48, 127 55" stroke="#ffffff" strokeWidth="2" fill="none" />
               </g>
 
-              {/* 6. Course Cards & Planner Tasks (Center Right) */}
-              <g transform="translate(370, 90)" className="anim-float-s">
-                <rect x="0" y="0" width="45" height="50" rx="8" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
-                <circle cx="12" cy="14" r="4" fill="#a7f3d0" stroke="#0f172a" strokeWidth="1" />
-                <line x1="22" y1="14" x2="38" y2="14" stroke="#0f172a" strokeWidth="2" />
-                <line x1="8" y1="28" x2="36" y2="28" stroke="#e2e8f0" strokeWidth="2" />
-                <line x1="8" y1="36" x2="24" y2="36" stroke="#e2e8f0" strokeWidth="2" />
+              {/* 4. SHARING NOTES (Documents flying across path) */}
+              <g transform="translate(140, 160)" className="anim-ai-float">
+                <rect x="0" y="0" width="35" height="45" rx="5" fill="#ffffff" stroke="#0f172a" strokeWidth="2.5" />
+                <line x1="8" y1="10" x2="27" y2="10" stroke="#0f172a" strokeWidth="2" />
+                <line x1="8" y1="20" x2="27" y2="20" stroke="#0f172a" strokeWidth="2" />
+                <line x1="8" y1="30" x2="18" y2="30" stroke="#0f172a" strokeWidth="2" />
+                {/* Small green tag */}
+                <circle cx="27" cy="32" r="3.5" fill="#10b981" />
               </g>
+
+              {/* 5. AI HELPING STUDENTS (Center Top Robot) */}
+              <g transform="translate(250, 45)" className="anim-ai-float">
+                {/* Floating Robot */}
+                <rect x="15" y="10" width="70" height="60" rx="18" fill="#ffffff" stroke="#0f172a" strokeWidth="3" />
+                <rect x="23" y="18" width="54" height="44" rx="10" fill="url(#aiGradient)" />
+                {/* Eyes */}
+                <ellipse cx="40" cy="40" rx="5" ry="3.5" fill="#ffffff" />
+                <ellipse cx="60" cy="40" rx="5" ry="3.5" fill="#ffffff" />
+                {/* Wink or Smile */}
+                <path d="M 45 52 Q 50 56 55 52" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                {/* Antennas */}
+                <line x1="50" y1="10" x2="50" y2="2" stroke="#0f172a" strokeWidth="3" />
+                <circle cx="50" cy="0" r="4.5" fill="#f59e0b" />
+              </g>
+
+              {/* 6. BOOKS MOVING (Stack of books on desk) */}
+              <g transform="translate(190, 220)" className="anim-book-slide">
+                {/* Red Book */}
+                <rect x="0" y="15" width="45" height="15" rx="3" fill="#ef4444" stroke="#0f172a" strokeWidth="2" />
+                {/* Green Book */}
+                <rect x="5" y="0" width="40" height="15" rx="3" fill="#10b981" stroke="#0f172a" strokeWidth="2" />
+                {/* Page spine lines */}
+                <line x1="4" y1="22" x2="4" y2="22" stroke="#ffffff" strokeWidth="2" />
+                <line x1="9" y1="7" x2="9" y2="7" stroke="#ffffff" strokeWidth="2" />
+              </g>
+
+              {/* 7. TASKS COMPLETING (Checklist card ticking off) */}
+              <g transform="translate(320, 150)" className="anim-card-bob">
+                <rect x="0" y="0" width="110" height="75" rx="12" fill="#ffffff" stroke="#0f172a" strokeWidth="2.5" />
+                
+                {/* Task line 1 */}
+                <circle cx="15" cy="20" r="5" fill="#10b981" stroke="#0f172a" strokeWidth="1.5" />
+                <line x1="30" y1="20" x2="95" y2="20" stroke="#0f172a" strokeWidth="2.5" />
+                {/* Green check mark inside */}
+                <path d="M 12 20 L 14 22 L 18 18" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+
+                {/* Task line 2 with pencil typing animation */}
+                <circle cx="15" cy="42" r="5" fill="none" stroke="#0f172a" strokeWidth="1.5" />
+                <line x1="30" y1="42" x2="80" y2="42" stroke="#cbd5e1" strokeWidth="2" />
+                
+                {/* Pencil */}
+                <g className="anim-pencil-write" transform="translate(85, 30)">
+                  <path d="M 0 10 L 8 2 L 12 6 L 4 14 Z" fill="#eab308" stroke="#0f172a" strokeWidth="1.5" />
+                  <path d="M 0 10 L -2 12 L 2 12 Z" fill="#0f172a" />
+                </g>
+              </g>
+
+              {/* 8. FLOATING CARDS (Drifting checklists / grades) */}
+              <g transform="translate(480, 75)" className="anim-ai-float">
+                <rect x="0" y="0" width="60" height="60" rx="10" fill="#ffffff" stroke="#0f172a" strokeWidth="2.5" />
+                <circle cx="30" cy="22" r="8" fill="#e0e7ff" stroke="#0f172a" strokeWidth="1.5" />
+                <rect x="12" y="38" width="36" height="5" rx="2.5" fill="#818cf8" />
+                <rect x="12" y="47" width="22" height="5" rx="2.5" fill="#cbd5e1" />
+              </g>
+
             </svg>
           </div>
           
         </div>
 
-        {/* RIGHT PANEL: Extremely Minimal Form */}
+        {/* RIGHT PANEL: Extremely Minimal form centering */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -388,15 +464,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           position: 'relative'
         }}>
           
-          <div style={{ maxWidth: '360px', width: '100%' }}>
+          <div style={{ maxWidth: '360px', width: '100%', textAlign: 'center' }}>
             
-            {/* Roomie Logo */}
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            {/* Logo */}
+            <div style={{ marginBottom: '2.5rem' }}>
               <h1 style={{
                 fontFamily: 'var(--font-heading)',
-                fontSize: '2.5rem',
-                fontWeight: 900,
-                letterSpacing: '-0.03em',
+                fontSize: '2.6rem',
+                fontWeight: 950,
+                letterSpacing: '0.05em',
                 color: '#0f172a',
                 margin: 0
               }}>
@@ -404,6 +480,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               </h1>
             </div>
 
+            {/* Error notifications */}
             {errorMessage && (
               <div style={{
                 background: '#fef2f2',
@@ -416,13 +493,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 textAlign: 'left',
                 marginBottom: '1rem'
               }}>
-                {errorMessage}
+                ⚠️ {errorMessage}
               </div>
             )}
 
+            {/* strictly Email/Password form inputs */}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
               {isRegistering && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <input
                     type="text"
                     data-testid="name"
@@ -431,12 +510,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a' }}
+                    style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a', fontWeight: 700 }}
                   />
                 </div>
               )}
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <input
                   type="email"
                   data-testid="email"
@@ -445,11 +524,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a' }}
+                  style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a', fontWeight: 700 }}
                 />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <input
                   type="password"
                   data-testid="password"
@@ -458,12 +537,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a' }}
+                  style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a', fontWeight: 700 }}
                 />
               </div>
 
               {isRegistering && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <input
                     type="password"
                     className="cyber-input"
@@ -471,7 +550,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a' }}
+                    style={{ borderRadius: '16px', padding: '0.75rem 1rem', border: '2px solid #0f172a', fontWeight: 700 }}
                   />
                 </div>
               )}
@@ -488,14 +567,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   fontWeight: 900,
                   borderRadius: '16px',
                   border: '2px solid #0f172a',
-                  boxShadow: '4px 4px 0px #0f172a'
+                  boxShadow: '4px 4px 0px #0f172a',
+                  cursor: 'pointer'
                 }}
               >
                 {loading ? 'Processing...' : isRegistering ? 'Create Account' : 'Login'}
               </button>
             </form>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '1.75rem' }}>
+              
+              {/* signup toggle with strictly prescribed E2E text elements */}
               <button
                 onClick={() => {
                   setIsRegistering(!isRegistering);
@@ -507,10 +589,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   color: 'var(--accent-primary)',
                   cursor: 'pointer',
                   fontSize: '0.8rem',
-                  fontWeight: 800
+                  fontWeight: 900
                 }}
               >
-                {isRegistering ? 'ALREADY HAVE AN ACCOUNT? LOGIN' : 'CREATE ACCOUNT'}
+                {isRegistering ? 'ALREADY HAVE AN ACCOUNT? LOGIN' : 'NEW STUDENT? CREATE ACCOUNT'}
               </button>
               
               <button
@@ -525,11 +607,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   fontWeight: 900,
                   padding: '0.7rem',
                   borderRadius: '16px',
-                  boxShadow: '4px 4px 0px #0f172a'
+                  boxShadow: '4px 4px 0px #0f172a',
+                  cursor: 'pointer'
                 }}
               >
                 Continue as Guest
               </button>
+
             </div>
 
           </div>

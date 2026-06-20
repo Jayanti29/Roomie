@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, isFirebaseConfigured, ref, onValue } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, auth } from '../firebase';
 
 interface Course {
   id: string;
@@ -13,6 +13,7 @@ interface Task {
   deadline: string;
   priority: string;
   status: string;
+  completedAt?: string;
 }
 
 interface Note {
@@ -20,26 +21,16 @@ interface Note {
   title: string;
   course: string;
   authorName: string;
+  createdAt?: string;
 }
 
-interface StudyGroup {
-  id: string;
-  name: string;
-  description: string;
-}
-
-interface StudyRoom {
-  id: string;
-  title: string;
-  course: string;
-  hostEmail: string;
-  participantCount?: number;
-}
-
-interface CommunitySpace {
-  id: string;
-  name: string;
-  description: string;
+interface FocusSession {
+  id?: string;
+  taskName: string;
+  duration: number;
+  completed: boolean;
+  startedAt: string;
+  completedAt: string;
 }
 
 interface DashboardProps {
@@ -63,7 +54,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
-  profile: _profile,
+  profile,
   tasks,
   notes,
   courses,
@@ -71,78 +62,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
   milestonesCount: _milestonesCount,
   onNavigate
 }) => {
-  const [recentGroups, setRecentGroups] = useState<StudyGroup[]>([]);
-  const [recentRooms, setRecentRooms] = useState<StudyRoom[]>([]);
-  const [recentCommunities, setRecentCommunities] = useState<CommunitySpace[]>([]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
 
+  // Sync focus sessions from Firebase Realtime Database
   useEffect(() => {
-    if (!isFirebaseConfigured || !db) return;
-
-    // Load groups
-    const groupsRef = ref(db, 'community_groups');
-    const unsubGroups = onValue(groupsRef, (snap) => {
-      if (snap.exists()) {
-        const val = snap.val();
-        const list = Object.values(val).map((g: any) => ({
-          id: g.metadata?.id || g.id,
-          name: g.metadata?.name || g.name,
-          description: g.metadata?.description || g.description || ''
-        })).slice(0, 3);
-        setRecentGroups(list);
-      } else {
-        setRecentGroups([]);
+    const currentUid = auth?.currentUser?.uid || profile.email.replace(/\./g, '_');
+    
+    if (isFirebaseConfigured && db) {
+      const sessionsRef = ref(db, `users/${currentUid}/focus_sessions`);
+      const unsub = onValue(sessionsRef, (snap) => {
+        if (snap.exists()) {
+          const val = snap.val();
+          const list = Object.entries(val).map(([id, s]: [string, any]) => ({
+            id,
+            ...s
+          }));
+          setFocusSessions(list);
+        } else {
+          setFocusSessions([]);
+        }
+        setLoadingSessions(false);
+      });
+      return () => unsub();
+    } else {
+      // Local Storage mock DB fallback
+      try {
+        const localKey = 'roomie_mock_focus_sessions';
+        const list = JSON.parse(localStorage.getItem(localKey) || '[]');
+        setFocusSessions(list);
+      } catch (e) {
+        console.error("Failed to read local focus sessions:", e);
       }
-    });
+      setLoadingSessions(false);
+    }
+  }, [profile.email]);
 
-    // Load rooms
-    const roomsRef = ref(db, 'study_rooms');
-    const unsubRooms = onValue(roomsRef, (snap) => {
-      if (snap.exists()) {
-        const val = snap.val();
-        const list = Object.values(val).map((r: any) => ({
-          id: r.id,
-          title: r.title,
-          course: r.course || 'General',
-          hostEmail: r.hostEmail,
-          participantCount: r.participants ? Object.keys(r.participants).length : 0
-        })).slice(0, 3);
-        setRecentRooms(list);
-      } else {
-        setRecentRooms([]);
-      }
-    });
-
-    // Load communities
-    const commsRef = ref(db, 'custom_communities');
-    const unsubComms = onValue(commsRef, (snap) => {
-      if (snap.exists()) {
-        const val = snap.val();
-        const list = Object.values(val).map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description || ''
-        })).slice(0, 3);
-        setRecentCommunities(list);
-      } else {
-        setRecentCommunities([]);
-      }
-    });
-
-    return () => {
-      unsubGroups();
-      unsubRooms();
-      unsubComms();
-    };
-  }, []);
-
-  const recentTasks = tasks.filter(t => t.status !== 'Completed').slice(0, 3);
-  
-  const upcomingDeadlines = tasks
-    .filter(t => t.status !== 'Completed' && t.deadline)
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 3);
-
-  const recentNotes = notes.slice(0, 3);
+  // Calculations
+  const completedSessions = focusSessions.filter(s => s.completed);
+  const totalCompletedSessionsCount = completedSessions.length;
 
   const calculateOverallProgress = () => {
     if (courses.length === 0) return 0;
@@ -150,288 +108,436 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return Math.round(total / courses.length);
   };
 
-  const weekDays = [
-    { name: 'Mon', hours: 4.2 },
-    { name: 'Tue', hours: 5.5 },
-    { name: 'Wed', hours: 3.0 },
-    { name: 'Thu', hours: 6.8 },
-    { name: 'Fri', hours: 4.0 },
-    { name: 'Sat', hours: 2.5 },
-    { name: 'Sun', hours: 5.0 }
-  ];
+  const upcomingDeadlines = tasks
+    .filter(t => t.status !== 'Completed' && t.deadline)
+    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+    .slice(0, 4);
+
+  // Generate Recent Academic Activity Feed (focus sessions completed, notes uploaded, tasks completed)
+  const getRecentActivity = () => {
+    const activityList: { id: string; type: 'focus' | 'note' | 'task'; text: string; time: Date }[] = [];
+
+    // Focus Session events
+    focusSessions.forEach((s, idx) => {
+      activityList.push({
+        id: `focus-${idx}-${s.completedAt}`,
+        type: 'focus',
+        text: `Focused for ${s.duration} mins on "${s.taskName}" (${s.completed ? 'Completed' : 'Stopped early'})`,
+        time: new Date(s.completedAt)
+      });
+    });
+
+    // Notes Shared events
+    notes.slice(0, 5).forEach((n, idx) => {
+      activityList.push({
+        id: `note-${n.id || idx}`,
+        type: 'note',
+        text: `Shared study material: "${n.title}" for course "${n.course}"`,
+        time: n.createdAt ? new Date(n.createdAt) : new Date(Date.now() - (idx * 3600 * 1000 * 2)) // simulated
+      });
+    });
+
+    // Task completion events
+    tasks.filter(t => t.status === 'Completed').forEach(t => {
+      activityList.push({
+        id: `task-${t.id}`,
+        type: 'task',
+        text: `Finished study task: "${t.title}"`,
+        time: t.completedAt ? new Date(t.completedAt) : new Date(Date.now() - 3600 * 1000)
+      });
+    });
+
+    // Sort descending by time
+    return activityList
+      .sort((a, b) => b.time.getTime() - a.time.getTime())
+      .slice(0, 5);
+  };
+
+  const recentActivity = getRecentActivity();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem', textAlign: 'left' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.5rem',
+      paddingBottom: '2.5rem',
+      textAlign: 'left',
+      background: 'var(--bg-app, #fdfbf7)',
+      width: '100%'
+    }}>
       
-      {/* 2-Column Grid of Layout Widgets */}
-      <div className="dashboard-grid" style={{ marginTop: '0.5rem' }}>
-        
-        {/* Left Column: Progress & Activity */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
-          {/* Learning Progress Widget */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                LEARNING PROGRESS
-              </h3>
-              <span style={{ fontSize: '0.85rem', fontWeight: 850, color: 'var(--accent-primary)' }}>
-                {calculateOverallProgress()}% Done
+      {/* Tape heading decoration */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{
+          background: '#a7f3d0',
+          border: '2px solid #0f172a',
+          padding: '0.35rem 1.75rem',
+          borderRadius: '4px',
+          fontFamily: 'var(--font-heading)',
+          fontWeight: 900,
+          fontSize: '1.15rem',
+          color: '#0f172a',
+          boxShadow: '3px 3px 0px #0f172a',
+          transform: 'rotate(-1deg)',
+          position: 'relative'
+        }}>
+          ACADEMIC REPORT
+          <div style={{ position: 'absolute', top: '-8px', left: '15px', width: '25px', height: '10px', background: 'rgba(0,0,0,0.1)', transform: 'rotate(-30deg)' }} />
+          <div style={{ position: 'absolute', top: '-8px', right: '15px', width: '25px', height: '10px', background: 'rgba(0,0,0,0.1)', transform: 'rotate(30deg)' }} />
+        </div>
+
+        <button
+          onClick={() => onNavigate('profile')}
+          className="cyber-btn"
+          style={{
+            border: '2px solid #0f172a',
+            boxShadow: '3px 3px 0px #0f172a',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            background: '#ffffff',
+            borderRadius: '12px'
+          }}
+        >
+          ⚙️ Edit Profile
+        </button>
+      </div>
+
+      {/* Grid of the exactly 7 requested cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: '1.5rem',
+        marginTop: '0.5rem'
+      }}>
+
+        {/* 1. CURRENT DEGREE */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#fed7aa', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(-2deg)'
+          }}>
+            CURRENT DEGREE
+          </div>
+          <div style={{ marginTop: '0.75rem' }}>
+            <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              {profile.degree || 'Bachelor of Science'}
+            </h4>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginTop: '0.25rem' }}>
+              Specialization: {profile.specialization || 'Computer Science'}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#0f172a', background: '#dbeafe', border: '1.5px solid #0f172a', borderRadius: '6px', display: 'inline-block', padding: '1px 8px', fontWeight: 800, marginTop: '0.75rem' }}>
+              🏫 {profile.college || 'State University'}
+            </span>
+          </div>
+        </div>
+
+        {/* 2. CURRENT SEMESTER */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#fef08a', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(2deg)'
+          }}>
+            CURRENT SEMESTER
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                {profile.semester || '1st Semester'}
+              </h4>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginTop: '0.25rem' }}>
+                University: {profile.university || 'Christ University'}
+              </span>
+            </div>
+            <div style={{
+              fontSize: '2rem',
+              background: '#fbcfe8',
+              border: '2px solid #0f172a',
+              borderRadius: '12px',
+              width: '50px',
+              height: '50px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '2px 2px 0px #0f172a'
+            }}>
+              📅
+            </div>
+          </div>
+        </div>
+
+        {/* 3. LEARNING PROGRESS */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#e9d5ff', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(-1.5deg)'
+          }}>
+            LEARNING PROGRESS
+          </div>
+          <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#6366f1' }}>
+                {calculateOverallProgress()}%
+              </span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                Degree Target Completion
               </span>
             </div>
             
-            {courses.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No active courses added. Track your progress in Settings.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {courses.map(course => (
-                  <div key={course.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700 }}>
-                      <span style={{ color: 'var(--text-primary)' }}>{course.name}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{course.progress}%</span>
-                    </div>
-                    <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                      <div style={{ height: '100%', width: `${course.progress}%`, background: 'var(--accent-primary)' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Weekly Activity Widget */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem', margin: 0 }}>
-              WEEKLY STUDY ACTIVITY
-            </h3>
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', justifyContent: 'space-between', height: '130px', padding: '0 0.5rem' }}>
-              {weekDays.map(day => {
-                const heightPercent = Math.round((day.hours / 8) * 100);
-                return (
-                  <div key={day.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>{day.hours}h</span>
-                    <div style={{
-                      width: '100%',
-                      height: `${heightPercent}px`,
-                      background: 'var(--accent-primary)',
-                      borderRadius: '4px 4px 0 0',
-                      minHeight: '4px'
-                    }} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{day.name}</span>
-                  </div>
-                );
-              })}
+            {/* Hand-drawn style progress bar */}
+            <div style={{
+              height: '14px',
+              background: '#f1f5f9',
+              border: '2px solid #0f172a',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${calculateOverallProgress()}%`,
+                background: '#6366f1',
+                borderRadius: '4px',
+                transition: 'width 0.5s ease'
+              }} />
             </div>
           </div>
-
-          {/* Recent Communities Widget */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                RECENT COMMUNITIES
-              </h3>
-              <button
-                onClick={() => onNavigate('community_chat')}
-                className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
-              >
-                Open
-              </button>
-            </div>
-            
-            {recentCommunities.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                Join community spaces to connect.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {recentCommunities.map(c => (
-                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#fcfcfc' }}>
-                    <strong style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>{c.name}</strong>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{c.description}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
 
-        {/* Right Column: Tasks, Deadlines, Notes, Rooms, Groups */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
-          {/* Recent Tasks */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                RECENT PLANNED TASKS
-              </h3>
-              <button
-                onClick={() => onNavigate('planner')}
-                className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
-              >
-                Planner
-              </button>
-            </div>
-
-            {recentTasks.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No active tasks. Create tasks in your Planner.
+        {/* 4. ACTIVE COURSES */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative',
+          gridColumn: 'span 1'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#ccfbf1', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(1deg)'
+          }}>
+            ACTIVE COURSES
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            {courses.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '0.5rem 0' }}>
+                No active courses. Set them up in settings!
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {recentTasks.map(task => (
-                  <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                      <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{task.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 650 }}>
-                        Priority: {task.priority} | Status: {task.status}
-                      </span>
-                    </div>
-                    {task.deadline && (
-                      <span style={{ fontSize: '0.65rem', background: '#334155', color: '#fff', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                        {task.deadline}
-                      </span>
-                    )}
+              courses.map(course => (
+                <div key={course.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 800 }}>
+                    <span style={{ color: '#0f172a' }}>📖 {course.name}</span>
+                    <span style={{ color: '#6366f1' }}>{course.progress}%</span>
                   </div>
-                ))}
-              </div>
+                  <div style={{ height: '8px', background: '#f1f5f9', border: '1.5px solid #0f172a', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${course.progress}%`, background: '#10b981' }} />
+                  </div>
+                </div>
+              ))
             )}
           </div>
+        </div>
 
-          {/* Upcoming Deadlines */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', margin: 0 }}>
-              UPCOMING DEADLINES
-            </h3>
-
+        {/* 5. UPCOMING DEADLINES */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#fca5a5', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(-2deg)'
+          }}>
+            UPCOMING DEADLINES
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {upcomingDeadlines.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No upcoming deadlines. All caught up!
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '0.5rem 0' }}>
+                🎉 Yay! No upcoming deadlines.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {upcomingDeadlines.map(task => (
-                  <div key={task.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', border: '1px solid #fee2e2', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#fef2f2' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, textAlign: 'left' }}>
-                      <strong style={{ fontSize: '0.8rem', color: '#991b1b' }}>{task.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 750 }}>
-                        Due: {task.deadline}
-                      </span>
-                    </div>
+              upcomingDeadlines.map(task => (
+                <div key={task.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  border: '1.5px solid #0f172a',
+                  padding: '0.4rem 0.6rem',
+                  borderRadius: '10px',
+                  background: '#fef2f2'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#991b1b' }}>{task.title}</span>
+                    <span style={{ fontSize: '0.62rem', color: '#b91c1c', fontWeight: 700 }}>Priority: {task.priority}</span>
                   </div>
-                ))}
-              </div>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    background: '#0f172a',
+                    color: '#fff',
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '6px',
+                    fontWeight: 800
+                  }}>
+                    ⏳ {task.deadline}
+                  </span>
+                </div>
+              ))
             )}
           </div>
+        </div>
 
-          {/* Recent Notes */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                RECENT NOTES
-              </h3>
-              <button
-                onClick={() => onNavigate('notes')}
-                className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
-              >
-                Notes
-              </button>
-            </div>
-
-            {recentNotes.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No shared notes found.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {recentNotes.map(note => (
-                  <div key={note.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f0fdf4' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                      <strong style={{ fontSize: '0.8rem', color: '#166534' }}>{note.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {note.course} | By: {note.authorName}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* 6. FOCUS SESSIONS COMPLETED */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#bbf7d0', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(1.5deg)'
+          }}>
+            FOCUS SESSIONS COMPLETED
           </div>
-
-          {/* Recent Study Groups */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                RECENT GROUPS
-              </h3>
-              <button
-                onClick={() => onNavigate('study_groups')}
-                className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
-              >
-                Groups
-              </button>
+          <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              {loadingSessions ? (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Syncing...</span>
+              ) : (
+                <>
+                  <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.2rem', fontWeight: 950, color: '#166534', margin: 0 }}>
+                    {totalCompletedSessionsCount}
+                  </h4>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 750 }}>
+                    Tracked via actual timers
+                  </span>
+                </>
+              )}
             </div>
-
-            {recentGroups.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No active study groups.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {recentGroups.map(group => (
-                  <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#fcfcfc' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                      <strong style={{ fontSize: '0.85rem', color: 'var(--accent-purple)' }}>{group.name}</strong>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{group.description}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button
+              onClick={() => onNavigate('focus_clock')}
+              className="cyber-btn"
+              style={{
+                background: '#8b5cf6',
+                color: '#fff',
+                border: '2px solid #0f172a',
+                boxShadow: '2px 2px 0px #0f172a',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                borderRadius: '8px',
+                padding: '0.35rem 0.65rem'
+              }}
+            >
+              ⏱️ Focus Clock
+            </button>
           </div>
+        </div>
 
-          {/* Recent Study Rooms */}
-          <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                RECENT STUDY ROOMS
-              </h3>
-              <button
-                onClick={() => onNavigate('study_rooms')}
-                className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
-              >
-                Rooms
-              </button>
-            </div>
-
-            {recentRooms.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '1rem 0' }}>
-                No active study rooms.
+        {/* 7. RECENT ACADEMIC ACTIVITY */}
+        <div className="glass-panel" style={{
+          background: '#fffdf6',
+          border: '2px solid #0f172a',
+          boxShadow: '5px 5px 0px #0f172a',
+          borderRadius: '20px',
+          padding: '1.25rem',
+          position: 'relative',
+          gridColumn: 'span 2'
+        }}>
+          {/* Asymmetric Tape Header */}
+          <div style={{
+            position: 'absolute', top: '-12px', left: '15px',
+            background: '#e0e7ff', border: '1.5px solid #0f172a',
+            padding: '2px 10px', fontSize: '0.75rem', fontWeight: 900,
+            transform: 'rotate(-1deg)'
+          }}>
+            RECENT ACADEMIC ACTIVITY
+          </div>
+          
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            {recentActivity.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, margin: 0, padding: '0.5rem 0' }}>
+                No recent activity recorded yet. Start a focus clock or upload material to see your timeline update!
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {recentRooms.map(room => (
-                  <div key={room.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                      <strong style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>{room.title}</strong>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Subject: {room.course} | Host: {room.hostEmail.split('@')[0]}</span>
-                    </div>
-                    <span style={{ fontSize: '0.7rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                      {room.participantCount} active
+              recentActivity.map(act => (
+                <div key={act.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  borderBottom: '1px dashed #cbd5e1',
+                  paddingBottom: '0.5rem'
+                }}>
+                  <div style={{
+                    fontSize: '1.1rem',
+                    background: act.type === 'focus' ? '#bbf7d0' : act.type === 'note' ? '#dbeafe' : '#fef08a',
+                    border: '1.5px solid #0f172a',
+                    borderRadius: '8px',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {act.type === 'focus' ? '⏱️' : act.type === 'note' ? '📚' : '✅'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <span style={{ fontSize: '0.78rem', color: '#0f172a', fontWeight: 750 }}>
+                      {act.text}
+                    </span>
+                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {act.time.toLocaleDateString()} {act.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))
             )}
           </div>
-
         </div>
 
       </div>

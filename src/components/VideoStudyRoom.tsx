@@ -1,35 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
 import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf, uploadFile } from '../firebase';
+import { downloadFileHelper } from '../utils/downloadHelper';
 
 const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
-  if (idOrUrl.startsWith('mock-pdf-url:') || idOrUrl.startsWith('mock-file-url:')) {
-    const mockId = idOrUrl.split(':')[1];
-    if (isFirebaseConfigured && db) {
-      try {
-        const snap = await get(ref(db, 'pdf_contents/' + mockId));
-        if (snap.exists()) {
-          const dataUrl = snap.val();
-          const link = document.createElement('a');
-          link.href = dataUrl;
-          link.download = fileName;
-          link.click();
-        } else {
-          alert('PDF content not found in database.');
-        }
-      } catch (err) {
-        console.error('Error fetching PDF:', err);
-      }
-    }
-    return;
-  }
+  if (!idOrUrl) return;
 
-  if (idOrUrl.startsWith('http://') || idOrUrl.startsWith('https://')) {
-    const link = document.createElement('a');
-    link.href = idOrUrl;
-    link.target = '_blank';
-    link.download = fileName;
-    link.click();
+  if (idOrUrl.includes(':') || idOrUrl.startsWith('http')) {
+    await downloadFileHelper(idOrUrl, fileName);
     return;
   }
 
@@ -42,6 +20,8 @@ const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noreferrer';
         link.click();
       } else {
         alert('PDF content not found in database.');

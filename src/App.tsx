@@ -12,6 +12,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { QuizGenerator } from './components/QuizGenerator';
 import { Onboarding } from './components/Onboarding';
 import { Friends } from './components/Friends';
+import { FocusClock } from './components/FocusClock';
 import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
 
 
@@ -53,7 +54,7 @@ interface Task {
   status: string;
 }
 
-type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station';
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -78,6 +79,7 @@ export default function App() {
   // Navigation state
   const [activeMainTab, setActiveMainTab] = useState<Tab>('dashboard');
   const [profileSubTab, setProfileSubTab] = useState<'personal' | 'academic'>('personal');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Modular Data States
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -834,6 +836,8 @@ export default function App() {
       case 'community_chat': return 'Community Chat';
       case 'study_groups': return 'Study Groups';
       case 'study_rooms': return 'Study Rooms';
+      case 'friends': return 'Friends';
+      case 'focus_clock': return 'Focus Clock';
       case 'ai_workspace': return 'AI Workspace';
       case 'planner': return 'Planner';
       case 'leaderboard': return 'Leaderboard';
@@ -951,596 +955,761 @@ export default function App() {
     <div data-testid="app-root" style={{ 
       minHeight: '100vh', 
       display: 'flex', 
-      flexDirection: 'column', 
-      padding: isMobile ? '0.5rem 0.5rem 80px 0.5rem' : '1rem 2rem 2.5rem 2rem', 
-      gap: isMobile ? '0.75rem' : '1.25rem' 
+      flexDirection: 'row', 
+      background: '#fdfbf7', // warm paper background
+      color: '#2b2b2b',
+      fontFamily: 'var(--font-body)',
+      position: 'relative',
+      overflowX: 'hidden'
     }}>
       <span data-testid="presence-indicator" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>online</span>
       <button data-testid="create-room-button" onClick={() => setActiveMainTab('study_rooms')} style={{ position: 'fixed', top: 0, left: 0, width: '10px', height: '10px', opacity: 0.001, zIndex: 99999, border: 'none', background: 'none', padding: 0, margin: 0 }}>Create Room</button>
-      
-      {/* Top Header */}
-      <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        background: '#fff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 'var(--border-radius-md)',
-        padding: isMobile ? '0.5rem 0.75rem' : '0.75rem 1.5rem',
-        boxShadow: 'var(--shadow-flat-sm)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-          <h1 style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: isMobile ? '1.1rem' : '1.4rem',
-            fontWeight: 900,
-            letterSpacing: '0.05em',
-            color: '#0f172a'
-          }}>
-            ROOMIE
-          </h1>
-          {!isMobile && (
-            <span style={{ fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.45rem', borderRadius: '6px', fontWeight: 800 }}>
-              COLLABORATE
-            </span>
+
+      {/* 1. DESKTOP SIDEBAR NAVIGATION */}
+      {!isMobile && (
+        <aside style={{
+          width: sidebarOpen ? '260px' : '0px',
+          minWidth: sidebarOpen ? '260px' : '0px',
+          background: '#ffffff',
+          borderRight: sidebarOpen ? '3.5px solid #0f172a' : '0px solid transparent',
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 1000,
+          padding: sidebarOpen ? '1.5rem 1rem' : '0rem',
+          boxSizing: 'border-box'
+        }}>
+          {/* Logo Brand */}
+          {sidebarOpen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '2rem', paddingLeft: '0.5rem' }}>
+              <div style={{ fontSize: '1.4rem' }}>🎒</div>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 950, color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
+                ROOMIE
+              </h2>
+            </div>
           )}
-        </div>
 
-        {/* Current Page Title */}
-        {!isMobile && (
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-            {getPageTitle()}
+          {/* Links list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+            {([
+              { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+              { id: 'friends', label: 'Friends', icon: '👥' },
+              { id: 'community_chat', label: 'Communities', icon: '💬' },
+              { id: 'study_groups', label: 'Study Groups', icon: '📂' },
+              { id: 'study_rooms', label: 'Study Rooms', icon: '🎥' },
+              { id: 'shared_notes', label: 'Shared Notes', icon: '📚' },
+              { id: 'ai_workspace', label: 'AI Workspace', icon: '🤖' },
+              { id: 'focus_clock', label: 'Focus Clock', icon: '⏱️' },
+              { id: 'planner', label: 'Planner', icon: '📅' },
+              { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
+              { id: 'profile', label: 'Settings', icon: '⚙️' }
+            ] as const).map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveMainTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.8rem',
+                  width: '100%',
+                  background: activeMainTab === tab.id ? 'var(--accent-primary-light)' : 'none',
+                  borderRadius: '12px',
+                  color: activeMainTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.88rem',
+                  fontWeight: activeMainTab === tab.id ? 900 : 700,
+                  padding: '0.75rem 1rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                  border: activeMainTab === tab.id ? '2px solid #0f172a' : '2px solid transparent',
+                  boxShadow: activeMainTab === tab.id ? '3px 3px 0px #0f172a' : 'none'
+                }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span>
+                {sidebarOpen && <span style={{ textTransform: 'uppercase' }}>{tab.label}</span>}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* User Stats HUD */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem' }}>
-          {/* Notification Center */}
-          <div style={{ position: 'relative' }}>
+          {/* Collapsed/footer info */}
+          {sidebarOpen && (
+            <div style={{ marginTop: 'auto', borderTop: '2px solid #f1f5f9', paddingTop: '1rem', paddingLeft: '0.5rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>V5.0 CARTOON EDITION</span>
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* 2. MOBILE DRAWER NAVIGATION OVERLAY */}
+      {isMobile && sidebarOpen && (
+        <>
+          {/* Dark Dimming Backdrop */}
+          <div 
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(15,23,42,0.4)',
+              backdropFilter: 'blur(3px)',
+              zIndex: 999998,
+              transition: 'opacity 0.25s ease'
+            }}
+          />
+          {/* Drawer Panel */}
+          <div style={{
+            position: 'fixed',
+            top: 0, left: 0, bottom: 0,
+            width: '280px',
+            background: '#ffffff',
+            borderRight: '3.5px solid #0f172a',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '1.5rem 1rem',
+            boxSizing: 'border-box',
+            boxShadow: '10px 0px 25px rgba(0,0,0,0.1)'
+          }} className="anim-pop">
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingLeft: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.3rem' }}>🎒</span>
+                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 950, color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
+                  ROOMIE
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSidebarOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', color: '#0f172a' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Links list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto' }}>
+              {([
+                { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+                { id: 'friends', label: 'Friends', icon: '👥' },
+                { id: 'community_chat', label: 'Communities', icon: '💬' },
+                { id: 'study_groups', label: 'Study Groups', icon: '📂' },
+                { id: 'study_rooms', label: 'Study Rooms', icon: '🎥' },
+                { id: 'shared_notes', label: 'Shared Notes', icon: '📚' },
+                { id: 'ai_workspace', label: 'AI Workspace', icon: '🤖' },
+                { id: 'focus_clock', label: 'Focus Clock', icon: '⏱️' },
+                { id: 'planner', label: 'Planner', icon: '📅' },
+                { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
+                { id: 'profile', label: 'Settings', icon: '⚙️' }
+              ] as const).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveMainTab(tab.id);
+                    setSidebarOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.8rem',
+                    width: '100%',
+                    background: activeMainTab === tab.id ? 'var(--accent-primary-light)' : 'none',
+                    borderRadius: '12px',
+                    color: activeMainTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)',
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '0.88rem',
+                    fontWeight: activeMainTab === tab.id ? 900 : 700,
+                    padding: '0.75rem 1rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    border: activeMainTab === tab.id ? '2px solid #0f172a' : '2px solid transparent',
+                    boxShadow: activeMainTab === tab.id ? '3px 3px 0px #0f172a' : 'none'
+                  }}
+                >
+                  <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span>
+                  <span style={{ textTransform: 'uppercase' }}>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 'auto', borderTop: '2px solid #f1f5f9', paddingTop: '1rem', paddingLeft: '0.5rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>V5.0 CARTOON EDITION</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 3. MAIN WORKSPACE CONTENT WINDOW */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        padding: isMobile ? '0.5rem 0.5rem 80px 0.5rem' : '1rem 2rem 2.5rem 2rem', 
+        gap: isMobile ? '0.75rem' : '1.25rem',
+        boxSizing: 'border-box',
+        overflowX: 'hidden'
+      }}>
+        
+        {/* Top Header */}
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: '#fff',
+          border: '2px solid #0f172a',
+          borderRadius: 'var(--border-radius-md)',
+          padding: isMobile ? '0.5rem 0.75rem' : '0.75rem 1.5rem',
+          boxShadow: '4px 4px 0px #0f172a'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            {/* Hamburger Button */}
             <button
-              onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
               style={{
-                background: '#fff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                width: '32px',
-                height: '32px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                position: 'relative',
-                padding: 0,
+                color: '#0f172a',
                 outline: 'none'
               }}
             >
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"></path>
+              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path>
               </svg>
-              {notifications.filter(n => !n.read).length > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
-                  background: 'var(--accent-pink)',
-                  borderRadius: '50%',
-                  minWidth: '14px',
-                  height: '14px',
+            </button>
+
+            <h1 style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: isMobile ? '1.1rem' : '1.4rem',
+              fontWeight: 950,
+              letterSpacing: '0.05em',
+              color: '#0f172a',
+              margin: 0
+            }}>
+              ROOMIE
+            </h1>
+            {!isMobile && (
+              <span style={{ fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.45rem', borderRadius: '6px', fontWeight: 800 }}>
+                COLLABORATE
+              </span>
+            )}
+          </div>
+
+          {/* Current Page Title */}
+          {!isMobile && (
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
+              {getPageTitle()}
+            </div>
+          )}
+
+          {/* User Stats HUD */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem' }}>
+            {/* Notification Center */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                style={{
+                  background: '#fff',
+                  border: '1.5px solid #0f172a',
+                  borderRadius: '8px',
+                  width: '32px',
+                  height: '32px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.6rem',
-                  fontWeight: 900,
-                  color: '#fff',
-                  padding: '2px'
-                }}>
-                  {notifications.filter(n => !n.read).length}
-                </span>
-              )}
-            </button>
+                  cursor: 'pointer',
+                  boxShadow: '2px 2px 0px #0f172a',
+                  position: 'relative',
+                  padding: 0,
+                  outline: 'none'
+                }}
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"></path>
+                </svg>
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    background: 'var(--accent-pink)',
+                    borderRadius: '50%',
+                    minWidth: '14px',
+                    height: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.6rem',
+                    fontWeight: 900,
+                    color: '#fff',
+                    padding: '2px',
+                    border: '1.5px solid #0f172a'
+                  }}>
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
 
-            {showNotificationsDropdown && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                right: 0,
-                width: '280px',
-                background: '#fff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '12px',
-                boxShadow: 'var(--shadow-flat-md)',
-                zIndex: 99999,
-                padding: '0.75rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                maxHeight: '320px',
-                overflowY: 'auto'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>NOTIFICATIONS</span>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      onClick={handleMarkAllNotificationsRead}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-primary)' }}
-                    >
-                      Read All
-                    </button>
-                    <button
-                      onClick={handleClearNotifications}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-pink)' }}
-                    >
-                      Clear
-                    </button>
+              {showNotificationsDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: '280px',
+                  background: '#fff',
+                  border: '2px solid #0f172a',
+                  borderRadius: '12px',
+                  boxShadow: '4px 4px 0px #0f172a',
+                  zIndex: 99999,
+                  padding: '0.75rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  maxHeight: '320px',
+                  overflowY: 'auto'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--text-primary)' }}>NOTIFICATIONS</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={handleMarkAllNotificationsRead}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-primary)' }}
+                      >
+                        Read All
+                      </button>
+                      <button
+                        onClick={handleClearNotifications}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-pink)' }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {notifications.length === 0 ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No notifications</span>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => handleMarkNotificationRead(n.id)}
+                          style={{
+                            background: n.read ? '#fff' : '#f5f3ff',
+                            border: '1.5px solid #0f172a',
+                            borderRadius: '8px',
+                            padding: '0.5rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2px',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {!n.read && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pink)' }} />}
+                          </div>
+                          <strong style={{ fontSize: '0.75rem', color: '#0f172a' }}>{n.title}</strong>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>{n.message}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {notifications.length === 0 ? (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No notifications</span>
-                  ) : (
-                    notifications.map(n => (
-                      <div
-                        key={n.id}
-                        onClick={() => handleMarkNotificationRead(n.id)}
-                        style={{
-                          background: n.read ? '#fff' : '#f5f3ff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          padding: '0.5rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                            {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {!n.read && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pink)' }} />}
-                        </div>
-                        <strong style={{ fontSize: '0.8rem', color: '#0f172a' }}>{n.title}</strong>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}>{n.message}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* User Profile Avatar with Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <div 
-              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
-            >
-              {profilePhoto ? (
-                <img 
-                  src={profilePhoto} 
-                  alt="Profile" 
-                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #cbd5e1', boxShadow: 'var(--shadow-flat-sm)' }} 
-                />
-              ) : (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #cbd5e1' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px', color: '#64748b' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                  </svg>
-                </div>
               )}
-              {!isMobile && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', fontSize: '0.8rem', lineHeight: '1.2' }}>
-                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{profile.name || user.name}</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{user.email}</span>
+            </div>
+
+            {/* User Profile Avatar with Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <div 
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+              >
+                {profilePhoto ? (
+                  <img 
+                    src={profilePhoto} 
+                    alt="Profile" 
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0f172a', boxShadow: '2px 2px 0px #0f172a' }} 
+                  />
+                ) : (
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0f172a' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: '16px', height: '16px', color: '#64748b' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </div>
+                )}
+                {!isMobile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', fontSize: '0.8rem', lineHeight: '1.2' }}>
+                    <span style={{ fontWeight: 800, color: '#0f172a' }}>{profile.name || user.name}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{user.email}</span>
+                  </div>
+                )}
+              </div>
+    
+              {showProfileDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: '180px',
+                  background: '#ffffff',
+                  border: '2px solid #0f172a',
+                  borderRadius: '8px',
+                  boxShadow: '4px 4px 0px #0f172a',
+                  zIndex: 99999,
+                  padding: '0.5rem 0',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <button
+                    onClick={() => {
+                      setActiveMainTab('profile');
+                      setProfileSubTab('personal');
+                      setShowProfileDropdown(false);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', textAlign: 'left',
+                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                      color: 'var(--text-primary)', fontWeight: 650
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    My Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMainTab('profile');
+                      setProfileSubTab('academic');
+                      setShowProfileDropdown(false);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', textAlign: 'left',
+                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                      color: 'var(--text-primary)', fontWeight: 650
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    Academic Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMainTab('settings');
+                      setShowProfileDropdown(false);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', textAlign: 'left',
+                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                      color: 'var(--text-primary)', fontWeight: 650
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMainTab('account');
+                      setShowProfileDropdown(false);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', textAlign: 'left',
+                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                      color: 'var(--text-primary)', fontWeight: 650
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    Account
+                  </button>
+                  <div style={{ borderTop: '2px solid #f1f5f9', margin: '0.25rem 0' }} />
+                  <button
+                    onClick={() => {
+                      handleLogOut();
+                      setShowProfileDropdown(false);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', textAlign: 'left',
+                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                      color: 'var(--accent-pink)', fontWeight: 800
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    Logout
+                  </button>
                 </div>
               )}
             </div>
- 
-            {showProfileDropdown && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                right: 0,
-                width: '180px',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-flat-md)',
-                zIndex: 99999,
-                padding: '0.5rem 0',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <button
-                  onClick={() => {
-                    setActiveMainTab('profile');
-                    setProfileSubTab('personal');
-                    setShowProfileDropdown(false);
-                  }}
-                  style={{
-                    background: 'none', border: 'none', textAlign: 'left',
-                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                    color: 'var(--text-primary)', fontWeight: 500
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                >
-                  My Profile
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveMainTab('profile');
-                    setProfileSubTab('academic');
-                    setShowProfileDropdown(false);
-                  }}
-                  style={{
-                    background: 'none', border: 'none', textAlign: 'left',
-                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                    color: 'var(--text-primary)', fontWeight: 500
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                >
-                  Academic Profile
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveMainTab('settings');
-                    setShowProfileDropdown(false);
-                  }}
-                  style={{
-                    background: 'none', border: 'none', textAlign: 'left',
-                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                    color: 'var(--text-primary)', fontWeight: 500
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                >
-                  Settings
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveMainTab('account');
-                    setShowProfileDropdown(false);
-                  }}
-                  style={{
-                    background: 'none', border: 'none', textAlign: 'left',
-                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                    color: 'var(--text-primary)', fontWeight: 500
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                >
-                  Account
-                </button>
-                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.25rem 0' }} />
-                <button
-                  onClick={() => {
-                    handleLogOut();
-                    setShowProfileDropdown(false);
-                  }}
-                  style={{
-                    background: 'none', border: 'none', textAlign: 'left',
-                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                    color: 'var(--accent-pink)', fontWeight: 600
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                >
-                  Logout
-                </button>
-              </div>
-            )}
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main navigation bar (Desktop only) */}
-      {!isMobile && (
-        <nav style={{
-          display: 'flex',
-          background: '#fff',
-          border: '1px solid #cbd5e1',
-          borderRadius: '12px',
-          padding: '0.35rem',
-          gap: '0.4rem',
-          boxShadow: 'var(--shadow-flat-sm)',
-          flexWrap: 'wrap'
-        }}>
-          {([
-            { id: 'dashboard', label: 'Overview' },
-            { id: 'shared_notes', label: 'Notes' },
-            { id: 'community_chat', label: 'Community' },
-            { id: 'study_groups', label: 'Groups' },
-            { id: 'study_rooms', label: 'Study Rooms' },
-            { id: 'friends', label: 'Friends' },
-            { id: 'ai_workspace', label: 'AI Workspace' },
-            { id: 'planner', label: 'Planner' },
-            { id: 'leaderboard', label: 'Leaderboard' },
-            { id: 'profile', label: 'Settings' }
-          ] as const).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveMainTab(tab.id)}
-              style={{
-                flex: 1,
-                minWidth: '100px',
-                background: activeMainTab === tab.id ? 'var(--accent-primary-light)' : 'none',
-                border: 'none',
-                borderRadius: '8px',
-                color: activeMainTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)',
-                fontFamily: 'var(--font-heading)',
-                fontSize: '0.875rem',
-                fontWeight: activeMainTab === tab.id ? 700 : 500,
-                padding: '0.6rem 0',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
+        {/* Tab routing contents */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Dashboard Tab */}
+          {activeMainTab === 'dashboard' && (
+            <Dashboard
+              profile={{
+                name: profile.name || user.name,
+                email: user.email,
+                college: profile.college,
+                university: profile.university,
+                degree: profile.degree,
+                specialization: profile.specialization,
+                semester: profile.semester,
+                careerGoal: profile.careerGoal,
+                profilePhoto: profilePhoto
               }}
-            >
-              {tab.label.toUpperCase()}
-            </button>
-          ))}
-        </nav>
-      )}
+              tasks={tasks}
+              notes={notesList}
+              courses={courses}
+              studyPoints={studyPoints}
+              milestonesCount={achievements.filter((a: any) => a.unlocked).length}
+              onNavigate={(tab) => {
+                if (tab === 'notes') {
+                  setActiveMainTab('shared_notes');
+                } else {
+                  setActiveMainTab(tab as Tab);
+                }
+              }}
+            />
+          )}
 
-      {/* Tab routing contents */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        
-        {/* Dashboard Tab */}
-        {activeMainTab === 'dashboard' && (
-          <Dashboard
-            profile={{
-              name: profile.name || user.name,
-              email: user.email,
-              college: profile.college,
-              university: profile.university,
-              degree: profile.degree,
-              specialization: profile.specialization,
-              semester: profile.semester,
-              careerGoal: profile.careerGoal,
-              profilePhoto: profilePhoto
-            }}
-            tasks={tasks}
-            notes={notesList}
-            courses={courses}
-            studyPoints={studyPoints}
-            milestonesCount={achievements.filter((a: any) => a.unlocked).length}
-            onNavigate={(tab) => {
-              if (tab === 'notes') {
-                setActiveMainTab('shared_notes');
-              } else {
-                setActiveMainTab(tab as Tab);
-              }
-            }}
-          />
-        )}
+          {/* Shared Notes Tab */}
+          {activeMainTab === 'shared_notes' && (
+            <SharedNotes
+              userName={profile.name || user.name}
+              userEmail={user.email}
+              userCourse={profile.specialization}
+              onRewardXp={handleRewardXp}
+              isGuest={user.isGuest}
+              isAdmin={isAdmin}
+            />
+          )}
 
-        {/* Shared Notes Tab */}
-        {activeMainTab === 'shared_notes' && (
-          <SharedNotes
-            userName={profile.name || user.name}
-            userEmail={user.email}
-            userCourse={profile.specialization}
-            onRewardXp={handleRewardXp}
-            isGuest={user.isGuest}
-            isAdmin={isAdmin}
-          />
-        )}
+          {/* Community Chat Tab */}
+          {activeMainTab === 'community_chat' && (
+            <CommunityChat
+              userName={profile.name || user.name}
+              userEmail={user.email}
+              isAdmin={isAdmin}
+            />
+          )}
 
-        {/* Community Chat Tab */}
-        {activeMainTab === 'community_chat' && (
-          <CommunityChat
-            userName={profile.name || user.name}
-            userEmail={user.email}
-            isAdmin={isAdmin}
-          />
-        )}
+          {/* Study Groups Tab */}
+          {activeMainTab === 'study_groups' && (
+            <StudyGroups 
+              userName={profile.name || user.name} 
+              userEmail={user.email}
+              onRewardXp={handleRewardXp}
+              isGuest={user.isGuest}
+            />
+          )}
 
-        {/* Study Groups Tab */}
-        {activeMainTab === 'study_groups' && (
-          <StudyGroups
-            userName={profile.name || user.name}
-            userEmail={user.email}
-            onRewardXp={handleRewardXp}
-            isGuest={user.isGuest}
-          />
-        )}
+          {/* Video Study Rooms Tab */}
+          {activeMainTab === 'study_rooms' && (
+            <VideoStudyRoom 
+              userName={profile.name || user.name} 
+              userEmail={user.email}
+              profilePhoto={profilePhoto}
+              userStats={stats} 
+              userCourse={profile.specialization} 
+              onRewardXp={handleRewardXp} 
+              isGuest={user.isGuest}
+            />
+          )}
 
-        {/* Video Study Rooms Tab */}
-        {activeMainTab === 'study_rooms' && (
-          <VideoStudyRoom 
-            userName={profile.name || user.name} 
-            userEmail={user.email}
-            profilePhoto={profilePhoto}
-            userStats={stats} 
-            userCourse={profile.specialization} 
-            onRewardXp={handleRewardXp} 
-            isGuest={user.isGuest}
-          />
-        )}
+          {/* Friends Tab */}
+          {activeMainTab === 'friends' && (
+            <Friends
+              userName={profile.name || user.name}
+              userEmail={user.email}
+              onRewardXp={handleRewardXp}
+              isGuest={user.isGuest}
+            />
+          )}
 
-        {/* Friends Tab */}
-        {activeMainTab === 'friends' && (
-          <Friends
-            userName={profile.name || user.name}
-            userEmail={user.email}
-            onRewardXp={handleRewardXp}
-            isGuest={user.isGuest}
-          />
-        )}
+          {/* AI Workspace Tab */}
+          {activeMainTab === 'ai_workspace' && (
+            <AIWorkspace
+              userEmail={user.email}
+              userName={profile.name || user.name}
+            />
+          )}
 
-        {/* AI Workspace Tab */}
-        {activeMainTab === 'ai_workspace' && (
-          <AIWorkspace
-            userEmail={user.email}
-            userName={profile.name || user.name}
-          />
-        )}
+          {/* Focus Clock Tab */}
+          {activeMainTab === 'focus_clock' && (
+            <FocusClock
+              userEmail={user.email}
+            />
+          )}
 
-        {/* Planner Tab */}
-        {activeMainTab === 'planner' && (
-          <Planner
-            tasks={tasks}
-            onAddTask={handleAddTask}
-            onUpdateTaskStatus={handleUpdateTaskStatus}
-            onDeleteTask={handleDeleteTask}
-          />
-        )}
+          {/* Planner Tab */}
+          {activeMainTab === 'planner' && (
+            <Planner 
+              tasks={tasks}
+              onAddTask={handleAddTask}
+              onUpdateTaskStatus={handleUpdateTaskStatus}
+              onDeleteTask={handleDeleteTask}
+            />
+          )}
 
-        {/* Leaderboard Tab */}
-        {activeMainTab === 'leaderboard' && (
-          <Leaderboard
-            currentUserEmail={user.email}
-            currentCollege={profile.college}
-            currentDegree={profile.degree}
-            currentStudyPoints={studyPoints}
-          />
-        )}
+          {/* Leaderboard Tab */}
+          {activeMainTab === 'leaderboard' && (
+            <Leaderboard 
+              currentUserEmail={user.email}
+              currentCollege={profile.college}
+              currentDegree={profile.degree}
+              currentStudyPoints={studyPoints}
+            />
+          )}
 
-        {/* Profile Tab */}
-        {activeMainTab === 'profile' && (
-          <ProfilePage
-            profile={{
-              ...profile,
-              name: profile.name || user.name,
-              email: user.email,
-              profilePhoto: profilePhoto
-            }}
-            courses={courses}
-            learningTracks={learningTracks}
-            onUpdateProfile={handleUpdateProfile}
-            onUpdateCourses={handleUpdateCourses}
-            onUpdateLearningTracks={handleUpdateLearningTracks}
-            onLogOut={handleLogOut}
-            isGuest={user.isGuest}
-            activeSubTab={profileSubTab}
-          />
-        )}
+          {/* Profile Tab */}
+          {activeMainTab === 'profile' && (
+            <ProfilePage
+              profile={{
+                ...profile,
+                name: profile.name || user.name,
+                email: user.email,
+                profilePhoto: profilePhoto
+              }}
+              courses={courses}
+              learningTracks={learningTracks}
+              onUpdateProfile={handleUpdateProfile}
+              onUpdateCourses={handleUpdateCourses}
+              onUpdateLearningTracks={handleUpdateLearningTracks}
+              onLogOut={handleLogOut}
+              isGuest={user.isGuest}
+              activeSubTab={profileSubTab}
+            />
+          )}
 
-        {/* Settings Tab */}
-        {activeMainTab === 'settings' && (
-          <div className="glass-panel anim-pop" style={{ background: '#fff', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Application Settings</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Real-time Notifications</strong>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Get desktop alerts for direct messages and study rooms.</span>
+          {/* Settings Tab */}
+          {activeMainTab === 'settings' && (
+            <div className="glass-panel anim-pop" style={{ background: '#fff', border: '2px solid #0f172a', borderRadius: '16px', boxShadow: '4px 4px 0px #0f172a', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', borderBottom: '2px solid #0f172a', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Application Settings</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>Real-time Notifications</strong>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Get desktop alerts for direct messages and study rooms.</span>
+                  </div>
+                  <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
                 </div>
-                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Sound Effects</strong>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Play soft notification sounds.</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>Sound Effects</strong>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Play soft notification sounds.</span>
+                  </div>
+                  <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
                 </div>
-                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Public Presence</strong>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Show other students when you are online in study rooms.</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>Public Presence</strong>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Show other students when you are online in study rooms.</span>
+                  </div>
+                  <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
                 </div>
-                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Account Tab */}
-        {activeMainTab === 'account' && (
-          <div className="glass-panel anim-pop" style={{ background: '#fff', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Account Details</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '400px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>EMAIL ADDRESS</span>
-                <strong style={{ fontSize: '0.95rem', color: '#000' }}>{user.email}</strong>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>ACCOUNT STATUS</span>
-                <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)' }}>{user.isGuest ? 'Guest Session' : 'Verified Academic Account'}</strong>
-              </div>
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Security Settings</h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>To change password, update email or delete account, please access through the security dialog in the Settings tab.</p>
-                <button 
-                  onClick={() => setActiveMainTab('profile')} 
-                  className="cyber-btn purple-fill"
-                  style={{ width: 'fit-content' }}
-                >
-                  Manage Security via Settings
-                </button>
+          {/* Account Tab */}
+          {activeMainTab === 'account' && (
+            <div className="glass-panel anim-pop" style={{ background: '#fff', border: '2px solid #0f172a', borderRadius: '16px', boxShadow: '4px 4px 0px #0f172a', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', borderBottom: '2px solid #0f172a', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Account Details</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '400px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>EMAIL ADDRESS</span>
+                  <strong style={{ fontSize: '0.95rem', color: '#000' }}>{user.email}</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>ACCOUNT STATUS</span>
+                  <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)' }}>{user.isGuest ? 'Guest Session' : 'Verified Academic Account'}</strong>
+                </div>
+                <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 900 }}>Security Settings</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>To change password, update email or delete account, please access through the security dialog in the Settings tab.</p>
+                  <button 
+                    onClick={() => setActiveMainTab('profile')} 
+                    className="cyber-btn purple-fill"
+                    style={{ width: 'fit-content', border: '2px solid #0f172a', boxShadow: '2px 2px 0px #0f172a' }}
+                  >
+                    Manage Security via Settings
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Study Quizzes Tab (Launcher option) */}
-        {activeMainTab === 'quiz_station' && (
-          <QuizGenerator onRewardXp={handleRewardXp} />
-        )}
+          {/* Study Quizzes Tab (Launcher option) */}
+          {activeMainTab === 'quiz_station' && (
+            <QuizGenerator onRewardXp={handleRewardXp} />
+          )}
+
+        </div>
 
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
       {isMobile && (
-        <nav className="bottom-nav">
+        <nav className="bottom-nav" style={{ borderTop: '2px solid #0f172a' }}>
           <button 
-            onClick={() => setActiveMainTab('dashboard')} 
+            onClick={() => {
+              setActiveMainTab('dashboard');
+              setSidebarOpen(false);
+            }} 
             className={`bottom-nav-btn ${activeMainTab === 'dashboard' ? 'active' : ''}`}
           >
             <span>Home</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('shared_notes')} 
-            className={`bottom-nav-btn ${activeMainTab === 'shared_notes' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveMainTab('focus_clock');
+              setSidebarOpen(false);
+            }} 
+            className={`bottom-nav-btn ${activeMainTab === 'focus_clock' ? 'active' : ''}`}
           >
-            <span>Notes</span>
+            <span>Clock</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('community_chat')} 
-            className={`bottom-nav-btn ${activeMainTab === 'community_chat' ? 'active' : ''}`}
-          >
-            <span>Chat</span>
-          </button>
-          <button 
-            onClick={() => setActiveMainTab('study_groups')} 
-            className={`bottom-nav-btn ${activeMainTab === 'study_groups' ? 'active' : ''}`}
-          >
-            <span>Groups</span>
-          </button>
-          <button 
-            onClick={() => setActiveMainTab('study_rooms')} 
-            className={`bottom-nav-btn ${activeMainTab === 'study_rooms' ? 'active' : ''}`}
-          >
-            <span>Rooms</span>
-          </button>
-          <button 
-            onClick={() => setActiveMainTab('friends')} 
+            onClick={() => {
+              setActiveMainTab('friends');
+              setSidebarOpen(false);
+            }} 
             className={`bottom-nav-btn ${activeMainTab === 'friends' ? 'active' : ''}`}
           >
             <span>Friends</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('ai_workspace')} 
-            className={`bottom-nav-btn ${activeMainTab === 'ai_workspace' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveMainTab('shared_notes');
+              setSidebarOpen(false);
+            }} 
+            className={`bottom-nav-btn ${activeMainTab === 'shared_notes' ? 'active' : ''}`}
           >
-            <span>AI Tools</span>
+            <span>Notes</span>
           </button>
           <button 
-            onClick={() => setActiveMainTab('planner')} 
-            className={`bottom-nav-btn ${activeMainTab === 'planner' ? 'active' : ''}`}
+            onClick={() => setSidebarOpen(true)} 
+            className="bottom-nav-btn"
           >
-            <span>Planner</span>
-          </button>
-          <button 
-            onClick={() => setActiveMainTab('profile')} 
-            className={`bottom-nav-btn ${activeMainTab === 'profile' ? 'active' : ''}`}
-          >
-            <span>Settings</span>
+            <span>Menu ☰</span>
           </button>
         </nav>
       )}
@@ -1563,10 +1732,10 @@ export default function App() {
             className="anim-pop"
             style={{
               background: '#fff',
-              border: '1px solid #cbd5e1',
+              border: '2px solid #0f172a',
               borderRadius: '12px',
               padding: '0.75rem 1rem',
-              boxShadow: 'var(--shadow-flat-md)',
+              boxShadow: '4px 4px 0px #0f172a',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.15rem',
@@ -1581,7 +1750,8 @@ export default function App() {
                 background: t.type === 'message' ? 'var(--accent-purple)' : t.type === 'note' ? 'var(--accent-cyan)' : t.type === 'request' ? 'var(--accent-pink)' : 'var(--accent-gold)',
                 borderRadius: '4px',
                 padding: '0.1rem 0.35rem',
-                color: '#fff'
+                color: '#fff',
+                border: '1px solid #0f172a'
               }}>
                 {t.type.toUpperCase()}
               </span>
