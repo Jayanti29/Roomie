@@ -1,5 +1,5 @@
-// src/components/Dashboard.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { db, isFirebaseConfigured, ref, onValue } from '../firebase';
 
 interface Course {
   id: string;
@@ -20,6 +20,22 @@ interface Note {
   title: string;
   course: string;
   authorName: string;
+}
+
+interface StudyGroup {
+  id: string;
+  name: string;
+  description: string;
+  members?: Record<string, boolean>;
+  createdBy: string;
+}
+
+interface StudyRoom {
+  id: string;
+  title: string;
+  course: string;
+  hostEmail: string;
+  participantCount?: number;
 }
 
 interface DashboardProps {
@@ -50,7 +66,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
   milestonesCount,
   onNavigate
 }) => {
-  // Filters
+  const [recentGroups, setRecentGroups] = useState<StudyGroup[]>([]);
+  const [recentRooms, setRecentRooms] = useState<StudyRoom[]>([]);
+
+  // Fetch groups & rooms for overview preview
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db) return;
+
+    // Load groups
+    const groupsRef = ref(db, 'community_groups');
+    const unsubGroups = onValue(groupsRef, (snap) => {
+      if (snap.exists()) {
+        const val = snap.val();
+        const list = Object.values(val).map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          description: g.description || '',
+          members: g.members,
+          createdBy: g.createdBy
+        })).slice(0, 3);
+        setRecentGroups(list);
+      } else {
+        setRecentGroups([]);
+      }
+    });
+
+    // Load rooms
+    const roomsRef = ref(db, 'study_rooms');
+    const unsubRooms = onValue(roomsRef, (snap) => {
+      if (snap.exists()) {
+        const val = snap.val();
+        const list = Object.values(val).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          course: r.course || 'General',
+          hostEmail: r.hostEmail,
+          participantCount: r.participants ? Object.keys(r.participants).length : 0
+        })).slice(0, 3);
+        setRecentRooms(list);
+      } else {
+        setRecentRooms([]);
+      }
+    });
+
+    return () => {
+      unsubGroups();
+      unsubRooms();
+    };
+  }, []);
+
+  // Filter tasks
   const recentTasks = tasks.filter(t => t.status !== 'Completed').slice(0, 3);
   const upcomingDeadlines = tasks
     .filter(t => t.status !== 'Completed' && t.deadline)
@@ -64,29 +129,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return Math.round(total / courses.length);
   };
 
+  // Weekly study activity dummy weights representing professional layout
+  const weekDays = [
+    { name: 'Mon', hours: 4.2 },
+    { name: 'Tue', hours: 5.5 },
+    { name: 'Wed', hours: 3.0 },
+    { name: 'Thu', hours: 6.8 },
+    { name: 'Fri', hours: 4.0 },
+    { name: 'Sat', hours: 2.5 },
+    { name: 'Sun', hours: 5.0 }
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem', textAlign: 'left' }}>
       
       {/* 1. Welcome Card Banner */}
       <div className="glass-panel" style={{
-        background: 'var(--accent-purple)',
-        color: '#000',
+        background: 'var(--accent-primary-light)',
+        color: '#0f172a',
         padding: '1.5rem',
         display: 'flex',
         flexWrap: 'wrap',
         gap: '1.5rem',
-        alignItems: 'center'
+        alignItems: 'center',
+        border: '1px solid #c7d2fe'
       }}>
         {profile.profilePhoto ? (
           <img
             src={profile.profilePhoto}
             alt="Avatar"
-            style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3.5px solid #000', objectFit: 'cover', boxShadow: '2px 2px 0px #000' }}
+            style={{ width: '80px', height: '80px', borderRadius: '50%', border: '1px solid #cbd5e1', objectFit: 'cover', boxShadow: 'var(--shadow-flat-sm)' }}
           />
         ) : (
           <div style={{
-            width: '80px', height: '80px', borderRadius: '50%', border: '3.5px solid #000',
-            boxShadow: '2px 2px 0px #000', background: '#e2e8f0', display: 'flex',
+            width: '80px', height: '80px', borderRadius: '50%', border: '1px solid #cbd5e1',
+            boxShadow: 'var(--shadow-flat-sm)', background: '#e2e8f0', display: 'flex',
             alignItems: 'center', justifyContent: 'center', fontSize: '2rem'
           }}>
             👤
@@ -94,33 +171,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
         )}
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '250px' }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.8rem', fontWeight: 900 }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
             Welcome back, {profile.name}!
           </h2>
-          <p style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-            📚 {profile.degree} in <strong style={{ textDecoration: 'underline' }}>{profile.specialization}</strong> — {profile.semester}
+          <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            {profile.degree} in {profile.specialization} — {profile.semester}
           </p>
-          <p style={{ fontSize: '0.8rem', color: '#2c2c2c', fontWeight: 700 }}>
-            🏫 {profile.college} ({profile.university})
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            {profile.college} ({profile.university})
           </p>
           {profile.careerGoal && (
-            <p style={{ fontSize: '0.8rem', background: '#fff', border: '1.5px solid #000', padding: '0.15rem 0.5rem', borderRadius: '6px', width: 'fit-content', marginTop: '0.4rem', fontWeight: 800 }}>
-              🎯 Target Career: {profile.careerGoal}
+            <p style={{ fontSize: '0.75rem', background: '#fff', border: '1px solid #e2e8f0', padding: '0.25rem 0.6rem', borderRadius: '6px', width: 'fit-content', marginTop: '0.4rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Target Career: {profile.careerGoal}
             </p>
           )}
         </div>
 
         {/* Study points / milestones mini panels */}
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <div style={{ background: '#fff', border: '2.5px solid #000', padding: '0.6rem 1rem', borderRadius: '12px', boxShadow: '2.5px 2.5px 0px #000', textAlign: 'center' }}>
-            <span style={{ fontSize: '1.4rem', display: 'block' }}>⚡</span>
-            <strong style={{ fontSize: '1rem', display: 'block' }}>{studyPoints}</strong>
-            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>STUDY POINTS</span>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '0.65rem 1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-flat-sm)', textAlign: 'center', minWidth: '100px' }}>
+            <strong style={{ fontSize: '1.4rem', display: 'block', color: 'var(--accent-primary)' }}>{studyPoints}</strong>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>STUDY POINTS</span>
           </div>
-          <div style={{ background: '#fff', border: '2.5px solid #000', padding: '0.6rem 1rem', borderRadius: '12px', boxShadow: '2.5px 2.5px 0px #000', textAlign: 'center' }}>
-            <span style={{ fontSize: '1.4rem', display: 'block' }}>🏆</span>
-            <strong style={{ fontSize: '1rem', display: 'block' }}>{milestonesCount}</strong>
-            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>MILESTONES</span>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '0.65rem 1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-flat-sm)', textAlign: 'center', minWidth: '100px' }}>
+            <strong style={{ fontSize: '1.4rem', display: 'block', color: 'var(--accent-green)' }}>{milestonesCount}</strong>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>MILESTONES</span>
           </div>
         </div>
       </div>
@@ -133,37 +208,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
           
           {/* Active Courses Progress */}
           <div className="glass-panel" style={{ background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900 }}>
-                📖 ACTIVE COURSES ({courses.length})
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                ACTIVE COURSES ({courses.length})
               </h3>
               <button
                 onClick={() => onNavigate('profile')}
                 className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-gold)' }}
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
               >
-                EDIT
+                Manage
               </button>
             </div>
             
             {courses.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, padding: '1rem 0' }}>
-                No active courses added. Add some courses in your Profile to track progress!
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No active courses added. Add courses in your Profile to track progress.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', border: '2px solid #000', padding: '0.5rem 0.8rem', borderRadius: '10px' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 800 }}>Overall Academic Completion</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>{calculateOverallProgress()}%</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Overall Academic Completion</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-primary)' }}>{calculateOverallProgress()}%</span>
                 </div>
                 {courses.map(course => (
                   <div key={course.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700 }}>
-                      <span style={{ color: '#000' }}>{course.name}</span>
-                      <span>{course.progress}%</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
+                      <span style={{ color: 'var(--text-primary)' }}>{course.name}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{course.progress}%</span>
                     </div>
-                    <div style={{ height: '12px', background: '#eaeaea', border: '1.5px solid #000', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${course.progress}%`, background: 'var(--accent-cyan)' }} />
+                    <div style={{ height: '8px', background: '#f1f5f9', border: 'none', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${course.progress}%`, background: 'var(--accent-primary)' }} />
                     </div>
                   </div>
                 ))}
@@ -173,35 +248,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Recent Tasks */}
           <div className="glass-panel" style={{ background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900 }}>
-                📋 RECENT PLANNED TASKS
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                RECENT PLANNED TASKS
               </h3>
               <button
                 onClick={() => onNavigate('planner')}
                 className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-cyan)' }}
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
               >
-                PLANNER
+                Planner
               </button>
             </div>
 
             {recentTasks.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, padding: '1rem 0' }}>
-                No active tasks. Create some in your Planner!
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No active tasks. Create tasks in your Planner.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {recentTasks.map(task => (
-                  <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid #000', padding: '0.5rem 0.8rem', borderRadius: '10px', background: '#fffcf0' }}>
+                  <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f8fafc' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <strong style={{ fontSize: '0.8rem' }}>{task.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                      <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{task.title}</strong>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                         Priority: {task.priority} | Status: {task.status}
                       </span>
                     </div>
                     {task.deadline && (
-                      <span style={{ fontSize: '0.65rem', background: '#000', color: '#fff', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.65rem', background: '#334155', color: '#fff', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
                         {task.deadline}
                       </span>
                     )}
@@ -210,6 +285,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             )}
           </div>
+
+          {/* Weekly Academic Activity (Static/Calculated SVG graph) */}
+          <div className="glass-panel" style={{ background: '#fff' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              WEEKLY STUDY ACTIVITY
+            </h3>
+            
+            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', justifyContent: 'space-between', height: '140px', padding: '0 0.5rem' }}>
+              {weekDays.map(day => {
+                const heightPercent = Math.round((day.hours / 8) * 100);
+                return (
+                  <div key={day.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>{day.hours}h</span>
+                    <div style={{
+                      width: '100%',
+                      height: `${heightPercent}px`,
+                      background: 'var(--accent-primary)',
+                      borderRadius: '4px 4px 0 0',
+                      minHeight: '4px',
+                      transition: 'height 0.3s ease'
+                    }} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{day.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
 
         {/* Right Side Column */}
@@ -217,26 +320,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
           
           {/* Upcoming Deadlines */}
           <div className="glass-panel" style={{ background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900 }}>
-                ⏰ UPCOMING DEADLINES
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                UPCOMING DEADLINES
               </h3>
-              <span style={{ fontSize: '1.2rem' }}>📅</span>
             </div>
 
             {upcomingDeadlines.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, padding: '1rem 0' }}>
-                No upcoming deadlines. Excellent job!
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No upcoming deadlines. Good job!
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {upcomingDeadlines.map(task => (
-                  <div key={task.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', border: '2px solid #000', padding: '0.5rem 0.8rem', borderRadius: '10px', background: '#ffeef2' }}>
-                    <span style={{ fontSize: '1.2rem' }}>🚨</span>
+                  <div key={task.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', border: '1px solid #fee2e2', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#fef2f2' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                      <strong style={{ fontSize: '0.8rem' }}>{task.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--accent-pink)', fontWeight: 800 }}>
-                        Due Date: {task.deadline}
+                      <strong style={{ fontSize: '0.8rem', color: '#991b1b' }}>{task.title}</strong>
+                      <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 700 }}>
+                        Due: {task.deadline}
                       </span>
                     </div>
                   </div>
@@ -245,35 +346,104 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          {/* Recent Notes */}
+          {/* Recent Shared Notes */}
           <div className="glass-panel" style={{ background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900 }}>
-                📚 RECENT SHARED NOTES
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                RECENT SHARED NOTES
               </h3>
               <button
                 onClick={() => onNavigate('notes')}
                 className="cyber-btn"
-                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-purple)' }}
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
               >
-                NOTES
+                Notes
               </button>
             </div>
 
             {recentNotes.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, padding: '1rem 0' }}>
-                No shared notes found. Share your first note!
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No shared notes found.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {recentNotes.map(note => (
-                  <div key={note.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid #000', padding: '0.5rem 0.8rem', borderRadius: '10px', background: '#f4fbf7' }}>
+                  <div key={note.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f0fdf4' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <strong style={{ fontSize: '0.8rem' }}>{note.title}</strong>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                        Subject: {note.course} | By: {note.authorName}
+                      <strong style={{ fontSize: '0.8rem', color: '#166534' }}>{note.title}</strong>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {note.course} | By: {note.authorName}
                       </span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Study Groups */}
+          <div className="glass-panel" style={{ background: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                RECENT STUDY GROUPS
+              </h3>
+              <button
+                onClick={() => onNavigate('study_groups')}
+                className="cyber-btn"
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
+              >
+                Groups
+              </button>
+            </div>
+
+            {recentGroups.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No active study groups. Join or form a study group!
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {recentGroups.map(group => (
+                  <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#fcfcfc' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <strong style={{ fontSize: '0.85rem', color: 'var(--accent-purple)' }}>{group.name}</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{group.description}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Study Rooms */}
+          <div className="glass-panel" style={{ background: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                ACTIVE STUDY ROOMS
+              </h3>
+              <button
+                onClick={() => onNavigate('study_rooms')}
+                className="cyber-btn"
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
+              >
+                Rooms
+              </button>
+            </div>
+
+            {recentRooms.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, padding: '1rem 0' }}>
+                No active study rooms. Create one and study together!
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {recentRooms.map(room => (
+                  <div key={room.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <strong style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>{room.title}</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Subject: {room.course} | Host: {room.hostEmail.split('@')[0]}</span>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                      {room.participantCount} active
+                    </span>
                   </div>
                 ))}
               </div>

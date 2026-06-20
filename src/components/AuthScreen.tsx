@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { authService, databaseService } from '../firebase';
 import { Onboarding } from './Onboarding';
 
-
 interface AuthScreenProps {
   onLoginSuccess: (
     email: string, 
@@ -24,7 +23,6 @@ interface AuthScreenProps {
     bio?: string
   ) => void;
 }
-
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -59,7 +57,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           'State University',
           'San Francisco, CA'
         );
-        // Check if test user or debug URL to bypass onboarding
         if (email.includes('testuser') || window.location.search.includes('debug=true')) {
           onLoginSuccess(
             user.email,
@@ -85,7 +82,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         }
       } else {
         const user = await authService.signIn(email, password);
-        // Load data from DB to check if they completed onboarding before
         let course = 'Computer Science';
         let degree = 'Bachelor of Science';
         let college = 'State University';
@@ -208,8 +204,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       profileData.careerGoal,
       profileData.interests,
       profileData.profilePhoto,
-      '', // phone
-      ''  // bio
+      '', 
+      ''  
     );
     setOnboardingUser(null);
   };
@@ -224,101 +220,192 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     );
   }
 
-
   return (
     <div style={{
       minHeight: '100vh',
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem 1rem',
-      position: 'relative',
-      overflow: 'hidden'
+      background: '#f8fafc',
+      fontFamily: '"Inter", sans-serif'
     }}>
-      <div className="glass-panel anim-float" style={{
-        maxWidth: '400px',
+      {/* Split Layout Container */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1.2fr 1fr',
         width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.5rem',
-        background: '#ffffff',
-        border: '3.5px solid #000',
-        boxShadow: '8px 8px 0px #000',
-        zIndex: 10
-      }}>
-        {/* Title / Logo */}
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <h1 style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: '2.2rem',
-            fontWeight: 900,
-            color: '#000',
-            letterSpacing: '0.05em'
-          }}>
-            ROOMIE
-          </h1>
-          <span style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: '0.8rem',
-            fontWeight: 800,
-            letterSpacing: '0.1em',
-            color: 'var(--accent-pink)',
-            textTransform: 'uppercase'
-          }}>
-            REAL-TIME COLLABORATION PLATFORM
-          </span>
-        </div>
-
-        {/* Info Box */}
+        margin: 0,
+        alignItems: 'stretch'
+      }} className="notes-board-grid">
+        
+        {/* LEFT PANEL: Animated Academic Collaboration Scene (Desktop only) */}
         <div style={{
-          background: 'var(--accent-gold)',
-          padding: '0.65rem 0.8rem',
-          borderRadius: '12px',
-          border: '2.5px solid #000',
-          fontSize: '0.8rem',
-          fontWeight: 700,
-          color: '#000',
-          lineHeight: '1.4',
-          boxShadow: '3px 3px 0px #000'
-        }}>
-          <span>Connect, collaborate and learn together.</span>
+          background: 'linear-gradient(135deg, #4f46e5 0%, #312e81 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '3rem',
+          color: '#ffffff',
+          position: 'relative',
+          overflow: 'hidden'
+        }} className="hide-on-mobile">
+          
+          {/* Custom CSS/SVG Illustration */}
+          <div style={{
+            position: 'relative',
+            width: '420px',
+            height: '320px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }} className="anim-float">
+            {/* SVG Illustration of students/screens */}
+            <svg width="340" height="260" viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Desk */}
+              <rect x="20" y="110" width="160" height="6" rx="3" fill="#818cf8" />
+              
+              {/* Laptop Screen Left */}
+              <rect x="35" y="70" width="45" height="32" rx="2" fill="#1e293b" stroke="#cbd5e1" strokeWidth="2" />
+              <rect x="38" y="73" width="39" height="23" rx="1" fill="#334155" />
+              <line x1="42" y1="78" x2="60" y2="78" stroke="#818cf8" strokeWidth="2" />
+              <line x1="42" y1="84" x2="70" y2="84" stroke="#a5b4fc" strokeWidth="2" />
+              <line x1="42" y1="90" x2="65" y2="90" stroke="#f472b6" strokeWidth="2" />
+              <polygon points="30,102 95,102 90,107 35,107" fill="#64748b" />
+              
+              {/* Laptop Screen Right */}
+              <rect x="110" y="65" width="50" height="36" rx="2" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" />
+              <rect x="113" y="68" width="44" height="27" rx="1" fill="#1e293b" />
+              <circle cx="135" cy="80" r="8" fill="#14b8a6" />
+              <circle cx="132" cy="78" r="2" fill="#fff" />
+              <circle cx="138" cy="78" r="2" fill="#fff" />
+              <path d="M131,84 Q135,88 139,84" stroke="#fff" strokeWidth="1" />
+              <polygon points="105,101 165,101 160,106 110,106" fill="#475569" />
+              
+              {/* Notebook */}
+              <rect x="90" y="92" width="16" height="18" rx="1" fill="#f43f5e" transform="rotate(-10 90 92)" />
+              <line x1="95" y1="97" x2="103" y2="95" stroke="#fff" strokeWidth="1.5" />
+              <line x1="94" y1="102" x2="102" y2="100" stroke="#fff" strokeWidth="1.5" />
+
+              {/* Floating speech/idea bubble */}
+              <circle cx="100" cy="35" r="16" fill="#fbbf24" style={{ animation: 'float-gentle 3s ease-in-out infinite' }} />
+              <path d="M96,35 L104,35" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+              <path d="M100,31 L100,39" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+
+          <div style={{ zIndex: 2, textAlign: 'center', maxWidth: '420px', marginTop: '1.5rem' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.02em' }}>
+              Connect. Collaborate. Learn Together.
+            </h2>
+            <p style={{ fontSize: '0.95rem', color: '#e0e7ff', lineHeight: '1.6', fontWeight: 500 }}>
+              Join thousands of Indian students sharing study materials, organizing groups, utilizing AI academic workspace, and resolving doubts in real time.
+            </p>
+          </div>
+
+          {/* Trust Indicators */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            justifyContent: 'center',
+            maxWidth: '500px',
+            marginTop: '2.5rem',
+            zIndex: 2
+          }}>
+            {['Study Rooms', 'Shared Notes', 'Study Groups', 'AI Workspace', 'Planner', 'Community Discussions'].map(label => (
+              <span key={label} style={{
+                fontSize: '0.75rem',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '9999px',
+                fontWeight: 600,
+                color: '#e0e7ff'
+              }}>
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Error message */}
-        {errorMessage && (
-          <div style={{
-            background: '#ffeef2',
-            border: '2px solid #000',
-            color: 'var(--accent-pink)',
-            padding: '0.6rem',
-            borderRadius: '10px',
-            fontSize: '0.8rem',
-            fontWeight: 700
+        {/* RIGHT PANEL: Auth Card Form */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '2.5rem 1.5rem',
+          background: '#ffffff',
+          position: 'relative'
+        }}>
+          {/* Mobile Illustration (Stacked) */}
+          <div className="show-flex-on-mobile" style={{
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+            background: 'linear-gradient(135deg, #4f46e5 0%, #312e81 100%)',
+            padding: '1.5rem',
+            borderRadius: '12px',
+            color: '#fff',
+            marginBottom: '1.5rem',
+            textAlign: 'center'
           }}>
-            {errorMessage}
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0.2rem 0' }}>Connect. Collaborate. Learn.</h2>
+            <p style={{ fontSize: '0.75rem', color: '#e0e7ff', margin: '0.2rem 0' }}>A national student platform for collaboration and growth.</p>
           </div>
-        )}
 
-        {/* Input Form */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {isRegistering && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>FULL NAME</label>
-              <input
-                  type="text"
-                  data-testid="name"
-                  className="cyber-input"
-                  placeholder="e.g. Rahul Sharma"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+          <div style={{
+            maxWidth: '380px',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem'
+          }}>
+            {/* Header info */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-primary)' }}></span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>ROOMIE PLATFORM</span>
+              </div>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>
+                {isRegistering ? 'Create Student Account' : 'Sign in to Roomie'}
+              </h2>
             </div>
-          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>EMAIL ADDRESS</label>
-            <input
+            {errorMessage && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fee2e2',
+                color: 'var(--accent-pink)',
+                padding: '0.65rem 0.8rem',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                textAlign: 'left'
+              }}>
+                {errorMessage}
+              </div>
+            )}
+
+            {/* Input Form */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {isRegistering && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>FULL NAME</label>
+                  <input
+                    type="text"
+                    data-testid="name"
+                    className="cyber-input"
+                    placeholder="e.g. Rahul Sharma"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>EMAIL ADDRESS</label>
+                <input
                   type="email"
                   data-testid="email"
                   className="cyber-input"
@@ -327,11 +414,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-          </div>
+              </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>PASSWORD</label>
-            <input
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PASSWORD</label>
+                <input
                   type="password"
                   data-testid="password"
                   className="cyber-input"
@@ -340,73 +427,93 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
-          </div>
+              </div>
 
-          {isRegistering && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>CONFIRM PASSWORD</label>
-              <input
-                type="password"
-                className="cyber-input"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+              {isRegistering && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CONFIRM PASSWORD</label>
+                  <input
+                    type="password"
+                    className="cyber-input"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="cyber-btn pink-fill"
+                data-testid="login-button"
+                disabled={loading}
+                style={{ width: '100%', minHeight: '44px', marginTop: '0.5rem', fontWeight: 700 }}
+              >
+                {loading ? 'Verifying Session...' : isRegistering ? 'Create Account' : 'Sign In'}
+              </button>
+            </form>
+
+            {/* Alternating actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem' }}>
+              <button
+                onClick={() => {
+                  setIsRegistering(!isRegistering);
+                  setErrorMessage('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+              >
+                {isRegistering ? 'ALREADY HAVE AN ACCOUNT? SIGN IN' : 'NEW STUDENT? CREATE ACCOUNT'}
+              </button>
+
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>OR</span>
+
+              <button
+                onClick={handleGuestLogin}
+                className="cyber-btn"
+                style={{
+                  width: '100%',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#334155',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  padding: '0.6rem'
+                }}
+              >
+                CONTINUE AS GUEST
+              </button>
             </div>
-          )}
 
-          <button
-            type="submit"
-            className="cyber-btn pink-fill"
-            data-testid="login-button"
-            disabled={loading}
-            style={{ width: '100%', padding: '0.75rem', marginTop: '0.4rem', border: '3px solid #000', boxShadow: '4px 4px 0px #000' }}
-          >
-            {loading ? 'SYNCHRONIZING...' : isRegistering ? 'CREATE ACCOUNT' : 'SIGN IN'}
-          </button>
-        </form>
+            {/* Trust badge tags */}
+            <div className="show-on-mobile" style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.5rem',
+              marginTop: '1rem',
+              borderTop: '1px solid #f1f5f9',
+              paddingTop: '1rem'
+            }}>
+              {['Study Rooms', 'Shared Notes', 'Study Groups', 'AI Tools'].map(label => (
+                <div key={label} style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', background: '#f8fafc', padding: '0.25rem', borderRadius: '4px' }}>
+                  ✓ {label}
+                </div>
+              ))}
+            </div>
 
-        {/* Bottom Switch Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', alignItems: 'center' }}>
-          <button
-            onClick={() => {
-              setIsRegistering(!isRegistering);
-              setErrorMessage('');
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--accent-purple)',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontFamily: 'var(--font-heading)',
-              fontWeight: 800,
-              textDecoration: 'underline'
-            }}
-          >
-            {isRegistering ? 'ALREADY HAVE AN ACCOUNT? SIGN IN' : 'NEW STUDENT? CREATE ACCOUNT'}
-          </button>
-
-          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>OR</span>
-
-          {/* Guest login action */}
-          <button
-            onClick={handleGuestLogin}
-            className="cyber-btn"
-            style={{
-              width: '100%',
-              background: 'var(--accent-gold)',
-              border: '3px solid #000',
-              boxShadow: '4px 4px 0px #000',
-              fontSize: '0.85rem',
-              fontWeight: 800,
-              padding: '0.65rem'
-            }}
-          >
-            CONTINUE AS GUEST
-          </button>
+          </div>
         </div>
+
       </div>
     </div>
   );

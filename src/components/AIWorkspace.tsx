@@ -33,14 +33,14 @@ const assistantPrompts: Record<string, string> = {
 };
 
 const assistantNames: Record<string, string> = {
-  tutor: "🎓 AI Tutor",
-  planner: "📅 AI Planner",
-  coding: "💻 Coding Assistant",
-  research: "🔍 Research Assistant",
-  coach: "🎙️ Interview Coach",
-  resume: "📄 Resume Reviewer",
-  advisor: "🎯 Career Advisor",
-  mentor: "🧠 Study Mentor"
+  tutor: "AI Tutor",
+  planner: "AI Planner",
+  coding: "Coding Assistant",
+  research: "Research Assistant",
+  coach: "Interview Coach",
+  resume: "Resume Reviewer",
+  advisor: "Career Advisor",
+  mentor: "Study Mentor"
 };
 
 export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName }) => {
@@ -109,7 +109,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
     const chatId = `chat_${Date.now()}`;
     const newChat: Conversation = {
       id: chatId,
-      title: `New Chat with ${assistantNames[assistantType]}`,
+      title: `Chat with ${assistantNames[assistantType]}`,
       assistantType,
       messages: [
         {
@@ -118,7 +118,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
         },
         {
           role: 'assistant',
-          content: `Hi ${userName}! I am your ${assistantNames[assistantType]}. How can I help you study today?`
+          content: `Hello ${userName}! I am your ${assistantNames[assistantType]}. How can I assist you with your studies today?`
         }
       ],
       timestamp: Date.now()
@@ -262,17 +262,18 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
         const codeLines = lines.slice(1, lines.length - 1).join('\n');
         const language = lines[0].replace('```', '').trim() || 'javascript';
         return (
-          <div key={index} style={{ border: '2px solid #000', borderRadius: '10px', overflow: 'hidden', margin: '0.5rem 0', boxShadow: '2px 2px 0px #000', background: '#2d3748' }}>
-            <div style={{ background: '#1a202c', color: '#fff', padding: '0.4rem 0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', borderBottom: '2px solid #000', fontWeight: 800 }}>
-              <span>{language.toUpperCase()} CODE BLOCK</span>
+          <div key={index} style={{ border: '1px solid var(--outline-thick)', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', margin: '0.75rem 0', boxShadow: 'var(--shadow-flat-sm)', background: '#1e293b' }}>
+            <div style={{ background: '#0f172a', color: '#cbd5e1', padding: '0.5rem 0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', borderBottom: '1px solid #334155', fontWeight: 600 }}>
+              <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{language}</span>
               <button
                 onClick={() => copyToClipboard(codeLines)}
-                style={{ background: '#fff', border: '1.5px solid #000', color: '#000', cursor: 'pointer', padding: '2px 6px', borderRadius: '4px', fontSize: '0.62rem', fontWeight: 900 }}
+                className="cyber-btn"
+                style={{ background: '#334155', border: '1px solid #475569', color: '#f1f5f9', cursor: 'pointer', padding: '2px 8px', borderRadius: '4px', fontSize: '0.65rem', minHeight: 'auto' }}
               >
-                COPY CODE
+                Copy Code
               </button>
             </div>
-            <pre style={{ padding: '0.8rem', color: '#a0aec0', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'Courier New, Courier, monospace', textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+            <pre style={{ padding: '1rem', color: '#e2e8f0', fontSize: '0.8rem', overflowX: 'auto', fontFamily: 'var(--font-mono)', textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
               <code>{codeLines}</code>
             </pre>
           </div>
@@ -284,7 +285,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
       const parsedText = inlineParts.map((subPart, subIdx) => {
         if (subPart.startsWith('`')) {
           return (
-            <code key={subIdx} style={{ background: '#f0f0f0', border: '1px solid #ccc', padding: '2px 5px', borderRadius: '4px', color: 'var(--accent-pink)', fontFamily: 'monospace', fontWeight: 'bold' }}>
+            <code key={subIdx} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 5px', borderRadius: '4px', color: 'var(--accent-pink)', fontFamily: 'var(--font-mono)', fontSize: '0.85em', fontWeight: 600 }}>
               {subPart.replace(/`/g, '')}
             </code>
           );
@@ -305,27 +306,29 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
     <div className="notes-board-grid" style={{ paddingBottom: '2rem', height: 'calc(100vh - 180px)', minHeight: '520px' }}>
       
       {/* LEFT PANEL: AI Assistants Selector & History */}
-      <div className="glass-panel" style={{ background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.8rem', height: '100%', overflowY: 'auto' }}>
+      <div className="glass-panel" style={{ background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: '0.8rem', height: '100%', overflowY: 'auto', border: '1px solid var(--outline-thick)' }}>
         
         {/* Modules Directory */}
-        <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.92rem', fontWeight: 900, borderBottom: '2px solid #000', paddingBottom: '3px' }}>
-          🧠 SELECT AI ASSISTANT
+        <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '4px' }}>
+          Select AI Assistant
         </h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem' }}>
           {Object.keys(assistantNames).map(key => (
             <button
               key={key}
               onClick={() => handleStartNewChat(key)}
-              className="cyber-btn"
               style={{
-                padding: '0.4rem 0.2rem',
-                fontSize: '0.7rem',
+                padding: '0.5rem 0.4rem',
+                fontSize: '0.75rem',
                 minHeight: 'auto',
-                border: '2px solid #000',
-                background: activeAssistant === key && !activeChatId ? 'var(--accent-purple)' : '#f8f9fa',
-                boxShadow: 'none',
-                wordBreak: 'break-word',
-                lineHeight: '1.2'
+                border: activeAssistant === key && !activeChatId ? '1px solid var(--accent-purple)' : '1px solid var(--outline-thick)',
+                borderRadius: 'var(--border-radius-sm)',
+                background: activeAssistant === key && !activeChatId ? 'var(--accent-primary-light)' : '#ffffff',
+                color: activeAssistant === key && !activeChatId ? 'var(--accent-purple)' : 'var(--text-secondary)',
+                fontWeight: activeAssistant === key && !activeChatId ? 700 : 500,
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.15s ease'
               }}
             >
               {assistantNames[key]}
@@ -334,8 +337,8 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
         </div>
 
         {/* Search bar history */}
-        <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.92rem', fontWeight: 900, borderBottom: '2px solid #000', paddingBottom: '3px', marginTop: '0.5rem' }}>
-          🕒 CONVERSATIONS HISTORY
+        <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '4px', marginTop: '0.75rem' }}>
+          Conversations History
         </h4>
         <input
           type="text"
@@ -349,21 +352,22 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
         {/* History List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, overflowY: 'auto' }}>
           {filteredConversations.length === 0 ? (
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No past chats found.</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No past chats found.</span>
           ) : (
             filteredConversations.map(chat => (
               <div
                 key={chat.id}
                 style={{
-                  border: '1.5px solid #000',
-                  borderRadius: '8px',
+                  border: activeChatId === chat.id ? '1px solid var(--accent-cyan)' : '1px solid var(--outline-thick)',
+                  borderRadius: 'var(--border-radius-sm)',
                   padding: '0.4rem 0.6rem',
-                  background: activeChatId === chat.id ? 'var(--accent-cyan)' : '#fdfdfd',
+                  background: activeChatId === chat.id ? 'var(--accent-primary-light)' : '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '0.25rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
                 }}
                 onClick={() => {
                   setActiveChatId(chat.id);
@@ -374,7 +378,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                   <input
                     type="text"
                     className="cyber-input"
-                    style={{ fontSize: '0.7rem', padding: '2px 4px', minHeight: 'auto' }}
+                    style={{ fontSize: '0.75rem', padding: '2px 4px', minHeight: 'auto' }}
                     value={editTitleText}
                     onChange={(e) => setEditTitleText(e.target.value)}
                     onBlur={() => handleRenameChat(chat.id)}
@@ -382,7 +386,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                     autoFocus
                   />
                 ) : (
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: activeChatId === chat.id ? 700 : 500, color: activeChatId === chat.id ? 'var(--accent-cyan)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
                     {chat.title}
                   </span>
                 )}
@@ -418,27 +422,26 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
       </div>
 
       {/* RIGHT PANEL: Chat Workspace */}
-      <div className="glass-panel" style={{ background: '#fff', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
+      <div className="glass-panel" style={{ background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%', border: '1px solid var(--outline-thick)' }}>
         {!activeChatId ? (
           // NO ACTIVE CHAT
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontWeight: 800 }}>
-            <span style={{ fontSize: '3.5rem', marginBottom: '0.5rem' }}>🤖</span>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.85rem' }}>
             Choose an AI Assistant from the left panel to launch a new tutoring session.
           </div>
         ) : (
           // ACTIVE CHAT
           <>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
-              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', color: '#000' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '0.5rem' }}>
+              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', color: 'var(--text-primary)' }}>
                 {activeChat?.title}
               </strong>
               <button
                 onClick={() => activeChat && handleExportChat(activeChat)}
                 className="cyber-btn"
-                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', minHeight: 'auto', background: '#eaeaea' }}
+                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', minHeight: 'auto', background: '#f1f5f9' }}
               >
-                📥 EXPORT CHAT
+                Export Chat
               </button>
             </div>
 
@@ -449,10 +452,10 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
               display: 'flex',
               flexDirection: 'column',
               gap: '0.8rem',
-              padding: '0.8rem',
-              background: '#fcfcfc',
-              border: '2.5px solid #000',
-              borderRadius: '12px'
+              padding: '1rem',
+              background: '#f8fafc',
+              border: '1px solid var(--outline-medium)',
+              borderRadius: 'var(--border-radius-md)'
             }}>
               {activeChat?.messages.filter(m => m.role !== 'system').map((msg, idx) => {
                 const isUser = msg.role === 'user';
@@ -467,17 +470,18 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                       textAlign: 'left'
                     }}
                   >
-                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 800, alignSelf: isUser ? 'flex-end' : 'flex-start', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, alignSelf: isUser ? 'flex-end' : 'flex-start', marginBottom: '2px' }}>
                       {isUser ? userName : assistantNames[activeChat.assistantType]}
                     </span>
                     <div style={{
-                      background: isUser ? 'var(--accent-cyan)' : '#fff',
-                      border: '2px solid #000',
+                      background: isUser ? 'var(--accent-primary)' : '#fff',
+                      color: isUser ? '#ffffff' : 'var(--text-primary)',
+                      border: isUser ? 'none' : '1px solid var(--outline-thick)',
                       borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
                       padding: '0.6rem 0.8rem',
-                      boxShadow: '2.5px 2.5px 0px #000',
+                      boxShadow: 'var(--shadow-flat-sm)',
                       fontSize: '0.82rem',
-                      fontWeight: 700,
+                      fontWeight: 500,
                       lineHeight: '1.4'
                     }}>
                       {renderMessageContent(msg.content)}
@@ -487,9 +491,9 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
               })}
               {isTyping && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'flex-start', maxWidth: '85%', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 800 }}>AI is typing...</span>
-                  <div style={{ background: '#fff', border: '2px solid #000', borderRadius: '12px 12px 12px 2px', padding: '0.6rem 0.8rem', boxShadow: '2px 2px 0px #000', fontSize: '0.8rem', fontWeight: 700 }}>
-                    ⚡ Generating dynamic roadmap/tutoring notes...
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>AI is typing...</span>
+                  <div style={{ background: '#fff', border: '1px solid var(--outline-thick)', borderRadius: '12px 12px 12px 2px', padding: '0.6rem 0.8rem', boxShadow: 'var(--shadow-flat-sm)', fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    Generating dynamic response...
                   </div>
                 </div>
               )}
@@ -512,9 +516,9 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                 type="submit"
                 disabled={isTyping}
                 className="cyber-btn pink-fill"
-                style={{ padding: '0.6rem 1.2rem', minHeight: '42px', border: '2.5px solid #000', boxShadow: '2px 2px 0px #000' }}
+                style={{ padding: '0.6rem 1.2rem', minHeight: '42px' }}
               >
-                ASK
+                Ask
               </button>
             </form>
           </>

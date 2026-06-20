@@ -8,6 +8,7 @@ import { VideoStudyRoom } from './components/VideoStudyRoom';
 import { AIWorkspace } from './components/AIWorkspace';
 import { Planner } from './components/Planner';
 import { ProfilePage } from './components/ProfilePage';
+import { Leaderboard } from './components/Leaderboard';
 import { QuizGenerator } from './components/QuizGenerator';
 import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
 
@@ -49,6 +50,8 @@ interface Task {
   status: string;
 }
 
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station';
+
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string; isGuest?: boolean } | null>(null);
@@ -69,8 +72,7 @@ export default function App() {
   });
   const [achievements, setAchievements] = useState<any[]>([]);
 
-  // Navigation state - supports 8 independent modules + quiz station (from dashboard)
-  type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'ai_workspace' | 'planner' | 'profile' | 'quiz_station';
+  // Navigation state
   const [activeMainTab, setActiveMainTab] = useState<Tab>('dashboard');
 
   // Modular Data States
@@ -83,6 +85,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -109,6 +112,126 @@ export default function App() {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Auth Restorer / Listener
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (isFirebaseConfigured) {
+        try {
+          const { auth } = await import('./firebase');
+          if (!auth) {
+            setIsLoaded(true);
+            return;
+          }
+          const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
+            if (firebaseUser) {
+              const email = firebaseUser.email || `guest_${firebaseUser.uid}@roomie.io`;
+              const name = firebaseUser.displayName || email.split('@')[0];
+              const isGuest = firebaseUser.isAnonymous;
+              
+              let course = 'Computer Science';
+              let degree = 'Bachelor of Science';
+              let college = 'State University';
+              let location = 'San Francisco, CA';
+              let stateVal = '';
+              let cityVal = '';
+              let uniVal = '';
+              let specVal = '';
+              let semVal = '1st Semester';
+              let careerGoalVal = '';
+              let interestsVal: string[] = [];
+              let profilePhotoVal: string | null = null;
+              let phoneVal = '';
+              let bioVal = '';
+
+              try {
+                const data = await databaseService.getUserData(email);
+                if (data) {
+                  course = data.course || data.specialization || course;
+                  degree = data.degree || degree;
+                  college = data.college || college;
+                  location = data.location || data.city || location;
+                  stateVal = data.state || '';
+                  cityVal = data.city || '';
+                  uniVal = data.university || '';
+                  specVal = data.specialization || '';
+                  semVal = data.semester || '1st Semester';
+                  careerGoalVal = data.careerGoal || '';
+                  interestsVal = data.interests || [];
+                  profilePhotoVal = data.profilePhoto || null;
+                  phoneVal = data.phone || '';
+                  bioVal = data.bio || '';
+                }
+              } catch (e) {
+                console.warn("Could not load user details on restore:", e);
+              }
+
+              handleLoginSuccess(
+                email, 
+                name, 
+                course, 
+                degree, 
+                college, 
+                location,
+                isGuest,
+                stateVal,
+                cityVal,
+                uniVal,
+                specVal,
+                semVal,
+                careerGoalVal,
+                interestsVal,
+                profilePhotoVal,
+                phoneVal,
+                bioVal
+              );
+            } else {
+              const savedSession = localStorage.getItem('roomie_mock_session');
+              if (savedSession) {
+                try {
+                  const parsed = JSON.parse(savedSession);
+                  handleLoginSuccess(
+                    parsed.email,
+                    parsed.name,
+                    parsed.course,
+                    parsed.degree,
+                    parsed.college,
+                    parsed.location,
+                    parsed.isGuest,
+                    parsed.state,
+                    parsed.city,
+                    parsed.university,
+                    parsed.specialization,
+                    parsed.semester,
+                    parsed.careerGoal,
+                    parsed.interests,
+                    parsed.profilePhoto,
+                    parsed.phone,
+                    parsed.bio
+                  );
+                } catch (e) {}
+              } else {
+                setLoggedIn(false);
+                setUser(null);
+              }
+            }
+            setIsLoaded(true);
+          });
+          return unsubscribe;
+        } catch (e) {
+          console.error("Auth initialization check error:", e);
+          setIsLoaded(true);
+        }
+      } else {
+        setIsLoaded(true);
+      }
+    };
+
+    let unsubPromise = checkAuth();
+    return () => {
+      unsubPromise.then(unsub => unsub && unsub());
+    };
   }, []);
 
   // Sync admin state
@@ -146,7 +269,7 @@ export default function App() {
     }
   }, [loggedIn]);
 
-  // E2E performance / latency test target
+  // E2E latency test target
   useEffect(() => {
     const handleLatencyTest = async () => {
       if (isFirebaseConfigured && db) {
@@ -245,7 +368,6 @@ export default function App() {
         return;
       }
 
-      // Load Profile & State from database Service
       const loadData = async () => {
         try {
           const data = await databaseService.getUserData(user.email);
@@ -284,9 +406,7 @@ export default function App() {
       };
       loadData();
 
-      // Realtime syncing listeners
       if (isFirebaseConfigured && db) {
-        // Sync tasks
         const tasksRef = ref(db, `users/${userKey}/tasks`);
         const unsubTasks = onValue(tasksRef, (snap) => {
           if (snap.exists()) {
@@ -297,7 +417,6 @@ export default function App() {
           }
         });
 
-        // Sync courses
         const coursesRef = ref(db, `users/${userKey}/courses`);
         const unsubCourses = onValue(coursesRef, (snap) => {
           if (snap.exists()) {
@@ -307,7 +426,6 @@ export default function App() {
           }
         });
 
-        // Sync learning tracks
         const tracksRef = ref(db, `users/${userKey}/learningTracks`);
         const unsubTracks = onValue(tracksRef, (snap) => {
           if (snap.exists()) {
@@ -369,7 +487,6 @@ export default function App() {
           ...profile,
           profilePhoto: profilePhoto
         },
-        // compatibility fields
         course: profile.specialization,
         degree: profile.degree,
         college: profile.college,
@@ -452,6 +569,14 @@ export default function App() {
     phone?: string,
     bio?: string
   ) => {
+    const sessionData = {
+      email, name, course, degree, college, location, isGuest,
+      state, city, university, specialization, semester, careerGoal,
+      interests, profilePhoto: photoUrl, phone, bio
+    };
+    if (useMockDb) {
+      localStorage.setItem('roomie_mock_session', JSON.stringify(sessionData));
+    }
     setUser({ email, name, isGuest });
     setProfile({
       name: name,
@@ -474,6 +599,7 @@ export default function App() {
   };
 
   const handleLogOut = async () => {
+    localStorage.removeItem('roomie_mock_session');
     await authService.signOut();
     setLoggedIn(false);
     setUser(null);
@@ -573,6 +699,24 @@ export default function App() {
     }
   };
 
+  const getPageTitle = () => {
+    switch (activeMainTab) {
+      case 'dashboard': return 'Dashboard';
+      case 'shared_notes': return 'Shared Notes';
+      case 'community_chat': return 'Community Chat';
+      case 'study_groups': return 'Study Groups';
+      case 'study_rooms': return 'Study Rooms';
+      case 'ai_workspace': return 'AI Workspace';
+      case 'planner': return 'Planner';
+      case 'leaderboard': return 'Leaderboard';
+      case 'profile': return 'Profile Settings';
+      case 'settings': return 'App Settings';
+      case 'account': return 'Account Settings';
+      case 'quiz_station': return 'Study Quiz';
+      default: return 'Roomie';
+    }
+  };
+
   if (!isFirebaseConfigured) {
     return (
       <div style={{
@@ -581,37 +725,68 @@ export default function App() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#f4f0fa',
+        background: '#f8fafc',
         padding: '2rem',
         fontFamily: '"Outfit", sans-serif',
         textAlign: 'center'
       }}>
         <div style={{
           background: '#fff',
-          border: '4px solid #000',
+          border: '1px solid #cbd5e1',
           borderRadius: '16px',
           padding: '3rem 2rem',
           maxWidth: '450px',
-          boxShadow: '8px 8px 0px #000'
+          boxShadow: 'var(--shadow-flat-md)'
         }}>
-          <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1.5rem' }}>⚠️</span>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '1rem', color: '#000' }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '1rem', color: '#0f172a' }}>
             Realtime service unavailable
           </h1>
-          <p style={{ fontSize: '1.05rem', lineHeight: '1.6', color: '#333', marginBottom: '2rem' }}>
+          <p style={{ fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '2rem' }}>
             We could not establish a connection to our realtime synchronization network. Please verify that your system is online or check back shortly.
           </p>
           <div style={{
-            background: '#ffe3e3',
-            border: '2px solid #000',
+            background: '#fef2f2',
+            border: '1px solid #fee2e2',
             borderRadius: '8px',
             padding: '0.75rem 1rem',
             fontSize: '0.9rem',
             fontWeight: 'bold',
-            color: '#c00'
+            color: 'var(--accent-pink)'
           }}>
             Error Code: FIREBASECONFIG_MISSING
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pre-load Spinner
+  if (!isLoaded) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f8fafc',
+        fontFamily: '"Outfit", sans-serif'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid #cbd5e1',
+            borderTopColor: 'var(--accent-primary)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem auto'
+          }} />
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 600 }}>Connecting to Roomie...</div>
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       </div>
     );
@@ -638,37 +813,44 @@ export default function App() {
         justifyContent: 'space-between',
         alignItems: 'center',
         background: '#fff',
-        border: '3px solid #000',
+        border: '1px solid #e2e8f0',
         borderRadius: 'var(--border-radius-md)',
         padding: isMobile ? '0.5rem 0.75rem' : '0.75rem 1.5rem',
-        boxShadow: '4px 4px 0px #000'
+        boxShadow: 'var(--shadow-flat-sm)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           <h1 style={{
             fontFamily: 'var(--font-heading)',
             fontSize: isMobile ? '1.1rem' : '1.4rem',
-            fontWeight: 800,
+            fontWeight: 900,
             letterSpacing: '0.05em',
-            color: '#000'
+            color: '#0f172a'
           }}>
             ROOMIE
           </h1>
           {!isMobile && (
-            <span style={{ fontSize: '0.55rem', background: 'var(--accent-gold)', border: '1.5px solid #000', padding: '0.15rem 0.35rem', borderRadius: '6px', fontWeight: 800 }}>
-              STUDENT PORTAL
+            <span style={{ fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.45rem', borderRadius: '6px', fontWeight: 800 }}>
+              COLLABORATE
             </span>
           )}
         </div>
 
+        {/* Current Page Title */}
+        {!isMobile && (
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+            {getPageTitle()}
+          </div>
+        )}
+
         {/* User Stats HUD */}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem' }}>
-          {/* Notification dropdown trigger */}
+          {/* Notification Center */}
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
               style={{
                 background: '#fff',
-                border: '2px solid #000',
+                border: '1px solid #cbd5e1',
                 borderRadius: '8px',
                 width: '32px',
                 height: '32px',
@@ -676,26 +858,28 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                boxShadow: '1.5px 1.5px 0px #000',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                 position: 'relative',
-                padding: 0
+                padding: 0,
+                outline: 'none'
               }}
             >
-              <span style={{ fontSize: '1rem' }}>🔔</span>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"></path>
+              </svg>
               {notifications.filter(n => !n.read).length > 0 && (
                 <span style={{
                   position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
+                  top: '-2px',
+                  right: '-2px',
                   background: 'var(--accent-pink)',
-                  border: '1.5px solid #000',
                   borderRadius: '50%',
                   minWidth: '14px',
                   height: '14px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.55rem',
+                  fontSize: '0.6rem',
                   fontWeight: 900,
                   color: '#fff',
                   padding: '2px'
@@ -712,63 +896,63 @@ export default function App() {
                 right: 0,
                 width: '280px',
                 background: '#fff',
-                border: '3px solid #000',
+                border: '1px solid #cbd5e1',
                 borderRadius: '12px',
-                boxShadow: '4px 4px 0px #000',
+                boxShadow: 'var(--shadow-flat-md)',
                 zIndex: 99999,
-                padding: '0.6rem',
+                padding: '0.75rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.4rem',
+                gap: '0.5rem',
                 maxHeight: '320px',
                 overflowY: 'auto'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #000', paddingBottom: '0.3rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 900 }}>NOTIFICATIONS</span>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>NOTIFICATIONS</span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-purple)' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-primary)' }}
                     >
-                      READ ALL
+                      Read All
                     </button>
                     <button
                       onClick={() => setNotifications([])}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-pink)' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-pink)' }}
                     >
-                      CLEAR
+                      Clear
                     </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {notifications.length === 0 ? (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No notifications</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No notifications</span>
                   ) : (
                     notifications.map(n => (
                       <div
                         key={n.id}
                         onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item))}
                         style={{
-                          background: n.read ? '#fcfcfc' : '#fff9db',
-                          border: '1.5px solid #000',
+                          background: n.read ? '#fff' : '#f5f3ff',
+                          border: '1px solid #e2e8f0',
                           borderRadius: '8px',
-                          padding: '0.4rem 0.5rem',
+                          padding: '0.5rem',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '1px',
+                          gap: '2px',
                           textAlign: 'left'
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.55rem', fontWeight: 900, color: 'var(--text-muted)' }}>
+                          <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                             {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                           {!n.read && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pink)' }} />}
                         </div>
-                        <strong style={{ fontSize: '0.75rem', color: '#000' }}>{n.title}</strong>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', lineHeight: '1.2' }}>{n.message}</span>
+                        <strong style={{ fontSize: '0.8rem', color: '#0f172a' }}>{n.title}</strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}>{n.message}</span>
                       </div>
                     ))
                   )}
@@ -777,58 +961,123 @@ export default function App() {
             )}
           </div>
 
-          {profilePhoto ? (
-            <img 
-              src={profilePhoto} 
-              alt="Profile" 
-              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #000', boxShadow: '1.5px 1.5px 0px #000' }} 
-            />
-          ) : (
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', border: '2px solid #000' }}>
-              👤
-            </div>
-          )}
-          
-          {!isMobile && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '0.8rem' }}>
-              <span style={{ fontWeight: 800, color: '#000' }}>{profile.name || user.name}</span>
-              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>{user.email}</span>
-            </div>
-          )}
-
-          {!isMobile && (
-            <button
-              onClick={handleLogOut}
-              className="cyber-btn"
-              style={{
-                padding: '0.45rem 0.85rem',
-                fontSize: '0.75rem',
-                background: '#fff',
-                color: '#000'
-              }}
+          {/* User Profile Avatar with Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <div 
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
             >
-              LOG OUT
-            </button>
-          )}
+              {profilePhoto ? (
+                <img 
+                  src={profilePhoto} 
+                  alt="Profile" 
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #cbd5e1', boxShadow: 'var(--shadow-flat-sm)' }} 
+                />
+              ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', border: '1px solid #cbd5e1' }}>
+                  👤
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', fontSize: '0.8rem', lineHeight: '1.2' }}>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{profile.name || user.name}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{user.email}</span>
+                </div>
+              )}
+            </div>
 
-          {isMobile && (
-            <span style={{ fontSize: '0.7rem', fontWeight: 800, border: '1.5px solid #000', background: 'var(--accent-gold)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-              LVL {level}
-            </span>
-          )}
+            {showProfileDropdown && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '180px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow-flat-md)',
+                zIndex: 99999,
+                padding: '0.5rem 0',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <button
+                  onClick={() => {
+                    setActiveMainTab('profile');
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', textAlign: 'left',
+                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                    color: 'var(--text-primary)', fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveMainTab('settings');
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', textAlign: 'left',
+                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                    color: 'var(--text-primary)', fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveMainTab('account');
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', textAlign: 'left',
+                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                    color: 'var(--text-primary)', fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  Account
+                </button>
+                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.25rem 0' }} />
+                <button
+                  onClick={() => {
+                    handleLogOut();
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', textAlign: 'left',
+                    padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
+                    color: 'var(--accent-pink)', fontWeight: 600
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Main bubbly navigation bar (Desktop only) */}
+      {/* Main navigation bar (Desktop only) */}
       {!isMobile && (
         <nav style={{
           display: 'flex',
           background: '#fff',
-          border: '3px solid #000',
-          borderRadius: '20px',
+          border: '1px solid #cbd5e1',
+          borderRadius: '12px',
           padding: '0.35rem',
           gap: '0.4rem',
-          boxShadow: '4px 4px 0px #000',
+          boxShadow: 'var(--shadow-flat-sm)',
           flexWrap: 'wrap'
         }}>
           {([
@@ -839,6 +1088,7 @@ export default function App() {
             { id: 'study_rooms', label: 'Study Rooms' },
             { id: 'ai_workspace', label: 'AI Workspace' },
             { id: 'planner', label: 'Planner' },
+            { id: 'leaderboard', label: 'Leaderboard' },
             { id: 'profile', label: 'Settings' }
           ] as const).map(tab => (
             <button
@@ -847,17 +1097,16 @@ export default function App() {
               style={{
                 flex: 1,
                 minWidth: '100px',
-                background: activeMainTab === tab.id ? 'var(--accent-purple)' : 'none',
-                border: activeMainTab === tab.id ? '2px solid #000' : '2px solid transparent',
-                borderRadius: '12px',
-                color: activeMainTab === tab.id ? '#000' : 'var(--text-muted)',
+                background: activeMainTab === tab.id ? 'var(--accent-primary-light)' : 'none',
+                border: 'none',
+                borderRadius: '8px',
+                color: activeMainTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)',
                 fontFamily: 'var(--font-heading)',
-                fontSize: '0.85rem',
-                fontWeight: 800,
+                fontSize: '0.875rem',
+                fontWeight: activeMainTab === tab.id ? 700 : 500,
                 padding: '0.6rem 0',
                 cursor: 'pointer',
-                boxShadow: activeMainTab === tab.id ? '2px 2px 0px #000' : 'none',
-                transition: 'all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                transition: 'all 0.15s ease'
               }}
             >
               {tab.label.toUpperCase()}
@@ -887,7 +1136,13 @@ export default function App() {
             courses={courses}
             studyPoints={studyPoints}
             milestonesCount={achievements.filter((a: any) => a.unlocked).length}
-            onNavigate={(tab) => setActiveMainTab(tab as Tab)}
+            onNavigate={(tab) => {
+              if (tab === 'notes') {
+                setActiveMainTab('shared_notes');
+              } else {
+                setActiveMainTab(tab as Tab);
+              }
+            }}
           />
         )}
 
@@ -953,6 +1208,16 @@ export default function App() {
           />
         )}
 
+        {/* Leaderboard Tab */}
+        {activeMainTab === 'leaderboard' && (
+          <Leaderboard
+            currentUserEmail={user.email}
+            currentCollege={profile.college}
+            currentDegree={profile.degree}
+            currentStudyPoints={studyPoints}
+          />
+        )}
+
         {/* Profile Tab */}
         {activeMainTab === 'profile' && (
           <ProfilePage
@@ -972,6 +1237,64 @@ export default function App() {
           />
         )}
 
+        {/* Settings Tab */}
+        {activeMainTab === 'settings' && (
+          <div className="glass-panel anim-pop" style={{ background: '#fff', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Application Settings</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Real-time Notifications</strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Get desktop alerts for direct messages and study rooms.</span>
+                </div>
+                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Sound Effects</strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Play soft notification sounds.</span>
+                </div>
+                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Public Presence</strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Show other students when you are online in study rooms.</span>
+                </div>
+                <input type="checkbox" style={{ width: '20px', height: '20px', cursor: 'pointer' }} defaultChecked />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Account Tab */}
+        {activeMainTab === 'account' && (
+          <div className="glass-panel anim-pop" style={{ background: '#fff', padding: '1.5rem', minHeight: '400px', textAlign: 'left' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>Account Details</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '400px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>EMAIL ADDRESS</span>
+                <strong style={{ fontSize: '0.95rem', color: '#000' }}>{user.email}</strong>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>ACCOUNT STATUS</span>
+                <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)' }}>{user.isGuest ? 'Guest Session' : 'Verified Academic Account'}</strong>
+              </div>
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Security Settings</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>To change password, update email or delete account, please access through the security dialog in the Settings tab.</p>
+                <button 
+                  onClick={() => setActiveMainTab('profile')} 
+                  className="cyber-btn purple-fill"
+                  style={{ width: 'fit-content' }}
+                >
+                  Manage Security via Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Study Quizzes Tab (Launcher option) */}
         {activeMainTab === 'quiz_station' && (
           <QuizGenerator onRewardXp={handleRewardXp} />
@@ -986,56 +1309,48 @@ export default function App() {
             onClick={() => setActiveMainTab('dashboard')} 
             className={`bottom-nav-btn ${activeMainTab === 'dashboard' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>🏠</span>
             <span>Home</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('shared_notes')} 
             className={`bottom-nav-btn ${activeMainTab === 'shared_notes' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>📚</span>
             <span>Notes</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('community_chat')} 
             className={`bottom-nav-btn ${activeMainTab === 'community_chat' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>💬</span>
             <span>Chat</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('study_groups')} 
             className={`bottom-nav-btn ${activeMainTab === 'study_groups' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>👥</span>
             <span>Groups</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('study_rooms')} 
             className={`bottom-nav-btn ${activeMainTab === 'study_rooms' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>🎥</span>
             <span>Rooms</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('ai_workspace')} 
             className={`bottom-nav-btn ${activeMainTab === 'ai_workspace' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>🤖</span>
             <span>AI Tools</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('planner')} 
             className={`bottom-nav-btn ${activeMainTab === 'planner' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>📅</span>
             <span>Planner</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('profile')} 
             className={`bottom-nav-btn ${activeMainTab === 'profile' ? 'active' : ''}`}
           >
-            <span style={{ fontSize: '1.2rem' }}>👤</span>
             <span>Settings</span>
           </button>
         </nav>
@@ -1059,10 +1374,10 @@ export default function App() {
             className="anim-pop"
             style={{
               background: '#fff',
-              border: '3px solid #000',
+              border: '1px solid #cbd5e1',
               borderRadius: '12px',
               padding: '0.75rem 1rem',
-              boxShadow: '4px 4px 0px #000',
+              boxShadow: 'var(--shadow-flat-md)',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.15rem',
@@ -1075,9 +1390,9 @@ export default function App() {
                 fontSize: '0.65rem',
                 fontWeight: 900,
                 background: t.type === 'message' ? 'var(--accent-purple)' : t.type === 'note' ? 'var(--accent-cyan)' : t.type === 'request' ? 'var(--accent-pink)' : 'var(--accent-gold)',
-                border: '1.5px solid #000',
                 borderRadius: '4px',
-                padding: '0.1rem 0.35rem'
+                padding: '0.1rem 0.35rem',
+                color: '#fff'
               }}>
                 {t.type.toUpperCase()}
               </span>
@@ -1088,7 +1403,7 @@ export default function App() {
                 ✕
               </button>
             </div>
-            <strong style={{ fontSize: '0.8rem', color: '#000' }}>{t.title}</strong>
+            <strong style={{ fontSize: '0.8rem', color: '#0f172a' }}>{t.title}</strong>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{t.message}</span>
           </div>
         ))}

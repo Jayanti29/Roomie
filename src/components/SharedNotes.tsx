@@ -1,7 +1,13 @@
-// src/components/SharedNotes.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, set, update, get, onChildAdded, onChildChanged, onChildRemoved } from '../firebase';
-import { uploadFile } from '../firebase';
+import { db, isFirebaseConfigured, ref, get, set, update, onChildAdded, onChildChanged, onChildRemoved, uploadFile } from '../firebase';
+
+interface Comment {
+  id: string;
+  author: string;
+  authorEmail: string;
+  text: string;
+  timestamp: number;
+}
 
 interface StudyNote {
   id: string;
@@ -12,20 +18,12 @@ interface StudyNote {
   authorEmail: string;
   likes: number;
   date: string;
-  comments?: Comment[];
+  comments: Comment[];
   pdfAttachment?: {
     name: string;
     size: string;
     url: string;
   };
-}
-
-interface Comment {
-  id: string;
-  author: string;
-  authorEmail: string;
-  text: string;
-  timestamp: number;
 }
 
 interface SharedNotesProps {
@@ -46,19 +44,17 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   isAdmin
 }) => {
   const [notes, setNotes] = useState<StudyNote[]>([]);
-  const [bookmarks, setBookmarks] = useState<string[]>([]);
-  
-  // Note Form State
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [course, setCourse] = useState(userCourse || 'General');
+  const [course, setCourse] = useState(userCourse || 'Computer Science');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter & Search State
+  // Filter states
   const [searchQuery, setSearchQuery] = useState('');
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState('All');
   const [filterType, setFilterType] = useState<'all' | 'bookmarks' | 'my-notes' | 'shared-with-me'>('all');
   
@@ -75,6 +71,38 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   const [selectedClassmate, setSelectedClassmate] = useState<{ email: string; name: string } | null>(null);
   const [sharingError, setSharingError] = useState('');
   const [sharingSuccess, setSharingSuccess] = useState(false);
+
+  // Preview DataURL loader for mock/local files
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeNote && activeNote.pdfAttachment) {
+      const url = activeNote.pdfAttachment.url;
+      if (url.startsWith('mock-file-url:')) {
+        const mockId = url.split(':')[1];
+        if (isFirebaseConfigured && db) {
+          get(ref(db, 'pdf_contents/' + mockId)).then(snap => {
+            if (snap.exists()) {
+              setPreviewDataUrl(snap.val());
+            }
+          });
+        }
+      } else {
+        setPreviewDataUrl(url);
+      }
+    } else {
+      setPreviewDataUrl(null);
+    }
+  }, [activeNote]);
+
+  const isImageFile = (name: string) => {
+    const ext = name.toLowerCase().split('.').pop();
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext || '');
+  };
+
+  const isPdfFile = (name: string) => {
+    return name.toLowerCase().endsWith('.pdf');
+  };
 
   const loadUsers = async () => {
     if (isFirebaseConfigured && db) {
@@ -114,6 +142,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     const shareId = `share_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const receiverKey = selectedClassmate.email.replace(/\./g, '_');
     
+    // Store reference pointer pointing to the original shared note instead of duplicating
     const sharedData = {
       ...noteToShare,
       id: shareId,
@@ -138,7 +167,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     }
   };
 
-  // Course options
   const courseOptions = ['All', 'Computer Science', 'Mathematics', 'BCA', 'MCA', 'Engineering', 'Medical', 'Commerce', 'Management', 'Law', 'Design', 'Science', 'Agriculture', 'Education', 'Government Exams', 'General'];
 
   // Subscribe to Notes from RTDB
@@ -220,7 +248,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     };
   }, [isFirebaseConfigured, userEmail]);
 
-  // PDF Change Handler
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setUploadError('');
@@ -250,7 +277,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     setPdfFile(file);
   };
 
-  // Create Note
   const handleCreateNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
@@ -304,7 +330,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     setIsSubmitting(false);
   };
 
-  // Toggle Bookmark
   const handleToggleBookmark = async (noteId: string) => {
     let updated;
     if (bookmarks.includes(noteId)) {
@@ -319,7 +344,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     }
   };
 
-  // Like Note
   const handleLikeNote = async (noteId: string) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
@@ -336,7 +360,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     }
   };
 
-  // Add Comment
   const handleAddComment = async (noteId: string) => {
     if (!commentText.trim()) return;
 
@@ -366,7 +389,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     setCommentText('');
   };
 
-  // Delete Note
   const handleDeleteNote = async (noteId: string) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
@@ -388,7 +410,42 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     }
   };
 
-  // Filters logic
+  const handleDownloadFile = async (attachment: { name: string; url: string }) => {
+    if (!attachment || !attachment.url) return;
+    const url = attachment.url;
+    const fileName = attachment.name;
+
+    if (url.startsWith('mock-file-url:')) {
+      const mockId = url.split(':')[1];
+      if (isFirebaseConfigured && db) {
+        try {
+          const snap = await get(ref(db, 'pdf_contents/' + mockId));
+          if (snap.exists()) {
+            const dataUrl = snap.val();
+            const link = document.createElement("a");
+            link.href = dataUrl;
+            link.download = fileName;
+            link.click();
+          } else {
+            alert("File content not found in mock database.");
+          }
+        } catch (e) {
+          console.error("Error downloading mock file:", e);
+        }
+      }
+    } else {
+      // Secure download handler: open cleanly in a new window or silent anchor element without router intercepts
+      const link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const sourceNotes = filterType === 'shared-with-me' ? sharedWithMeNotes : notes;
   const filteredNotes = sourceNotes.filter(n => {
     const matchesSearch = n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -407,19 +464,19 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   });
 
   return (
-    <div className="notes-board-grid" style={{ paddingBottom: '2rem' }}>
+    <div className="notes-board-grid" style={{ paddingBottom: '2rem', textAlign: 'left' }}>
       
       {/* LEFT PANEL: Create & Filters */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* Create Note Section */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '1rem' }}>
-            ✏️ SHARE STUDY MATERIAL
+        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+            Share Study Material
           </h3>
           <form onSubmit={handleCreateNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>NOTE TITLE</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Note Title</label>
               <input
                 type="text"
                 className="cyber-input"
@@ -431,7 +488,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>SUBJECT / COURSE</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Subject / Course</label>
               <select
                 className="cyber-input"
                 style={{ appearance: 'auto', cursor: 'pointer' }}
@@ -445,10 +502,10 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>CONTENT SUMMARY</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Content Summary</label>
               <textarea
                 className="cyber-input"
-                style={{ minHeight: '120px', resize: 'vertical' }}
+                style={{ minHeight: '100px', resize: 'vertical' }}
                 placeholder="Summarize the core topics covered, key formulas, or questions here..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -457,7 +514,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>ATTACH STUDY PDF (MAX 2MB)</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Attach Study Resource (PDF/Images/Docx up to 100MB)</label>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <button
                   type="button"
@@ -465,49 +522,49 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   className="cyber-btn"
                   style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', minHeight: '36px', background: '#eae8e8' }}
                 >
-                  SELECT FILE
+                  Select File
                 </button>
                 <input
                   type="file"
                   ref={fileInputRef}
                   style={{ display: 'none' }}
-                  accept="application/pdf"
+                  accept=".pdf,.docx,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp"
                   onChange={handlePdfUpload}
                 />
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {pdfFile ? pdfFile.name : 'No file chosen'}
                 </span>
               </div>
-              {uploadError && <span style={{ fontSize: '0.7rem', color: 'var(--accent-pink)', fontWeight: 800 }}>{uploadError}</span>}
+              {uploadError && <span style={{ fontSize: '0.7rem', color: 'var(--accent-pink)', fontWeight: 700 }}>{uploadError}</span>}
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
               className="cyber-btn pink-fill"
-              style={{ width: '100%', marginTop: '0.5rem', border: '3.5px solid #000', boxShadow: '4px 4px 0px #000' }}
+              style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
             >
-              {isSubmitting ? 'UPLOADING...' : 'PUBLISH RESOURCE'}
+              {isSubmitting ? 'Uploading resource...' : 'Publish Study Material'}
             </button>
           </form>
         </div>
 
         {/* Filter Notes Section */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '1rem' }}>
-            🔍 SEARCH & FILTER
+        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+            Filter Shelf
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
             <input
               type="text"
               className="cyber-input"
-              placeholder="Search title, content, or author..."
+              placeholder="Search title or author..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SUBJECT TAG</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Subject Filter</label>
               <select
                 className="cyber-input"
                 style={{ appearance: 'auto', cursor: 'pointer' }}
@@ -520,7 +577,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               </select>
             </div>
 
-            <div style={{ display: 'flex', border: '2px solid #000', borderRadius: '10px', overflow: 'hidden', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', flexWrap: 'wrap' }}>
               {(['all', 'bookmarks', 'my-notes', 'shared-with-me'] as const).map((type, idx) => (
                 <button
                   key={type}
@@ -528,17 +585,18 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   style={{
                     flex: 1,
                     minWidth: '50px',
-                    background: filterType === type ? 'var(--accent-cyan)' : '#fff',
+                    background: filterType === type ? 'var(--accent-primary-light)' : '#fff',
                     border: 'none',
-                    borderRight: idx !== 3 ? '2px solid #000' : 'none',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
+                    borderRight: idx !== 3 ? '1px solid #e2e8f0' : 'none',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: filterType === type ? 'var(--accent-primary)' : 'var(--text-muted)',
                     padding: '0.5rem 0.25rem',
                     cursor: 'pointer',
                     outline: 'none'
                   }}
                 >
-                  {type === 'all' ? 'ALL' : type === 'bookmarks' ? 'SAVED' : type === 'my-notes' ? 'MINE' : 'SHARED'}
+                  {type === 'all' ? 'All' : type === 'bookmarks' ? 'Saved' : type === 'my-notes' ? 'Mine' : 'Shared'}
                 </button>
               ))}
             </div>
@@ -548,14 +606,13 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
       {/* RIGHT PANEL: Shared Resources List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div className="glass-panel" style={{ background: '#fff', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
-            📚 ACADEMIC STUDY SHELF
+        <div className="glass-panel" style={{ background: '#fff', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', color: '#0f172a' }}>
+            Academic Study Shelf
           </h3>
 
           {filteredNotes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-              <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>📭</span>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontWeight: 600 }}>
               No study materials found matching the filters.
             </div>
           ) : (
@@ -565,11 +622,11 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   key={note.id}
                   className="anim-pop"
                   style={{
-                    border: '3px solid #000',
-                    borderRadius: '16px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
                     padding: '1rem',
-                    background: '#fffcf5',
-                    boxShadow: '3px 3px 0px #000',
+                    background: '#ffffff',
+                    boxShadow: 'var(--shadow-flat-sm)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.6rem',
@@ -580,25 +637,25 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                     <span style={{
                       fontSize: '0.65rem',
-                      fontWeight: 900,
-                      background: 'var(--accent-purple)',
-                      border: '1.5px solid #000',
-                      borderRadius: '4px',
-                      padding: '0.1rem 0.4rem'
+                      fontWeight: 800,
+                      background: 'var(--accent-primary-light)',
+                      color: 'var(--accent-primary)',
+                      padding: '0.15rem 0.4rem',
+                      borderRadius: '4px'
                     }}>
                       {note.course.toUpperCase()}
                     </span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800 }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {note.date}
                     </span>
                   </div>
 
                   <div>
-                    <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800, color: '#000', marginBottom: '0.2rem' }}>
+                    <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.2rem' }}>
                       {note.title}
                     </h4>
                     <p style={{
-                      fontSize: '0.75rem',
+                      fontSize: '0.8rem',
                       color: 'var(--text-secondary)',
                       lineHeight: '1.4',
                       overflow: 'hidden',
@@ -611,37 +668,36 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   </div>
 
                   {note.pdfAttachment && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1.5px solid #000', background: '#eaeaea', padding: '0.35rem 0.5rem', borderRadius: '6px', width: 'fit-content' }}>
-                      <span style={{ fontSize: '0.9rem' }}>📄</span>
-                      <strong style={{ fontSize: '0.7rem', color: '#000' }}>{note.pdfAttachment.name}</strong>
-                      <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>({note.pdfAttachment.size})</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #cbd5e1', background: '#f8fafc', padding: '0.35rem 0.5rem', borderRadius: '6px', width: 'fit-content' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{note.pdfAttachment.name}</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>({note.pdfAttachment.size})</span>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1.5px solid #eee', paddingTop: '0.5rem', marginTop: '0.2rem' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-                      ✍️ By: {note.author}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', marginTop: '0.2rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      By: {note.author}
                     </span>
                     
                     <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleLikeNote(note.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', fontWeight: 800 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}
                       >
-                        👍 {note.likes || 0}
+                        Like {note.likes || 0}
                       </button>
                       <button
                         onClick={() => handleToggleBookmark(note.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-secondary)' }}
                       >
-                        {bookmarks.includes(note.id) ? '⭐' : '☆'}
+                        {bookmarks.includes(note.id) ? 'Saved' : 'Save'}
                       </button>
                       <button
                         onClick={() => handleOpenShareModal(note)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-secondary)' }}
                         title="Share Note"
                       >
-                        📤
+                        Share
                       </button>
                     </div>
                   </div>
@@ -656,27 +712,27 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       {activeNote && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 999999, display: 'flex',
+          background: 'rgba(15,23,42,0.4)', zIndex: 999999, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }} onClick={() => setActiveNote(null)}>
           
           <div className="glass-panel anim-pop" style={{
             maxWidth: '600px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-            background: '#fff', border: '3.5px solid #000', borderRadius: '20px',
+            background: '#fff', border: '1px solid #cbd5e1', borderRadius: '16px',
             padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem',
-            textAlign: 'left'
+            textAlign: 'left', boxShadow: 'var(--shadow-flat-lg)'
           }} onClick={(e) => e.stopPropagation()}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
               <div>
-                <span style={{ fontSize: '0.65rem', background: 'var(--accent-gold)', border: '1.5px solid #000', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 900, marginRight: '0.5rem' }}>
+                <span style={{ fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700, marginRight: '0.5rem' }}>
                   {activeNote.course.toUpperCase()}
                 </span>
-                <strong style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#000', display: 'block', marginTop: '0.25rem' }}>{activeNote.title}</strong>
+                <strong style={{ fontSize: '1.1rem', fontFamily: 'var(--font-heading)', color: '#0f172a', display: 'block', marginTop: '0.25rem' }}>{activeNote.title}</strong>
               </div>
               <button
                 onClick={() => setActiveNote(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 900 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 900 }}
               >
                 ✕
               </button>
@@ -687,56 +743,75 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             {activeNote.pdfAttachment && (
-              <div style={{
-                border: '2.5px solid #000', background: '#fffcf0', padding: '0.75rem',
-                borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.5rem' }}>📄</span>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <strong style={{ fontSize: '0.8rem' }}>{activeNote.pdfAttachment.name}</strong>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>PDF Size: {activeNote.pdfAttachment.size}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid #cbd5e1', padding: '1rem', borderRadius: '8px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block' }}>{activeNote.pdfAttachment.name}</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Size: {activeNote.pdfAttachment.size}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => handleDownloadFile(activeNote.pdfAttachment!)}
+                      className="cyber-btn cyan-fill"
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 'auto' }}
+                    >
+                      Download
+                    </button>
                   </div>
                 </div>
-                <a
-                  href={activeNote.pdfAttachment.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="cyber-btn"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: 'var(--accent-cyan)' }}
-                >
-                  DOWNLOAD
-                </a>
+
+                {/* Inline Previewer */}
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                  {isImageFile(activeNote.pdfAttachment.name) ? (
+                    <img 
+                      src={previewDataUrl || ''} 
+                      alt="Attachment Preview" 
+                      style={{ maxWidth: '100%', maxHeight: '240px', objectFit: 'contain', display: 'block', margin: '0 auto', borderRadius: '6px' }} 
+                    />
+                  ) : isPdfFile(activeNote.pdfAttachment.name) ? (
+                    <iframe 
+                      src={previewDataUrl || ''} 
+                      title="PDF Preview"
+                      style={{ width: '100%', height: '240px', border: '1px solid #e2e8f0', borderRadius: '6px' }} 
+                    />
+                  ) : (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem', textAlign: 'center' }}>
+                      No preview available for this document type (DOCX/PPTX). Click Download to open.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #000', paddingTop: '0.6rem', fontSize: '0.75rem', fontWeight: 800 }}>
-              <span>✍️ Posted by: {activeNote.author} ({activeNote.authorEmail})</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem', fontSize: '0.75rem', fontWeight: 600 }}>
+              <span>Posted by: {activeNote.author} ({activeNote.authorEmail})</span>
               {(activeNote.authorEmail === userEmail || isAdmin) && (
                 <button
                   onClick={() => handleDeleteNote(activeNote.id)}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', fontWeight: 900 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', fontWeight: 700 }}
                 >
-                  DELETE NOTE
+                  Delete Note
                 </button>
               )}
             </div>
 
             {/* Comments Section */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <h5 style={{ fontSize: '0.8rem', fontWeight: 900 }}>COMMENTS ({(activeNote.comments || []).length})</h5>
+              <h5 style={{ fontSize: '0.8rem', fontWeight: 800 }}>Comments ({(activeNote.comments || []).length})</h5>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '150px', overflowY: 'auto' }}>
                 {!(activeNote.comments) || activeNote.comments.length === 0 ? (
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No comments yet. Write the first one!</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No comments yet.</span>
                 ) : (
                   activeNote.comments.map(c => (
-                    <div key={c.id} style={{ background: '#f8f9fa', border: '1.5px solid #000', padding: '0.4rem 0.6rem', borderRadius: '8px', fontSize: '0.75rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, marginBottom: '2px', fontSize: '0.65rem' }}>
+                    <div key={c.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.4rem 0.6rem', borderRadius: '8px', fontSize: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '2px', fontSize: '0.65rem' }}>
                         <span>{c.author}</span>
                         <span style={{ color: 'var(--text-muted)' }}>{new Date(c.timestamp).toLocaleDateString()}</span>
                       </div>
-                      <span style={{ color: '#333' }}>{c.text}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{c.text}</span>
                     </div>
                   ))
                 )}
@@ -756,7 +831,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   className="cyber-btn purple-fill"
                   style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', minHeight: '38px' }}
                 >
-                  POST
+                  Post
                 </button>
               </div>
             </div>
@@ -769,17 +844,17 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       {shareModalOpen && noteToShare && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 999999, display: 'flex',
+          background: 'rgba(15,23,42,0.4)', zIndex: 999999, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel anim-pop" style={{
             maxWidth: '450px', width: '100%',
-            background: '#fff', border: '3.5px solid #000', borderRadius: '20px',
+            background: '#fff', border: '1px solid #cbd5e1', borderRadius: '16px',
             padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem',
             textAlign: 'left'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
-              <strong style={{ fontSize: '1.1rem', fontFamily: 'var(--font-heading)', color: '#000' }}>SHARE NOTE</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+              <strong style={{ fontSize: '1rem', fontFamily: 'var(--font-heading)', color: '#0f172a' }}>Share Note</strong>
               <button onClick={() => setShareModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 900 }}>✕</button>
             </div>
             
@@ -788,7 +863,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>SEARCH CLASSMATE</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Search Classmate</label>
               <input
                 type="text"
                 className="cyber-input"
@@ -799,7 +874,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             {/* Classmates Results */}
-            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '2px solid #000', borderRadius: '10px', background: '#fafafa', padding: '0.25rem' }}>
+            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', padding: '0.25rem' }}>
               {allUsers
                 .filter(u => u.email !== userEmail && (u.name.toLowerCase().includes(shareSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(shareSearchQuery.toLowerCase())))
                 .slice(0, 10)
@@ -812,12 +887,13 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                       cursor: 'pointer',
                       borderRadius: '6px',
                       fontSize: '0.75rem',
-                      fontWeight: 700,
-                      background: selectedClassmate?.email === u.email ? 'var(--accent-cyan)' : 'transparent',
-                      border: selectedClassmate?.email === u.email ? '1.5px solid #000' : '1.5px solid transparent',
+                      fontWeight: 600,
+                      background: selectedClassmate?.email === u.email ? 'var(--accent-primary-light)' : 'transparent',
+                      border: selectedClassmate?.email === u.email ? '1px solid var(--accent-primary)' : '1px solid transparent',
                       marginBottom: '0.2rem',
                       display: 'flex',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+                      color: selectedClassmate?.email === u.email ? 'var(--accent-primary)' : 'var(--text-primary)'
                     }}
                   >
                     <span>{u.name}</span>
@@ -830,17 +906,17 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             </div>
 
             {selectedClassmate && (
-              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#009688', background: '#e0f2f1', border: '1.5px solid #000', borderRadius: '8px', padding: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0d9488', background: '#f0fdfa', border: '1px solid #5eead4', borderRadius: '8px', padding: '0.5rem' }}>
                 Selected: {selectedClassmate.name} ({selectedClassmate.email})
               </div>
             )}
 
             {sharingError && (
-              <div style={{ fontSize: '0.75rem', color: 'red', fontWeight: 800 }}>{sharingError}</div>
+              <div style={{ fontSize: '0.75rem', color: 'red', fontWeight: 600 }}>{sharingError}</div>
             )}
 
             {sharingSuccess && (
-              <div style={{ fontSize: '0.75rem', color: 'green', fontWeight: 800 }}>Note shared successfully!</div>
+              <div style={{ fontSize: '0.75rem', color: 'green', fontWeight: 600 }}>Note shared successfully!</div>
             )}
 
             <button
@@ -849,7 +925,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               className="cyber-btn cyan-fill"
               style={{ width: '100%', padding: '0.6rem' }}
             >
-              CONFIRM SHARE
+              Confirm Share
             </button>
           </div>
         </div>

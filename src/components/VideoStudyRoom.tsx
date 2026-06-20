@@ -865,7 +865,24 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
+    const initialDoc = {
+      id: room.id,
+      title: room.title,
+      topic: room.topic,
+      hostEmail: '',
+      hostPeerId: '',
+      createdAt: Date.now(),
+      ownerId: '',
+      participants: {
+        [myPeerId]: me
+      },
+      messages: {},
+      notes: {},
+      pdfs: {}
+    };
+
     if (isFirebaseConfigured && db) {
+      setActiveRoomDoc(initialDoc);
       const idRef = ref(db, `study_rooms/${room.id}/id`);
       get(idRef).then((idSnap) => {
         if (idSnap.exists()) {
@@ -882,7 +899,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           });
         } else {
           const roomRef = ref(db, 'study_rooms/' + room.id);
-          set(roomRef, {
+          const fullRoom = {
             id: room.id,
             title: room.title,
             topic: room.topic,
@@ -890,7 +907,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             messages: {},
             notes: {},
             pdfs: {}
-          }).then(() => {
+          };
+          setActiveRoomDoc(fullRoom);
+          set(roomRef, fullRoom).then(() => {
             push(ref(db, `study_rooms/${room.id}/messages`), { id: 'join_system', sender: 'System', text: `Welcome to ${room.title}. Connect your webcam stream below!`, time: '' }).catch(console.error);
             push(ref(db, `study_rooms/${room.id}/messages`), sysMsg).catch(console.error);
             setActiveRoom(room);
@@ -904,6 +923,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         setActiveRoom(room);
       });
     } else {
+      setActiveRoomDoc(initialDoc);
       setActiveRoom(room);
     }
   };
@@ -1028,6 +1048,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     };
 
     if (isFirebaseConfigured && db) {
+      setActiveRoomDoc(newRoom);
       set(ref(db, 'study_rooms/' + roomId), newRoom)
         .then(() => {
           // Creator auto-enters immediately — no modal
@@ -1039,6 +1060,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           setActiveRoom(roomObj);
         });
     } else {
+      setActiveRoomDoc(newRoom);
       setActiveRoom(roomObj);
     }
 
@@ -2173,8 +2195,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                     />
                   </div>
                 ) : (
-                  <div style={{ padding: '0.5rem', background: '#ffeef2', border: '2px solid #000', borderRadius: '8px', textAlign: 'center', marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--accent-pink)' }}>🔒 GUEST LIMIT: UPLOAD LOCKED</span>
+                  <div style={{ padding: '0.5rem', background: '#ffeef2', border: '1px solid var(--outline-thick)', borderRadius: '8px', textAlign: 'center', marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--accent-pink)' }}>GUEST LIMIT: UPLOAD LOCKED</span>
                   </div>
                 )}
               </div>
@@ -2277,12 +2299,12 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                   )}
                 </div>
                 {isGuest ? (
-                  <div style={{ padding: '0.75rem', background: '#ffeef2', border: '2px solid #000', borderRadius: '8px', textAlign: 'center', marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--accent-pink)' }}>🔒 GUEST LIMIT</span>
+                  <div style={{ padding: '0.75rem', background: '#ffeef2', border: '1px solid var(--outline-thick)', borderRadius: '8px', textAlign: 'center', marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 900, color: 'var(--accent-pink)' }}>GUEST LIMIT</span>
                     <p style={{ fontSize: '0.65rem', margin: '0.25rem 0', fontWeight: 700 }}>Guests cannot share notes in rooms.</p>
                   </div>
                 ) : (
-                  <form onSubmit={handleShareRoomNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', borderTop: '2px solid #000', paddingTop: '0.5rem' }}>
+                  <form onSubmit={handleShareRoomNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', borderTop: '1px solid var(--outline-thick)', paddingTop: '0.5rem' }}>
                     <input
                       type="text"
                       placeholder="Note Title (e.g. Formula List)"
@@ -2336,11 +2358,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         {activeRightTab === 'members' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', height: 'calc(100% - 40px)', overflowY: 'auto' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>ROOM CONTROLS & MEMBERS:</span>
-            <div style={{ background: '#f8fafc', border: '2px solid #000', borderRadius: '12px', padding: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: '#f8fafc', border: '1px solid var(--outline-thick)', borderRadius: '12px', padding: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>Room Lock Status</span>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                  {activeRoomDoc?.isLocked ? '🔒 LOCKED (Strict approval)' : '🔓 OPEN (Request to join)'}
+                  {activeRoomDoc?.isLocked ? 'LOCKED (Strict approval)' : 'OPEN (Request to join)'}
                 </span>
               </div>
               {isMod && (
@@ -2524,12 +2546,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           gap: '1.5rem',
           padding: '2rem',
           background: '#fff',
-          border: '3.5px solid #000',
+          border: '1px solid var(--outline-thick)',
           borderRadius: '20px',
-          boxShadow: '6px 6px 0px #000',
+          boxShadow: 'var(--shadow-flat-sm)',
           textAlign: 'center'
         }}>
-          <div style={{ fontSize: '3rem' }}>⏳</div>
           <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800 }}>
             WAITING FOR APPROVAL
           </h3>
@@ -2696,8 +2717,8 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 HOST STUDY ROOM
               </h3>
               {isGuest ? (
-                <div style={{ padding: '1.25rem 1rem', background: '#ffeef2', border: '2.5px solid #000', borderRadius: '12px', textAlign: 'center', boxShadow: '3px 3px 0px #000' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>🔒 ACCOUNT REQUIRED</span>
+                <div style={{ padding: '1.25rem 1rem', background: '#ffeef2', border: '1px solid var(--outline-thick)', borderRadius: '12px', textAlign: 'center', boxShadow: 'var(--shadow-flat-sm)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>ACCOUNT REQUIRED</span>
                   <p style={{ fontSize: '0.75rem', margin: '0.5rem 0', fontWeight: 700 }}>Guest users cannot host study rooms. Register your account to unlock full hosting privileges!</p>
                 </div>
               ) : (
@@ -2816,18 +2837,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             }}>
               <div className="glass-panel anim-pop" data-testid="join-request-notification" style={{
                 background: '#fff',
-                border: '3.5px solid #000',
+                border: '1px solid var(--outline-thick)',
                 borderRadius: '16px',
                 padding: '1.25rem',
                 maxWidth: '400px',
                 width: '100%',
-                boxShadow: '8px 8px 0px #000',
+                boxShadow: 'var(--shadow-flat-sm)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem'
               }}>
-                <div style={{ borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>⚠️ INCOMING JOIN REQUEST</span>
+                <div style={{ borderBottom: '1px solid var(--outline-thick)', paddingBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent-pink)' }}>INCOMING JOIN REQUEST</span>
                 </div>
                 {Object.values(activeRoomDoc?.joinRequests || {})
                   .filter((r: any) => r.status === 'pending')
@@ -2891,18 +2912,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
               {(!import.meta.env.VITE_TURN_URL || !import.meta.env.VITE_TURN_USERNAME || !import.meta.env.VITE_TURN_PASSWORD) && (
                 <div style={{
                   background: '#ffeef2',
-                  border: '2.5px solid #000',
+                  border: '1px solid var(--outline-thick)',
                   borderRadius: '14px',
                   padding: '0.75rem',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  boxShadow: '3px 3px 0px #000',
+                  boxShadow: 'var(--shadow-flat-sm)',
                   fontSize: '0.75rem',
                   fontWeight: 800,
                   color: 'var(--accent-pink)'
                 }}>
-                  ⚠️ WARNING: WebRTC TURN server is not configured. Media connections may fail across different network firewalls.
+                  WARNING: WebRTC TURN server is not configured. Media connections may fail across different network firewalls.
                 </div>
               )}
 
@@ -2952,10 +2973,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                   boxShadow: '3px 3px 0px #000'
                 }}>
                   {([
-                    { id: 'video', label: '📹 Video' },
-                    { id: 'chat', label: '💬 Chat' },
-                    { id: 'participants', label: '👥 Members' },
-                    { id: 'notes', label: '📚 Notes' }
+                    { id: 'video', label: 'Video' },
+                    { id: 'chat', label: 'Chat' },
+                    { id: 'participants', label: 'Members' },
+                    { id: 'notes', label: 'Notes' }
                   ] as const).map(tab => (
                     <button
                       key={tab.id}
@@ -3006,15 +3027,15 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                       
                       {/* User Stream card (Only shown on Page 0) */}
                       {galleryPage === 0 && (
-                        <div style={{ position: 'relative', background: '#000', border: '3px solid #000', borderRadius: '16px', overflow: 'hidden', boxShadow: '3px 3px 0px #000', aspectRatio: '1.3' }}>
+                        <div style={{ position: 'relative', background: '#000', border: '1px solid var(--outline-thick)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-flat-sm)', aspectRatio: '1.3' }}>
                           {/* Status badges */}
                           <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.25rem', zIndex: 10 }}>
-                            <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>● ONLINE</span>
+                            <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>Online</span>
                             <span style={{ background: cameraOn ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
-                              {cameraOn ? '📷 ON' : '📷 OFF'}
+                              {cameraOn ? 'Camera On' : 'Camera Off'}
                             </span>
                             <span style={{ background: micOn ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
-                              {micOn ? '🎙️ ON' : '🎙️ MUTED'}
+                              {micOn ? 'Mic On' : 'Mic Muted'}
                             </span>
                           </div>
                           {cameraOn && !cameraError && cameraStream ? (
@@ -3083,10 +3104,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                             style={{ 
                               position: 'relative', 
                               background: '#fcfcfc', 
-                              border: '3px solid #000', 
+                              border: '1px solid var(--outline-thick)', 
                               borderRadius: '16px', 
                               overflow: 'hidden', 
-                              boxShadow: '3px 3px 0px #000', 
+                              boxShadow: 'var(--shadow-flat-sm)', 
                               aspectRatio: '1.3',
                               display: 'flex', 
                               alignItems: 'center', 
@@ -3095,12 +3116,12 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                           >
                             {/* Status badges */}
                             <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.25rem', zIndex: 10 }}>
-                              <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>● ONLINE</span>
+                              <span style={{ background: '#4caf50', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>Online</span>
                               <span style={{ background: isLiveVideo ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
-                                {isLiveVideo ? '📷 ON' : '📷 OFF'}
+                                {isLiveVideo ? 'Camera On' : 'Camera Off'}
                               </span>
                               <span style={{ background: !friend.isMuted ? '#4caf50' : '#f44336', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800 }}>
-                                {!friend.isMuted ? '🎙️ ON' : '🎙️ MUTED'}
+                                {!friend.isMuted ? 'Mic On' : 'Mic Muted'}
                               </span>
                             </div>
                             {renderParticipantVideo(friend)}
@@ -3220,7 +3241,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                   className={`cyber-btn ${myRaisedHand ? 'gold-fill' : 'purple-fill'}`}
                   style={{ padding: '0.45rem 1.0rem', fontSize: '0.75rem', flex: 1, minWidth: '80px' }}
                 >
-                  {myRaisedHand ? '✋ LOWER' : '🙋 RAISE'}
+                  {myRaisedHand ? 'LOWER HAND' : 'RAISE HAND'}
                 </button>
                 <button 
                   onClick={toggleScreenShare}

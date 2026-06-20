@@ -1,55 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ==========================================================================
-   NEO-BRUTALIST CARTOON DESIGN SYSTEM
+   PROFESSIONAL ACADEMIC DESIGN SYSTEM (ROOMIE V4.0)
    ========================================================================== */
 
 :root {
   /* Fonts */
-  --font-heading: 'Fredoka', -apple-system, sans-serif;
-  --font-body: 'Nunito', -apple-system, sans-serif;
-  --font-mono: 'Fredoka', monospace;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 
-  /* Bubbly Palette */
-  --bg-app: #e4f9b8; /* Soft Bouncy Lime */
+  /* Color Palette - Premium Slate & Clean Gradients */
+  --bg-app: #f8fafc; /* Slate 50 */
   --bg-card: #ffffff; /* Clean White */
   
-  /* Bright Cartoon Accent Colors */
-  --accent-cyan: #3be2b4; /* Aqua Mint */
-  --accent-purple: #c58fff; /* Lilac Violet */
-  --accent-gold: #ffe436; /* Cyber Yellow */
-  --accent-pink: #ff7bb5; /* Bouncy Coral Pink */
-  --accent-green: #7ee034; /* Playful Grass Green */
+  /* Academic Indigo Accent Theme */
+  --accent-primary: #4f46e5; /* Indigo 600 */
+  --accent-primary-hover: #4338ca; /* Indigo 700 */
+  --accent-primary-light: #e0e7ff; /* Indigo 100 */
+  
+  /* Unified Semantic Accents */
+  --accent-cyan: #0d9488; /* Teal 600 */
+  --accent-purple: #7c3aed; /* Violet 600 */
+  --accent-gold: #d97706; /* Amber 600 */
+  --accent-pink: #db2777; /* Pink 600 */
+  --accent-green: #059669; /* Emerald 600 */
 
   /* Text Colors */
-  --text-primary: #000000;
-  --text-secondary: #2c2c2c;
-  --text-muted: #666666;
+  --text-primary: #0f172a; /* Slate 900 */
+  --text-secondary: #334155; /* Slate 700 */
+  --text-muted: #64748b; /* Slate 500 */
 
-  /* Brutalism Outlines & Shadows */
-  --outline-thick: 3px solid #000000;
-  --outline-medium: 2px solid #000000;
-  --shadow-flat-sm: 3px 3px 0px #000000;
-  --shadow-flat-md: 6px 6px 0px #000000;
-  --shadow-flat-lg: 10px 10px 0px #000000;
+  /* Borders & Spacing */
+  --outline-thick: 1px solid #cbd5e1; /* Slate 300 */
+  --outline-medium: 1px solid #e2e8f0; /* Slate 200 */
   
-  /* Corners */
-  --border-radius-sm: 10px;
-  --border-radius-md: 20px;
-  --border-radius-lg: 28px;
+  /* Modern Soft Shadows */
+  --shadow-flat-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-flat-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+  --shadow-flat-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  
+  /* Rounded Corners */
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
   --border-radius-full: 9999px;
 
   /* Custom Scrollbar colors */
-  --scrollbar-track: #ffffff;
-  --scrollbar-thumb: #000000;
-
-  /* Global Properties */
-  color-scheme: light;
-  accent-color: var(--accent-pink);
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
 }
 
 /* ==========================================================================
-   BASE CARTOON STYLES
+   BASE BASE STYLES
    ========================================================================== */
 
 * {
@@ -64,207 +67,206 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  /* Retro Grid Pattern */
-  background-image: 
-    radial-gradient(#000000 1px, transparent 1px),
-    linear-gradient(#d3f095 1.5px, transparent 1.5px),
-    linear-gradient(90deg, #d3f095 1.5px, transparent 1.5px);
-  background-size: 24px 24px, 48px 48px, 48px 48px;
-  background-attachment: fixed;
-  line-height: 1.4;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  padding: 1rem 0;
+  padding: 0;
 }
 
-/* Playful Rounded Scrollbars */
-:root {
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+/* Rounded Clean Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-
-@supports not (scrollbar-color: auto) {
-  ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
-  }
-  ::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
-    border-left: var(--outline-medium);
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border: var(--outline-medium);
-    border-radius: var(--border-radius-full);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-pink);
-  }
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--border-radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* ==========================================================================
-   NEO-BRUTALIST CARTOON PANELS
+   GLASS PANELS (NOTION/SLACK CARD INSPIRED)
    ========================================================================== */
 
 .glass-panel {
   background: var(--bg-card);
-  border: var(--outline-thick);
+  border: var(--outline-medium);
   border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-flat-md);
+  box-shadow: var(--shadow-flat-sm);
   padding: 1.5rem;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .glass-panel:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 8px 8px 0px #000000;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-flat-md);
 }
 
 .glass-panel.glowing-cyan {
-  background: var(--bg-card);
+  border-left: 4px solid var(--accent-cyan);
 }
 .glass-panel.glowing-purple {
-  background: var(--bg-card);
+  border-left: 4px solid var(--accent-purple);
 }
 .glass-panel.glowing-gold {
-  background: var(--bg-card);
+  border-left: 4px solid var(--accent-gold);
 }
 
 /* ==========================================================================
-   BOUNCY BUTTONS & FORMS
+   PROFESSIONAL BUTTONS & FORMS
    ========================================================================== */
 
 button.cyber-btn {
   font-family: var(--font-heading);
-  font-weight: 700;
-  font-size: 0.9rem;
+  font-weight: 600;
+  font-size: 0.875rem;
   color: var(--text-primary);
-  background: var(--accent-gold);
-  border: var(--outline-thick);
-  padding: 0.65rem 1.25rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 1rem;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: var(--shadow-flat-sm);
-  transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  outline: none;
 }
 
 button.cyber-btn:hover:not(:disabled) {
-  background: #fff;
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0px #000000;
+  background: #f8fafc;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
 }
 
 button.cyber-btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px #000000;
+  transform: translateY(0);
 }
 
 button.cyber-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
+/* Color Fills - Professional Styles */
 button.cyber-btn.cyan-fill {
   background: var(--accent-cyan);
+  color: #ffffff;
+  border-color: transparent;
 }
 button.cyber-btn.cyan-fill:hover:not(:disabled) {
-  background: #fff;
+  background: #0b7a70;
+  color: #ffffff;
 }
 
 button.cyber-btn.purple-fill {
   background: var(--accent-purple);
+  color: #ffffff;
+  border-color: transparent;
 }
 button.cyber-btn.purple-fill:hover:not(:disabled) {
-  background: #fff;
+  background: #6d28d9;
+  color: #ffffff;
 }
 
 button.cyber-btn.gold-fill {
   background: var(--accent-gold);
+  color: #ffffff;
+  border-color: transparent;
 }
 button.cyber-btn.gold-fill:hover:not(:disabled) {
-  background: #fff;
+  background: #b45309;
+  color: #ffffff;
 }
 
 button.cyber-btn.pink-fill {
-  background: var(--accent-pink);
-  color: #fff;
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: transparent;
 }
 button.cyber-btn.pink-fill:hover:not(:disabled) {
-  background: #fff;
-  color: #000;
+  background: var(--accent-primary-hover);
+  color: #ffffff;
 }
 
-/* Playful Inputs */
+/* Professional Form Inputs */
 input.cyber-input {
   background: #ffffff;
-  border: var(--outline-medium);
+  border: 1px solid #cbd5e1;
   border-radius: var(--border-radius-sm);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-weight: 600;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
   transition: all 0.15s ease;
   width: 100%;
+  outline: none;
 }
 
 input.cyber-input:focus {
-  outline: none;
-  border-width: 3px;
-  box-shadow: var(--shadow-flat-sm);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-light);
+}
+
+select.cyber-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 2rem;
+}
+
+select.cyber-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-light);
+}
+
+textarea.cyber-input {
+  min-height: 100px;
 }
 
 /* ==========================================================================
-   BOUNCY ANIMATIONS
+   MICRO-ANIMATIONS
    ========================================================================== */
 
-@keyframes float-bouncy {
+@keyframes float-gentle {
   0%, 100% {
-    transform: translateY(0px) rotate(0deg);
+    transform: translateY(0px);
   }
   50% {
-    transform: translateY(-6px) rotate(1.5deg);
+    transform: translateY(-4px);
   }
 }
 
-@keyframes bubble-spawn {
-  0% { transform: scale(0.9); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+@keyframes fade-in-up {
+  0% { 
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% { 
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .anim-float {
-  animation: float-bouncy 3.5s ease-in-out infinite;
+  animation: float-gentle 4s ease-in-out infinite;
 }
 
 .anim-pop {
-  animation: bubble-spawn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-/* Screen shake for boss hit */
-@keyframes shake-brutal {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(-4px, 2px); }
-  50% { transform: translate(4px, -2px); }
-  75% { transform: translate(-2px, -2px); }
-}
-.anim-shake {
-  animation: shake-brutal 0.3s ease-in-out;
-}
-
-/* Screen flash red */
-@keyframes flash-red {
-  0%, 100% { background-color: var(--bg-card); }
-  50% { background-color: #ffeef2; border-color: var(--accent-pink); }
-}
-.anim-flash {
-  animation: flash-red 0.3s ease-in-out;
+  animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ==========================================================================
@@ -290,7 +292,7 @@ input.cyber-input:focus {
 }
 
 /* ==========================================================================
-   RESPONSIVE LAYOUT CLASSES
+   GRID LAYOUTS & RESPONSIVENESS
    ========================================================================== */
 
 .dashboard-grid {
@@ -377,42 +379,11 @@ input.cyber-input:focus {
   }
 }
 
-/* Custom visual character customizer overlays */
-@keyframes scan-line-move {
-  0% { top: 0%; }
-  50% { top: 100%; }
-  100% { top: 0%; }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.85;
-    box-shadow: 0 0 6px var(--pulse-color, #fff), 0 0 12px var(--pulse-color, #fff);
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 1;
-    box-shadow: 0 0 10px var(--pulse-color, #fff), 0 0 20px var(--pulse-color, #fff);
-  }
-}
-
-@keyframes glitch-flicker {
-  0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% {
-    opacity: 0.99;
-    filter: hue-rotate(0deg) saturate(1);
-  }
-  20%, 21.999%, 63%, 63.999%, 65%, 69.999% {
-    opacity: 0.4;
-    filter: hue-rotate(90deg) saturate(1.5);
-  }
-}
-
 .locked-blur-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(8px) grayscale(100%);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -421,12 +392,7 @@ input.cyber-input:focus {
   border-radius: var(--border-radius-md);
   padding: 1.5rem;
   text-align: center;
-  border: 3px dashed #000;
-}
-
-.silhouette-glow {
-  filter: drop-shadow(0 0 15px rgba(59, 226, 180, 0.7));
-  animation: glitch-flicker 4s infinite;
+  border: 1px dashed #cbd5e1;
 }
 
 /* Mobile responsive utility classes */
@@ -440,30 +406,23 @@ input.cyber-input:focus {
   .show-flex-on-mobile {
     display: flex !important;
   }
-  /* Force single-column grid layouts on mobile */
   .lobby-grid, .active-room-grid, .notes-board-grid, .dashboard-grid, .boss-battle-grid, .skill-tree-grid {
     grid-template-columns: 1fr !important;
     min-height: auto !important;
     gap: 1rem !important;
   }
-  /* Reduce padding on mobile body/wrapper */
-  body {
-    padding: 0.5rem !important;
-  }
-  /* Fix buttons size for touch targets (min 44px) */
   button, .cyber-btn {
     min-height: 44px;
-    padding: 0.65rem 1rem !important;
-    font-size: 0.85rem !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
   }
   .bottom-nav-btn {
     min-height: auto !important;
     padding: 0 !important;
   }
-  /* Inputs touch height optimization */
   input, select, textarea, .cyber-input {
     min-height: 44px;
-    font-size: 0.9rem !important;
+    font-size: 0.875rem !important;
   }
 }
 @media (min-width: 769px) {
@@ -475,26 +434,26 @@ input.cyber-input:focus {
   }
 }
 
-/* Bottom Navigation Bar */
+/* Bottom Navigation Bar for Mobile (clean flat style) */
 .bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   height: 64px;
-  background: #fff;
-  border-top: 3px solid #000;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: flex-start;
   align-items: center;
   z-index: 99999;
-  box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 -1px 3px 0 rgba(0, 0, 0, 0.05);
   overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 .bottom-nav::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
+  display: none;
 }
 .bottom-nav-btn {
   display: flex;
@@ -504,26 +463,22 @@ input.cyber-input:focus {
   background: none;
   border: none;
   font-family: var(--font-heading);
-  font-size: 0.62rem;
-  font-weight: 900;
+  font-size: 0.65rem;
+  font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   height: 100%;
   flex: 0 0 80px;
-  transition: background 0.15s ease;
-  border-left: 1px solid #eaeaea;
-  gap: 2px;
+  transition: all 0.15s ease;
+  border-left: 1px solid #f1f5f9;
+  gap: 4px;
+  outline: none;
 }
 .bottom-nav-btn:first-child {
   border-left: none;
 }
 .bottom-nav-btn.active {
-  color: #000;
-  background: var(--accent-purple);
-  border-left: 2px solid #000;
-  border-right: 2px solid #000;
+  color: var(--accent-primary);
+  background: var(--accent-primary-light);
+  font-weight: 700;
 }
-.bottom-nav-btn.active:first-child {
-  border-left: none;
-}
-

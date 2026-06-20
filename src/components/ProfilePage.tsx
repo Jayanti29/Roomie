@@ -1,4 +1,3 @@
-// src/components/ProfilePage.tsx
 import React, { useState, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, set, auth, useMockDb } from '../firebase';
 import { statesAndUTs, popularColleges, popularUniversities, degrees, specializations } from '../utils/collegeData';
@@ -144,8 +143,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Photo must be less than 2MB");
+      if (file.size > 25 * 1024 * 1024) {
+        alert("Photo must be less than 25MB");
         return;
       }
       const reader = new FileReader();
@@ -241,7 +240,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const messages = [
         {
           role: 'system',
-          content: 'You are Roomie AI Planner, a professional study advisor. Generate a highly detailed, day-by-day learning roadmap for the student based on their subject, goals, and target date. Format the output in Markdown with clean headers and bullet points.'
+          content: 'You are Roomie AI Planner, a professional study advisor. Generate a highly detailed, day-by-day learning roadmap for the student based on their subject, goals, and target date. Format the output in Markdown with clean headers and bullet points. Avoid emojis.'
         },
         {
           role: 'user',
@@ -274,11 +273,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   };
 
-  // Account operations re-authentication flow
   const handleAccountActionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
-      alert("Guest accounts cannot modify firebase security settings.");
+      alert("Guest accounts cannot modify security settings.");
       setAccountAction(null);
       return;
     }
@@ -290,7 +288,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsProcessingAction(true);
     try {
       if (useMockDb) {
-        // Mock execution
         if (accountAction === 'change_password') {
           alert("Password updated successfully! (Mock Mode)");
         } else if (accountAction === 'change_email') {
@@ -307,7 +304,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         return;
       }
 
-      // Real Firebase re-authentication
       const { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail, deleteUser } = await import('firebase/auth');
       if (auth && auth.currentUser) {
         const credential = EmailAuthProvider.credential(auth.currentUser.email || profile.email, currentPassword);
@@ -323,7 +319,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           onUpdateProfile({ ...profile, email: newEmail });
           alert("Email address updated successfully!");
         } else if (accountAction === 'delete_account') {
-          // Dissolve references in RTDB first
           if (isFirebaseConfigured) {
             await set(ref(db, 'users/' + auth.currentUser.uid), null);
             await set(ref(db, 'bookmarks/' + profile.email.replace(/\./g, '_')), null);
@@ -349,18 +344,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const overallProgress = courses.length > 0 ? Math.round(courses.reduce((s, c) => s + c.progress, 0) / courses.length) : 0;
 
   return (
-    <div className="notes-board-grid" style={{ paddingBottom: '2rem' }}>
+    <div className="notes-board-grid" style={{ paddingBottom: '2rem', textAlign: 'left' }}>
       
-      {/* LEFT PANEL: Editing profile & details */}
+      {/* LEFT PANEL: Profile summary */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* Profile Card Summary */}
-        <div className="glass-panel" style={{ background: '#fff', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+        <div className="glass-panel" style={{ background: '#fff', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', border: '1px solid #e2e8f0', boxShadow: 'var(--shadow-flat-sm)' }}>
           <div
             onClick={() => fileInputRef.current?.click()}
             style={{
-              width: '100px', height: '100px', borderRadius: '50%', border: '3.5px solid #000',
-              cursor: 'pointer', overflow: 'hidden', position: 'relative', boxShadow: '3px 3px 0px #000'
+              width: '100px', height: '100px', borderRadius: '50%', border: '1px solid #cbd5e1',
+              cursor: 'pointer', overflow: 'hidden', position: 'relative', boxShadow: 'var(--shadow-flat-sm)'
             }}
           >
             {profilePhoto ? (
@@ -370,8 +365,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 👤
               </div>
             )}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.55rem', fontWeight: 800, padding: '2px 0' }}>
-              CHANGE
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(15,23,42,0.8)', color: '#fff', fontSize: '0.65rem', fontWeight: 600, padding: '4px 0' }}>
+              Change Photo
             </div>
           </div>
           <input
@@ -383,14 +378,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 900 }}>{profile.name}</h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700 }}>{profile.email}</span>
-            {profile.phone && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>📞 {profile.phone}</span>}
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>{profile.name}</h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>{profile.email}</span>
+            {profile.phone && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Phone: {profile.phone}</span>}
           </div>
 
           {profile.bio && (
-            <p style={{ fontSize: '0.8rem', fontStyle: 'italic', background: '#f8f9fa', border: '1.5px solid #000', padding: '0.5rem', borderRadius: '10px', width: '100%' }}>
-              &quot;{profile.bio}&quot;
+            <p style={{ fontSize: '0.8rem', fontStyle: 'normal', color: 'var(--text-secondary)', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '8px', width: '100%' }}>
+              {profile.bio}
             </p>
           )}
 
@@ -398,193 +393,192 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <button
               onClick={() => setIsEditingInfo(true)}
               className="cyber-btn purple-fill"
-              style={{ width: '100%', border: '2.5px solid #000' }}
+              style={{ width: '100%' }}
             >
-              EDIT ACADEMIC PROFILE
+              Edit Profile Info
             </button>
           ) : (
             <button
               onClick={() => setIsEditingInfo(false)}
               className="cyber-btn"
-              style={{ width: '100%', background: '#fff', border: '2.5px solid #000' }}
+              style={{ width: '100%', background: '#fff' }}
             >
-              CLOSE EDITOR
+              Close Editor
             </button>
           )}
         </div>
 
         {/* Profile Info Form Editor */}
         {isEditingInfo && (
-          <div className="glass-panel" style={{ background: '#fffcf0' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '1rem' }}>
-              📝 EDIT PERSONAL INFO
+          <div className="glass-panel" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+              Personal Details
             </h3>
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>FULL NAME</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Full Name</label>
                 <input type="text" className="cyber-input" value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>PHONE NUMBER</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Phone Number</label>
                 <input type="tel" className="cyber-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. +91 99999 88888" />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>BIO STATEMENT</label>
-                <input type="text" className="cyber-input" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="e.g. IAS Aspirant | Tech Enthusiast" />
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Bio Statement</label>
+                <input type="text" className="cyber-input" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="e.g. Computer Science Student" />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>STATE</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>State</label>
                 <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={state} onChange={(e) => setState(e.target.value)}>
                   {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>CITY</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>City</label>
                 <input type="text" className="cyber-input" value={city} onChange={(e) => setCity(e.target.value)} />
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>UNIVERSITY</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>University</label>
                 <input type="text" className="cyber-input" value={university} onChange={handleUnivChange} onFocus={() => university.trim().length > 1 && setShowUnivDropdown(true)} onBlur={() => setTimeout(() => setShowUnivDropdown(false), 200)} autoComplete="off" />
                 {showUnivDropdown && univSuggestions.length > 0 && (
-                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '2px solid #000', zIndex: 99, maxHeight: '100px', overflowY: 'auto', padding: '4px', listStyle: 'none' }}>
-                    {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>{u}</li>)}
+                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                    {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{u}</li>)}
                   </ul>
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>COLLEGE</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>College</label>
                 <input type="text" className="cyber-input" value={college} onChange={handleCollegeChange} onFocus={() => college.trim().length > 1 && setShowCollegeDropdown(true)} onBlur={() => setTimeout(() => setShowCollegeDropdown(false), 200)} autoComplete="off" />
                 {showCollegeDropdown && collegeSuggestions.length > 0 && (
-                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '2px solid #000', zIndex: 99, maxHeight: '100px', overflowY: 'auto', padding: '4px', listStyle: 'none' }}>
-                    {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>{c}</li>)}
+                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                    {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{c}</li>)}
                   </ul>
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>DEGREE</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Degree</label>
                 <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={degree} onChange={(e) => setDegree(e.target.value)}>
                   {degrees.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SPECIALIZATION</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Specialization</label>
                 <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={specialization} onChange={(e) => setSpecialization(e.target.value)}>
                   {specializations.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SEMESTER / YEAR</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Semester / Year</label>
                 <input type="text" className="cyber-input" value={semester} onChange={(e) => setSemester(e.target.value)} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>CAREER GOAL</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Career Goal</label>
                 <input type="text" className="cyber-input" value={careerGoal} onChange={(e) => setCareerGoal(e.target.value)} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>INTERESTS (COMMA SEPARATED)</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Interests (comma separated)</label>
                 <input type="text" className="cyber-input" value={interestsText} onChange={(e) => setInterestsText(e.target.value)} />
               </div>
 
-              <button type="submit" className="cyber-btn pink-fill" style={{ width: '100%', border: '2.5px solid #000' }}>
-                SAVE CHANGES
+              <button type="submit" className="cyber-btn pink-fill" style={{ width: '100%', fontWeight: 700 }}>
+                Save Changes
               </button>
             </form>
           </div>
         )}
 
         {/* Security / Account management Card */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '1rem' }}>
-            🔒 ACCOUNT MANAGEMENT
+        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#0f172a' }}>
+            Account Settings
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button
               onClick={() => setAccountAction('change_email')}
               className="cyber-btn"
-              style={{ width: '100%', background: '#fff', border: '2px solid #000', fontSize: '0.8rem' }}
+              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
             >
-              CHANGE EMAIL ADDRESS
+              Change Email Address
             </button>
             
             <button
               onClick={() => setAccountAction('change_password')}
               className="cyber-btn"
-              style={{ width: '100%', background: '#fff', border: '2px solid #000', fontSize: '0.8rem' }}
+              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
             >
-              CHANGE PASSWORD
+              Change Password
             </button>
             
             <button
               onClick={() => setAccountAction('delete_account')}
               className="cyber-btn pink-fill"
-              style={{ width: '100%', border: '2px solid #000', fontSize: '0.8rem' }}
+              style={{ width: '100%', fontSize: '0.8rem', fontWeight: 600 }}
             >
-              DELETE ACCOUNT
+              Delete Account Permanently
             </button>
           </div>
         </div>
 
       </div>
 
-      {/* RIGHT PANEL: Courses CRUD & AI Learning Tracks */}
+      {/* RIGHT PANEL: Courses & AI Learning Tracks */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* Course Catalog CRUD */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 900 }}>
-              📖 COURSE MANAGEMENT
+        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+              Academic Courses
             </h3>
             <button
               onClick={() => setShowAddCourse(!showAddCourse)}
               className="cyber-btn"
-              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-gold)' }}
+              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
             >
-              {showAddCourse ? 'CANCEL' : 'ADD COURSE'}
+              {showAddCourse ? 'Cancel' : 'Add Course'}
             </button>
           </div>
 
           {showAddCourse && (
-            <form onSubmit={handleAddCourse} style={{ border: '2px dashed #000', padding: '0.8rem', borderRadius: '12px', background: '#fffcf0', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+            <form onSubmit={handleAddCourse} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>COURSE NAME</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Course Name</label>
                 <input type="text" className="cyber-input" value={newCourseName} onChange={(e) => setNewCourseName(e.target.value)} placeholder="e.g. Operating Systems" required />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>PROGRESS (%)</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Progress (%)</label>
                 <input type="number" className="cyber-input" value={newCourseProgress} onChange={(e) => setNewCourseProgress(parseInt(e.target.value) || 0)} min="0" max="100" />
               </div>
-              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>SAVE COURSE</button>
+              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Course</button>
             </form>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.6rem', background: '#f8f9fa', border: '1.5px solid #000', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800 }}>
-              <span>Curriculum Completion Rate</span>
-              <span>{overallProgress}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Curriculum Progress</span>
+              <span style={{ color: 'var(--accent-primary)' }}>{overallProgress}%</span>
             </div>
 
             {courses.length === 0 ? (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No courses added.</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No courses added yet.</span>
             ) : (
               courses.map(c => (
-                <div key={c.id} style={{ border: '2.5px solid #000', padding: '0.8rem', borderRadius: '14px', background: '#fffcfc', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div key={c.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.85rem' }}>{c.name}</strong>
+                    <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</strong>
                     <button
                       onClick={() => handleRemoveCourse(c.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
                       title="Remove Course"
                     >
-                      ❌
+                      ✕
                     </button>
                   </div>
                   
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800 }}>PROGRESS:</span>
                     <input
                       type="range"
                       min="0"
@@ -593,7 +587,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       onChange={(e) => handleProgressChange(c.id, parseInt(e.target.value))}
                       style={{ flex: 1, cursor: 'pointer' }}
                     />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>{c.progress}%</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{c.progress}%</span>
                   </div>
                 </div>
               ))
@@ -602,35 +596,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
 
         {/* AI Learning Tracks & roadmaps */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 900 }}>
-              🎯 AI LEARNING TRACKS
+        <div className="glass-panel" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+              AI Learning Tracks
             </h3>
             <button
               onClick={() => setShowAddTrack(!showAddTrack)}
               className="cyber-btn"
-              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-purple)', color: '#fff' }}
+              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', minHeight: 'auto', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', border: 'none' }}
             >
-              {showAddTrack ? 'CANCEL' : 'ADD TRACK'}
+              {showAddTrack ? 'Cancel' : 'Add Track'}
             </button>
           </div>
 
           {showAddTrack && (
-            <form onSubmit={handleAddTrack} style={{ border: '2px dashed #000', padding: '0.8rem', borderRadius: '12px', background: '#fffcf0', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+            <form onSubmit={handleAddTrack} style={{ border: '1px dashed #cbd5e1', padding: '0.8rem', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SUBJECT NAME</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Subject Name</label>
                 <input type="text" className="cyber-input" value={trackName} onChange={(e) => setTrackName(e.target.value)} placeholder="e.g. Java Programming, UPSC History" required />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>GOAL</label>
-                <input type="text" className="cyber-input" value={trackGoal} onChange={(e) => setTrackGoal(e.target.value)} placeholder="e.g. Master OOP concepts, pass prelims" />
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Goal</label>
+                <input type="text" className="cyber-input" value={trackGoal} onChange={(e) => setTrackGoal(e.target.value)} placeholder="e.g. Master OOP concepts" />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>TARGET DATE</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Target Date</label>
                 <input type="date" className="cyber-input" value={trackDate} onChange={(e) => setTrackDate(e.target.value)} />
               </div>
-              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>SAVE TRACK</button>
+              <button type="submit" className="cyber-btn pink-fill" style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', alignSelf: 'flex-end', minHeight: 'auto' }}>Save Track</button>
             </form>
           )}
 
@@ -639,21 +633,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No active learning tracks.</span>
             ) : (
               learningTracks.map(track => (
-                <div key={track.id} style={{ border: '2.5px solid #000', padding: '0.8rem', borderRadius: '14px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
+                <div key={track.id} style={{ border: '1px solid #e2e8f0', padding: '0.8rem', borderRadius: '10px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.85rem', color: 'var(--accent-purple)' }}>{track.name}</strong>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{track.name}</strong>
                     <button
                       onClick={() => handleRemoveTrack(track.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
                       title="Remove Track"
                     >
-                      ❌
+                      ✕
                     </button>
                   </div>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Goal: {track.goal || 'No specified goal'} | Due: {track.targetDate || 'No date'}</span>
                   
                   {track.roadmapMarkdown ? (
-                    <div style={{ background: '#f8f9fa', border: '1.5px solid #000', borderRadius: '8px', padding: '0.6rem', maxHeight: '180px', overflowY: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.6rem', maxHeight: '180px', overflowY: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                       {track.roadmapMarkdown}
                     </div>
                   ) : (
@@ -661,9 +655,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       onClick={() => handleGenerateRoadmap(track)}
                       disabled={isGeneratingRoadmap === track.id}
                       className="cyber-btn cyan-fill"
-                      style={{ padding: '0.3rem 0.8rem', fontSize: '0.7rem', minHeight: 'auto', border: '1.5px solid #000' }}
+                      style={{ padding: '0.35rem 0.8rem', fontSize: '0.7rem', minHeight: 'auto', border: 'none', fontWeight: 600 }}
                     >
-                      {isGeneratingRoadmap === track.id ? '⚡ GENERATING ROADMAP...' : '🪄 GENERATE ROADMAP WITH AI'}
+                      {isGeneratingRoadmap === track.id ? 'Generating Roadmap...' : 'Generate Roadmap with AI'}
                     </button>
                   )}
                 </div>
@@ -678,32 +672,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {accountAction && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 999999, display: 'flex',
+          background: 'rgba(15,23,42,0.4)', zIndex: 999999, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }} onClick={() => setAccountAction(null)}>
           <div className="glass-panel anim-pop" style={{
             maxWidth: '420px', width: '100%', background: '#fff',
-            border: '3.5px solid #000', borderRadius: '16px', padding: '1.5rem',
-            display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left'
+            border: '1px solid #cbd5e1', borderRadius: '12px', padding: '1.5rem',
+            display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left',
+            boxShadow: 'var(--shadow-flat-lg)'
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.4rem' }}>
-              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', color: '#0f172a' }}>
                 {accountAction === 'change_password' && "Change Password"}
                 {accountAction === 'change_email' && "Change Email Address"}
-                {accountAction === 'delete_account' && "🚨 Delete Account permanently"}
+                {accountAction === 'delete_account' && "Delete Account"}
               </strong>
-              <button onClick={() => setAccountAction(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 900 }}>✕</button>
+              <button onClick={() => setAccountAction(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: 900 }}>✕</button>
             </div>
 
             {accountAction === 'delete_account' && (
-              <div style={{ background: '#ffeef2', border: '2px solid #000', color: 'var(--accent-pink)', padding: '0.6rem', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 800, lineHeight: '1.4' }}>
-                ⚠️ WARNING: This action permanently removes your account, tasks, notes, progress, groups, and profile data. This cannot be undone.
+              <div style={{ background: '#fef2f2', border: '1px solid #fec2c2', color: 'var(--accent-pink)', padding: '0.6rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, lineHeight: '1.4' }}>
+                Warning: This action permanently removes your account, tasks, notes, progress, groups, and profile data. This cannot be undone.
               </div>
             )}
 
             <form onSubmit={handleAccountActionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>CONFIRM PASSWORD</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Confirm Password</label>
                 <input
                   type="password"
                   className="cyber-input"
@@ -716,7 +711,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               {accountAction === 'change_email' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>NEW EMAIL ADDRESS</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>New Email Address</label>
                   <input
                     type="email"
                     className="cyber-input"
@@ -730,11 +725,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               {accountAction === 'change_password' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>NEW PASSWORD</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>New Password</label>
                   <input
                     type="password"
                     className="cyber-input"
-                    placeholder="Enter new password (min 6 chars)"
+                    placeholder="Enter new password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
@@ -746,9 +741,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 type="submit"
                 disabled={isProcessingAction}
                 className="cyber-btn pink-fill"
-                style={{ width: '100%', border: '2.5px solid #000', boxShadow: '3px 3px 0px #000', marginTop: '0.5rem' }}
+                style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
               >
-                {isProcessingAction ? 'PROCESSING...' : "CONFIRM & EXECUTE"}
+                {isProcessingAction ? 'Processing...' : "Confirm Action"}
               </button>
             </form>
           </div>
