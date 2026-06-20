@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, isFirebaseConfigured, ref, onValue } from '../firebase';
+import { Leaderboard } from './Leaderboard';
 
 interface Course {
   id: string;
@@ -41,6 +42,7 @@ interface StudyRoom {
 interface DashboardProps {
   profile: {
     name: string;
+    email: string;
     college: string;
     university: string;
     degree: string;
@@ -143,62 +145,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem', textAlign: 'left' }}>
       
-      {/* 1. Welcome Card Banner */}
-      <div className="glass-panel" style={{
-        background: 'var(--accent-primary-light)',
-        color: '#0f172a',
-        padding: '1.5rem',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '1.5rem',
-        alignItems: 'center',
-        border: '1px solid #c7d2fe'
-      }}>
-        {profile.profilePhoto ? (
-          <img
-            src={profile.profilePhoto}
-            alt="Avatar"
-            style={{ width: '80px', height: '80px', borderRadius: '50%', border: '1px solid #cbd5e1', objectFit: 'cover', boxShadow: 'var(--shadow-flat-sm)' }}
-          />
-        ) : (
-          <div style={{
-            width: '80px', height: '80px', borderRadius: '50%', border: '1px solid #cbd5e1',
-            boxShadow: 'var(--shadow-flat-sm)', background: '#e2e8f0', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', fontSize: '2rem'
-          }}>
-            👤
-          </div>
-        )}
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '250px' }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
+      {/* 1. Welcome Title and Metrics */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '0.25rem' }}>
+        <div>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
             Welcome back, {profile.name}!
           </h2>
-          <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-            {profile.degree} in {profile.specialization} — {profile.semester}
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 700, margin: '0.25rem 0 0 0' }}>
+            {profile.degree} in {profile.specialization} • {profile.semester} • {profile.college}
           </p>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-            {profile.college} ({profile.university})
-          </p>
-          {profile.careerGoal && (
-            <p style={{ fontSize: '0.75rem', background: '#fff', border: '1px solid #e2e8f0', padding: '0.25rem 0.6rem', borderRadius: '6px', width: 'fit-content', marginTop: '0.4rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Target Career: {profile.careerGoal}
-            </p>
-          )}
         </div>
-
-        {/* Study points / milestones mini panels */}
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '0.65rem 1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-flat-sm)', textAlign: 'center', minWidth: '100px' }}>
-            <strong style={{ fontSize: '1.4rem', display: 'block', color: 'var(--accent-primary)' }}>{studyPoints}</strong>
-            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>STUDY POINTS</span>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ background: '#ffffff', border: '1.5px solid #0f172a', padding: '0.5rem 1rem', borderRadius: '16px', textAlign: 'center', minWidth: '95px', boxShadow: '0 4px 0 #0f172a' }}>
+            <strong style={{ fontSize: '1.25rem', display: 'block', color: 'var(--accent-primary)', fontWeight: 900 }}>{studyPoints}</strong>
+            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>STUDY POINTS</span>
           </div>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '0.65rem 1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-flat-sm)', textAlign: 'center', minWidth: '100px' }}>
-            <strong style={{ fontSize: '1.4rem', display: 'block', color: 'var(--accent-green)' }}>{milestonesCount}</strong>
-            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>MILESTONES</span>
+          <div style={{ background: '#ffffff', border: '1.5px solid #0f172a', padding: '0.5rem 1rem', borderRadius: '16px', textAlign: 'center', minWidth: '95px', boxShadow: '0 4px 0 #0f172a' }}>
+            <strong style={{ fontSize: '1.25rem', display: 'block', color: 'var(--accent-cyan)', fontWeight: 900 }}>{milestonesCount}</strong>
+            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>MILESTONES</span>
           </div>
         </div>
       </div>
+
+      {/* 2. Compact Leaderboard Widget */}
+      <Leaderboard
+        isCompact={true}
+        currentUserEmail={profile.email}
+        currentCollege={profile.college}
+        currentDegree={profile.degree}
+        currentStudyPoints={studyPoints}
+      />
 
       {/* 2. Grid Sections */}
       <div className="dashboard-grid">

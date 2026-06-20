@@ -2435,11 +2435,21 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <strong style={{ fontSize: '0.75rem' }}>{userName} (YOU)</strong>
                           <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>
-                            {isRoomHost ? '👑 Host' : isRoomMod ? '🛡️ Moderator' : '📚 Student'}
+                            {isRoomHost ? 'Host' : isRoomMod ? 'Moderator' : 'Student'}
                           </span>
                         </div>
                       </div>
-                      {isRaisedHand && <span style={{ fontSize: '1rem', animation: 'float-bouncy 2s infinite' }}>✋</span>}
+                      {isRaisedHand && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
+                            <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+                            <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v9" />
+                            <path d="M6 13V9a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v10a7 7 0 0 0 7 7h3a8 8 0 0 0 8-8v-3" />
+                          </svg>
+                          Hand Raised
+                        </span>
+                      )}
                     </div>
                   );
                 })()}
@@ -2462,12 +2472,22 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <strong style={{ fontSize: '0.75rem' }}>{friend.name}</strong>
                             <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>
-                              {isPeerHost ? '👑 Host' : isPeerMod ? '🛡️ Moderator' : '📚 Student'}
+                              {isPeerHost ? 'Host' : isPeerMod ? 'Moderator' : 'Student'}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          {friend.raisedHand && <span style={{ fontSize: '1rem', animation: 'float-bouncy 2s infinite' }}>✋</span>}
+                          {friend.raisedHand && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
+                                <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+                                <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v9" />
+                                <path d="M6 13V9a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v10a7 7 0 0 0 7 7h3a8 8 0 0 0 8-8v-3" />
+                              </svg>
+                              Hand Raised
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -3320,10 +3340,10 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                 boxShadow: '3px 3px 0px #000'
               }}>
                 {([
-                  { id: 'video', label: '📹 Video' },
-                  { id: 'chat', label: '💬 Chat' },
-                  { id: 'participants', label: '👥 Members' },
-                  { id: 'notes', label: '📚 Notes' }
+                  { id: 'video', label: 'Video' },
+                  { id: 'chat', label: 'Chat' },
+                  { id: 'participants', label: 'Members' },
+                  { id: 'notes', label: 'Notes' }
                 ] as const).map(tab => (
                   <button
                     key={tab.id}

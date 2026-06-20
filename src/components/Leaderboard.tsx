@@ -18,13 +18,15 @@ interface LeaderboardProps {
   currentCollege: string;
   currentDegree: string;
   currentStudyPoints: number;
+  isCompact?: boolean;
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({
   currentUserEmail,
   currentCollege,
   currentDegree,
-  currentStudyPoints
+  currentStudyPoints,
+  isCompact = false
 }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'college' | 'degree' | 'friends'>('global');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
@@ -129,12 +131,116 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
 
   const filteredUsers = getFilteredData();
 
+  if (isCompact) {
+    return (
+      <div className="glass-panel anim-pop" style={{
+        background: '#ffffff',
+        padding: '1.25rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.8rem',
+        borderRadius: '24px',
+        border: '1.5px solid #0f172a',
+        boxShadow: '0 6px 0 rgba(15, 23, 42, 0.05)',
+        width: '100%'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #cbd5e1', paddingBottom: '0.5rem' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+            Academic Rankings
+          </h3>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Top Students</span>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1.5px solid #f1f5f9', paddingBottom: '0.25rem' }}>
+          {(['global', 'college', 'degree', 'friends'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '0.35rem 0.65rem',
+                background: activeTab === tab ? 'var(--accent-primary-light)' : 'none',
+                border: 'none',
+                borderRadius: '12px',
+                color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-muted)',
+                fontSize: '0.75rem',
+                fontWeight: activeTab === tab ? 800 : 600,
+                cursor: 'pointer',
+                textTransform: 'capitalize'
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Loading ranks...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {filteredUsers.slice(0, 4).map((u, index) => {
+              const isSelf = u.email === currentUserEmail || u.isCurrentUser;
+              return (
+                <div
+                  key={u.email}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.45rem 0.6rem',
+                    borderRadius: '12px',
+                    background: isSelf ? '#f5f3ff' : '#f8fafc',
+                    border: isSelf ? '1.5px solid var(--accent-primary)' : '1.5px solid #cbd5e1',
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                      fontWeight: 900,
+                      color: index === 0 ? 'var(--accent-gold)' : index === 1 ? '#64748b' : index === 2 ? '#b45309' : 'var(--text-muted)',
+                      width: '20px'
+                    }}>
+                      #{index + 1}
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                      <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                        {u.name} {isSelf && <span style={{ fontSize: '0.65rem', background: 'var(--accent-primary-light)', color: 'var(--accent-primary)', padding: '0.05rem 0.3rem', borderRadius: '4px', marginLeft: '0.2rem' }}>You</span>}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                        {u.college.split(',')[0]} • {u.degree}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <strong style={{ color: 'var(--accent-primary)', fontWeight: 800 }}>{u.studyPoints}</strong>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', display: 'block' }}>pts</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="glass-panel anim-pop" style={{ background: '#fff', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', minHeight: '500px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+    <div className="glass-panel anim-pop" style={{
+      background: '#ffffff',
+      padding: '1.5rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.25rem',
+      height: '100%',
+      minHeight: '500px',
+      borderRadius: '24px',
+      border: '1.5px solid #0f172a',
+      boxShadow: '0 8px 0 rgba(15, 23, 42, 0.05)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.75rem' }}>
         <div>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Academic Leaderboard</h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Celebrate learning achievements across the student community.</p>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Academic Leaderboard</h2>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>Celebrate learning achievements across the student community.</p>
         </div>
       </div>
 
@@ -148,10 +254,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
               padding: '0.5rem 1rem',
               background: activeTab === tab ? 'var(--accent-primary-light)' : 'none',
               border: 'none',
-              borderRadius: 'var(--border-radius-sm)',
+              borderRadius: '12px',
               color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-muted)',
               fontSize: '0.875rem',
-              fontWeight: activeTab === tab ? 700 : 500,
+              fontWeight: activeTab === tab ? 800 : 600,
               cursor: 'pointer',
               textTransform: 'capitalize'
             }}
@@ -167,7 +273,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #e2e8f0', color: 'var(--text-muted)', fontWeight: 600 }}>
+              <tr style={{ borderBottom: '1.5px solid #0f172a', color: 'var(--text-muted)', fontWeight: 700 }}>
                 <th style={{ padding: '0.75rem 1rem' }}>Rank</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Student</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Institution</th>
@@ -186,10 +292,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                     style={{
                       borderBottom: '1px solid #f1f5f9',
                       background: isSelf ? '#f5f3ff' : 'transparent',
-                      fontWeight: isSelf ? 600 : 400
+                      fontWeight: isSelf ? 700 : 400
                     }}
                   >
-                    <td style={{ padding: '0.75rem 1rem', color: index === 0 ? 'var(--accent-gold)' : index === 1 ? '#94a3b8' : index === 2 ? '#b45309' : 'var(--text-muted)', fontWeight: 800 }}>
+                    <td style={{ padding: '0.75rem 1rem', color: index === 0 ? 'var(--accent-gold)' : index === 1 ? '#64748b' : index === 2 ? '#b45309' : 'var(--text-muted)', fontWeight: 900 }}>
                       #{index + 1}
                     </td>
                     <td style={{ padding: '0.75rem 1rem', color: '#0f172a' }}>
@@ -198,7 +304,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                     <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>
                       {u.college} • {u.degree}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 800, color: 'var(--accent-primary)' }}>
                       {u.studyPoints}
                     </td>
                     <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -208,7 +314,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
                         <span style={{ minWidth: '35px', textAlign: 'right' }}>{u.learningProgress}%</span>
                         <div style={{ width: '60px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${u.learningProgress}%`, height: '100%', background: 'var(--accent-green)' }} />
+                          <div style={{ width: `${u.learningProgress}%`, height: '100%', background: 'var(--accent-cyan)' }} />
                         </div>
                       </div>
                     </td>

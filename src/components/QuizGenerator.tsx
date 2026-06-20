@@ -86,7 +86,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp }) => {
       {/* Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          🤖 STUDY QUIZZES
+          STUDY QUIZZES
         </h3>
         {questions && !completed && (
           <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>

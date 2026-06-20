@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 
-const PROD_URL = 'https://roomie-platform.vercel.app?debug=true';
+const PROD_URL = process.env.TEST_URL || 'https://roomie-platform.vercel.app?debug=true';
 const TEST_USER = { email: 'testuser1@example.com', password: 'Test@1234' };
 
 test('Production Audit and Screenshot Capture', async ({ page }) => {
@@ -53,10 +53,10 @@ test('Production Audit and Screenshot Capture', async ({ page }) => {
 
   // Launch AI Tutor session by clicking the tutor assistant button
   console.log('Starting AI Tutor session...');
-  await page.click('button:has-text("🎓 AI Tutor")', { force: true });
+  await page.click('button:has-text("AI Tutor")', { force: true });
   await page.waitForTimeout(1000);
 
-  const inputPlaceholder = 'Ask 🎓 AI Tutor anything...';
+  const inputPlaceholder = 'Ask AI Tutor anything...';
 
   // --- Prompt 1: Explain OOP in Java ---
   console.log('Submitting prompt 1: Explain OOP in Java...');

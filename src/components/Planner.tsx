@@ -59,13 +59,13 @@ export const Planner: React.FC<PlannerProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* Create Task Form */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '1.25rem' }}>
-            ✏️ ADD PERSONAL TASK
+        <div className="glass-panel" style={{ background: '#fff', borderRadius: '24px', border: '1.5px solid #0f172a', boxShadow: '0 8px 0 rgba(15, 23, 42, 0.05)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '1.5px solid #cbd5e1', paddingBottom: '0.4rem', marginBottom: '1.25rem' }}>
+            ADD PERSONAL TASK
           </h3>
           <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>TASK TITLE</label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>TASK TITLE</label>
               <input
                 type="text"
                 className="cyber-input"
@@ -73,25 +73,27 @@ export const Planner: React.FC<PlannerProps> = ({
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 required
+                style={{ borderRadius: '20px', border: '1.5px solid #cbd5e1', padding: '0.65rem 1rem' }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>DUE DATE</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>DUE DATE</label>
                 <input
                   type="date"
                   className="cyber-input"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
+                  style={{ borderRadius: '20px', border: '1.5px solid #cbd5e1', padding: '0.65rem 1rem' }}
                 />
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 800 }}>PRIORITY</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>PRIORITY</label>
                 <select
                   className="cyber-input"
-                  style={{ appearance: 'auto', cursor: 'pointer' }}
+                  style={{ appearance: 'auto', cursor: 'pointer', borderRadius: '20px', border: '1.5px solid #cbd5e1', padding: '0.65rem 1rem' }}
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
                 >
@@ -105,7 +107,15 @@ export const Planner: React.FC<PlannerProps> = ({
             <button
               type="submit"
               className="cyber-btn pink-fill"
-              style={{ width: '100%', border: '3px solid #000', boxShadow: '4px 4px 0px #000', marginTop: '0.5rem' }}
+              style={{
+                width: '100%',
+                borderRadius: '20px',
+                background: 'var(--accent-primary)',
+                fontWeight: 800,
+                minHeight: '44px',
+                border: 'none',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+              }}
             >
               ADD TO LIST
             </button>
@@ -113,18 +123,18 @@ export const Planner: React.FC<PlannerProps> = ({
         </div>
 
         {/* Progress Tracker Card */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '0.8rem' }}>
-            📊 STUDY PROGRESS TRACKER
+        <div className="glass-panel" style={{ background: '#fff', borderRadius: '24px', border: '1.5px solid #0f172a', boxShadow: '0 8px 0 rgba(15, 23, 42, 0.05)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '1.5px solid #cbd5e1', paddingBottom: '0.4rem', marginBottom: '0.8rem' }}>
+            STUDY PROGRESS TRACKER
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 800 }}>
-              <span>Completed Tasks</span>
-              <span>{completedCount} / {tasks.length}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Completed Tasks</span>
+              <span style={{ color: 'var(--accent-primary)' }}>{completedCount} / {tasks.length}</span>
             </div>
             
-            <div style={{ height: '14px', background: '#eaeaea', border: '2px solid #000', borderRadius: '7px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${completionPercentage}%`, background: 'var(--accent-green)' }} />
+            <div style={{ height: '12px', background: '#eaeaea', border: 'none', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${completionPercentage}%`, background: 'var(--accent-cyan)' }} />
             </div>
             
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>
@@ -139,9 +149,9 @@ export const Planner: React.FC<PlannerProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* Tasks List Board */}
-        <div className="glass-panel" style={{ background: '#fff', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.5rem' }}>
-            📋 STUDY AGENDA
+        <div className="glass-panel" style={{ background: '#fff', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', borderRadius: '24px', border: '1.5px solid #0f172a', boxShadow: '0 8px 0 rgba(15, 23, 42, 0.05)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 900, borderBottom: '1.5px solid #cbd5e1', paddingBottom: '0.5rem' }}>
+            STUDY AGENDA
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', overflowY: 'auto', maxHeight: '350px' }}>
@@ -154,36 +164,41 @@ export const Planner: React.FC<PlannerProps> = ({
                 <div
                   key={task.id}
                   style={{
-                    border: '2.5px solid #000',
-                    borderRadius: '12px',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '16px',
                     padding: '0.75rem 1rem',
-                    background: task.status === 'Completed' ? '#dff0d8' : '#fffcf0',
+                    background: task.status === 'Completed' ? '#ecfdf5' : '#fefdf0',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    boxShadow: '2px 2px 0px #000',
+                    boxShadow: 'var(--shadow-flat-sm)',
                     gap: '0.8rem'
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                    <strong style={{ fontSize: '0.85rem', textDecoration: task.status === 'Completed' ? 'line-through' : 'none' }}>
+                    <strong style={{ fontSize: '0.85rem', textDecoration: task.status === 'Completed' ? 'line-through' : 'none', color: '#0f172a' }}>
                       {task.title}
                     </strong>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                       <span style={{
                         fontSize: '0.58rem',
-                        fontWeight: 900,
+                        fontWeight: 850,
                         background: task.priority === 'High' ? 'var(--accent-pink)' : task.priority === 'Medium' ? 'var(--accent-gold)' : 'var(--accent-cyan)',
-                        border: '1.5px solid #000',
-                        borderRadius: '4px',
-                        padding: '1px 4px',
-                        color: task.priority === 'High' ? '#fff' : '#000'
+                        borderRadius: '6px',
+                        padding: '2px 6px',
+                        color: '#fff'
                       }}>
                         {task.priority.toUpperCase()}
                       </span>
                       {task.deadline && (
-                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                          📅 {task.deadline}
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                          </svg>
+                          {task.deadline}
                         </span>
                       )}
                     </div>
@@ -192,7 +207,7 @@ export const Planner: React.FC<PlannerProps> = ({
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                     <select
                       className="cyber-input"
-                      style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', minHeight: 'auto', width: 'fit-content', border: '1.5px solid #000', cursor: 'pointer', appearance: 'auto' }}
+                      style={{ fontSize: '0.68rem', padding: '0.15rem 0.35rem', minHeight: 'auto', width: 'fit-content', border: '1.5px solid #cbd5e1', cursor: 'pointer', appearance: 'auto', borderRadius: '12px' }}
                       value={task.status}
                       onChange={(e) => onUpdateTaskStatus(task.id, e.target.value)}
                     >
@@ -205,11 +220,12 @@ export const Planner: React.FC<PlannerProps> = ({
                       onClick={() => onDeleteTask(task.id)}
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '1rem', padding: '0.25rem'
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.85rem', padding: '0.25rem', color: 'var(--text-muted)'
                       }}
                       title="Delete task"
                     >
-                      ❌
+                      ✕
                     </button>
                   </div>
                 </div>
@@ -219,21 +235,21 @@ export const Planner: React.FC<PlannerProps> = ({
         </div>
 
         {/* Visual Monthly Calendar Overview */}
-        <div className="glass-panel" style={{ background: '#fff' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '2.5px solid #000', paddingBottom: '0.4rem', marginBottom: '0.8rem' }}>
-            📅 DEADLINE VISUALIZER (CURRENT MONTH)
+        <div className="glass-panel" style={{ background: '#fff', borderRadius: '24px', border: '1.5px solid #0f172a', boxShadow: '0 8px 0 rgba(15, 23, 42, 0.05)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 900, borderBottom: '1.5px solid #cbd5e1', paddingBottom: '0.4rem', marginBottom: '0.8rem' }}>
+            DEADLINE VISUALIZER (CURRENT MONTH)
           </h3>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(7, 1fr)',
             gap: '4px',
-            border: '2px solid #000',
-            background: '#000',
-            padding: '4px',
-            borderRadius: '12px'
+            border: '1.5px solid #0f172a',
+            background: '#ffffff',
+            padding: '6px',
+            borderRadius: '16px'
           }}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} style={{ textAlign: 'center', color: '#fff', fontSize: '0.6rem', fontWeight: 900, padding: '2px 0' }}>
+              <div key={day} style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 800, padding: '2px 0' }}>
                 {day.toUpperCase()}
               </div>
             ))}
@@ -242,18 +258,25 @@ export const Planner: React.FC<PlannerProps> = ({
               const hasHighPriority = dayTasks.some(t => t.priority === 'High');
               const hasAny = dayTasks.length > 0;
               
-              let dayBg = '#fff';
-              if (hasHighPriority) dayBg = 'var(--accent-pink)';
-              else if (hasAny) dayBg = 'var(--accent-gold)';
+              let dayBg = '#ffffff';
+              let dayBorder = '1px solid #e2e8f0';
+              if (hasHighPriority) {
+                dayBg = 'var(--accent-pink)';
+                dayBorder = '1px solid transparent';
+              } else if (hasAny) {
+                dayBg = 'var(--accent-gold)';
+                dayBorder = '1px solid transparent';
+              }
 
               return (
                 <div
                   key={day}
                   style={{
                     background: dayBg,
+                    border: dayBorder,
                     minHeight: '38px',
-                    borderRadius: '6px',
-                    padding: '2px',
+                    borderRadius: '8px',
+                    padding: '3px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
@@ -261,10 +284,10 @@ export const Planner: React.FC<PlannerProps> = ({
                   }}
                   title={hasAny ? `${dayTasks.length} task(s) due` : `Day ${day}`}
                 >
-                  <span style={{ fontSize: '0.55rem', fontWeight: 900, color: hasHighPriority ? '#fff' : '#000' }}>{day}</span>
+                  <span style={{ fontSize: '0.6rem', fontWeight: 800, color: hasHighPriority ? '#fff' : 'var(--text-primary)' }}>{day}</span>
                   {hasAny && (
                     <span style={{
-                      fontSize: '0.5rem', background: '#000', color: '#fff',
+                      fontSize: '0.55rem', background: '#000', color: '#fff',
                       borderRadius: '50%', width: '12px', height: '12px',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontWeight: 900, alignSelf: 'flex-end'

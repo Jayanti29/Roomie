@@ -1123,6 +1123,7 @@ export default function App() {
           <Dashboard
             profile={{
               name: profile.name || user.name,
+              email: user.email,
               college: profile.college,
               university: profile.university,
               degree: profile.degree,
