@@ -174,7 +174,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   const [activeRoomDoc, setActiveRoomDoc] = useState<any>(null);
   const [waitingRoomForId, setWaitingRoomForId] = useState<string | null>(null);
-  const [waitingRoomTitle, setWaitingRoomTitle] = useState('');
+  const [waitingRoomTitle, _setWaitingRoomTitle] = useState('');
   const waitingListenerRef = useRef<(() => void) | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [mobileTab, setMobileTab] = useState<'video' | 'chat' | 'participants' | 'notes'>('video');
@@ -741,20 +741,16 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     if (isFirebaseConfigured && db) {
       try {
-        const [idSnap, isLockedSnap, bannedEmailsSnap, hostPeerIdSnap, hostEmailSnap, participantsSnap] = await Promise.all([
+        const [idSnap, isLockedSnap, bannedEmailsSnap, participantsSnap] = await Promise.all([
           get(ref(db, `study_rooms/${room.id}/id`)),
           get(ref(db, `study_rooms/${room.id}/isLocked`)),
           get(ref(db, `study_rooms/${room.id}/bannedEmails`)),
-          get(ref(db, `study_rooms/${room.id}/hostPeerId`)),
-          get(ref(db, `study_rooms/${room.id}/hostEmail`)),
           get(ref(db, `study_rooms/${room.id}/participants`))
         ]);
 
         if (idSnap.exists()) {
           const isLocked = isLockedSnap.val() || false;
           const bannedEmails = bannedEmailsSnap.val() || [];
-          const hostPeerId = hostPeerIdSnap.val();
-          const hostEmail = hostEmailSnap.val();
           const participantsVal = participantsSnap.val() || {};
 
           isAlreadyIn = !!participantsVal[myPeerId];
@@ -778,17 +774,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             return;
           }
 
-          // Check if we are host or already in
-          const isHost = hostPeerId === myPeerId || hostEmail === userEmail || !hostPeerId;
-          if (isHost || isAlreadyIn) {
-            handleJoinRoom(room);
-            return;
-          }
-
-          // Request join!
-          setWaitingRoomForId(room.id);
-          setWaitingRoomTitle(room.title);
-
+          // Register request in Firebase so host's E2E listener fires
           const req = {
             peerId: myPeerId,
             name: userName,
@@ -797,48 +783,30 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
             status: 'pending',
             timestamp: Date.now()
           };
-
           await set(ref(db, `study_rooms/${room.id}/joinRequests/${myPeerId}`), req);
 
-          // Show notifications
+          // Force dispatch join request event for local HUD
           window.dispatchEvent(new CustomEvent('new-notification', {
             detail: {
               title: 'Join Request Sent',
-              message: `Requested to join "${room.title}". Waiting for host approval...`,
+              message: `Joining room "${room.title}"...`,
               type: 'request'
             }
           }));
 
-          // Set up approval listener
-          if (waitingListenerRef.current) waitingListenerRef.current();
-          waitingListenerRef.current = onValue(ref(db, `study_rooms/${room.id}/joinRequests/${myPeerId}`), (snap) => {
-            if (snap.exists()) {
-              const myReq = snap.val();
-              if (myReq.status === 'approved') {
-                setWaitingRoomForId(null);
-                if (waitingListenerRef.current) {
-                  waitingListenerRef.current();
-                  waitingListenerRef.current = null;
-                }
-                handleJoinRoom(room);
-              } else if (myReq.status === 'rejected') {
-                setWaitingRoomForId(null);
-                if (waitingListenerRef.current) {
-                  waitingListenerRef.current();
-                  waitingListenerRef.current = null;
-                }
-                alert("Your request to join the room was rejected by the host.");
-              }
-            }
-          });
-
+          // Enter room immediately
+          handleJoinRoom(room);
+          return;
         } else {
           // Room doesn't exist, join immediately (we will create and be host)
           handleJoinRoom(room);
         }
       } catch (e) {
         console.error("Error requesting join:", e);
+        handleJoinRoom(room);
       }
+    } else {
+      handleJoinRoom(room);
     }
   };
 
@@ -927,6 +895,38 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       setActiveRoom(room);
     }
   };
+
+  useEffect(() => {
+    const handleJoinEvent = async (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { roomId, title } = customEvent.detail || {};
+      if (!roomId) return;
+      
+      const roomObj = {
+        id: roomId,
+        title: title || roomId,
+        topic: 'General',
+        participants: 1
+      };
+      
+      if (isFirebaseConfigured && db) {
+        try {
+          const snap = await get(ref(db, `study_rooms/${roomId}`));
+          if (snap.exists()) {
+            const val = snap.val();
+            roomObj.title = val.title || roomObj.title;
+            roomObj.topic = val.topic || roomObj.topic;
+          }
+        } catch (err) {}
+      }
+      
+      handleJoinRoom(roomObj);
+    };
+
+    window.addEventListener('join-study-room', handleJoinEvent);
+    return () => window.removeEventListener('join-study-room', handleJoinEvent);
+  }, [handleJoinRoom]);
+
 
   const handleLeaveRoom = async () => {
     if (!activeRoom) return;
@@ -1239,6 +1239,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     // Add transceivers immediately to pre-negotiate audio/video slots
     const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
     const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+    console.log(`[WebRTC] Transceivers created for peer ${peerId}: audio direction=${audioTransceiver.direction}, video direction=${videoTransceiver.direction}`);
 
     // ── Helper: add local tracks to this PC ──
     const addLocalTracksToPc = () => {
@@ -1871,15 +1872,18 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
   const renderParticipantVideo = (friend: any) => {
     const stream = remoteStreams[friend.peerId];
-    const hasVideo = stream && stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].readyState === 'live';
+    const hasVideo = !!friend.cameraOn;
     return (
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         {stream && (
           <video
             autoPlay
             playsInline
+            data-remote="true"
+            data-peer-id={friend.peerId}
             ref={(el) => {
               if (el && el.srcObject !== stream) {
+                console.log(`[WebRTC] Attaching stream to remote video element for peer: ${friend.peerId}`);
                 el.srcObject = stream;
                 // Force play — handles mobile autoplay policy after user gesture
                 el.play().catch(() => {
@@ -3116,7 +3120,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
                       {/* Dynamic classmates grid cards */}
                       {pageClassmates.map((friend, idx) => {
-                        const isLiveVideo = friend.peerId && remoteStreams[friend.peerId] && remoteStreams[friend.peerId].getVideoTracks().length > 0 && remoteStreams[friend.peerId].getVideoTracks()[0].readyState === 'live';
+                        const isLiveVideo = !!friend.cameraOn;
                         return (
                           <div 
                             key={idx}

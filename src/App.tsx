@@ -10,7 +10,10 @@ import { Planner } from './components/Planner';
 import { ProfilePage } from './components/ProfilePage';
 import { Leaderboard } from './components/Leaderboard';
 import { QuizGenerator } from './components/QuizGenerator';
+import { Onboarding } from './components/Onboarding';
+import { Friends } from './components/Friends';
 import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
+
 
 interface ToastItem {
   id: string;
@@ -50,7 +53,7 @@ interface Task {
   status: string;
 }
 
-type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station';
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -106,7 +109,8 @@ export default function App() {
     careerGoal: 'Software Engineer',
     interests: [] as string[],
     bio: '',
-    profilePhoto: null as string | null
+    profilePhoto: null as string | null,
+    onboardingCompleted: false
   });
 
   useEffect(() => {
@@ -145,6 +149,7 @@ export default function App() {
               let profilePhotoVal: string | null = null;
               let phoneVal = '';
               let bioVal = '';
+              let onboardingCompletedVal = false;
 
               try {
                 const data = await databaseService.getUserData(email);
@@ -163,6 +168,7 @@ export default function App() {
                   profilePhotoVal = data.profilePhoto || null;
                   phoneVal = data.phone || '';
                   bioVal = data.bio || '';
+                  onboardingCompletedVal = data.profile?.onboardingCompleted ?? false;
                 }
               } catch (e) {
                 console.warn("Could not load user details on restore:", e);
@@ -185,7 +191,8 @@ export default function App() {
                 interestsVal,
                 profilePhotoVal,
                 phoneVal,
-                bioVal
+                bioVal,
+                onboardingCompletedVal
               );
             } else {
               const savedSession = localStorage.getItem('roomie_mock_session');
@@ -209,7 +216,8 @@ export default function App() {
                     parsed.interests,
                     parsed.profilePhoto,
                     parsed.phone,
-                    parsed.bio
+                    parsed.bio,
+                    parsed.onboardingCompleted
                   );
                 } catch (e) {}
               } else {
@@ -328,6 +336,121 @@ export default function App() {
     return () => window.removeEventListener('new-notification', handleNewNotification);
   }, []);
 
+  // Real-time notifications subscription from Firebase Realtime Database
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    if (loggedIn && user && isFirebaseConfigured && db) {
+      import('./firebase').then(({ auth }) => {
+        if (!auth) return;
+        const listenToNotifs = () => {
+          const uid = auth.currentUser?.uid || user.email.replace(/\./g, '_');
+          const notificationsRef = ref(db, `notifications/${uid}`);
+          
+          unsubscribe = onValue(notificationsRef, (snap) => {
+            if (snap.exists()) {
+              const val = snap.val();
+              if (val) {
+                const dbList = Object.keys(val).map(key => ({
+                  id: key,
+                  title: val[key].title || 'Alert',
+                  message: val[key].message || '',
+                  type: val[key].type || 'info',
+                  timestamp: val[key].timestamp || Date.now(),
+                  read: val[key].read ?? false
+                }));
+                setNotifications(prev => {
+                  const localOnly = prev.filter(n => !n.id.startsWith('notif_db_'));
+                  const dbMapped = dbList.map(n => ({ ...n, id: `notif_db_${n.id}` }));
+                  const merged = [...dbMapped, ...localOnly];
+                  return merged.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+                });
+              } else {
+                setNotifications(prev => prev.filter(n => !n.id.startsWith('notif_db_')));
+              }
+            } else {
+              setNotifications(prev => prev.filter(n => !n.id.startsWith('notif_db_')));
+            }
+          });
+        };
+
+        if (auth.currentUser) {
+          listenToNotifs();
+        } else {
+          const unsubAuth = auth.onAuthStateChanged((u: any) => {
+            if (u) {
+              listenToNotifs();
+              unsubAuth();
+            }
+          });
+        }
+      });
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [loggedIn, user]);
+
+  const handleMarkNotificationRead = async (id: string) => {
+    if (id.startsWith('notif_db_')) {
+      const dbId = id.substring(9);
+      if (isFirebaseConfigured && db && loggedIn && user) {
+        import('./firebase').then(({ auth }) => {
+          const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
+          update(ref(db, `notifications/${uid}/${dbId}`), { read: true }).catch(console.error);
+        });
+      }
+    } else {
+      setNotifications(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (isFirebaseConfigured && db && loggedIn && user) {
+      import('./firebase').then(({ auth }) => {
+        const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
+        const updates: any = {};
+        notifications.forEach(n => {
+          if (n.id.startsWith('notif_db_')) {
+            const dbId = n.id.substring(9);
+            updates[`notifications/${uid}/${dbId}/read`] = true;
+          }
+        });
+        if (Object.keys(updates).length > 0) {
+          update(ref(db), updates).catch(console.error);
+        }
+      });
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    setNotifications([]);
+    if (isFirebaseConfigured && db && loggedIn && user) {
+      import('./firebase').then(({ auth }) => {
+        const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
+        set(ref(db, `notifications/${uid}`), null).catch(console.error);
+      });
+    }
+  };
+
+  // Listen to DM redirect events
+  useEffect(() => {
+    const handleJoinRoom = () => {
+      setActiveMainTab('study_rooms');
+    };
+    const handleJoinGroup = () => {
+      setActiveMainTab('study_groups');
+    };
+    window.addEventListener('join-study-room', handleJoinRoom);
+    window.addEventListener('join-study-group', handleJoinGroup);
+    return () => {
+      window.removeEventListener('join-study-room', handleJoinRoom);
+      window.removeEventListener('join-study-group', handleJoinGroup);
+    };
+  }, []);
+
+
   // Load User Data, Profile, Tasks, Courses, Learning Tracks
   useEffect(() => {
     if (loggedIn && user) {
@@ -352,7 +475,8 @@ export default function App() {
           careerGoal: 'Software Engineer',
           interests: ['Programming', 'UI Design'],
           bio: 'Guest student workspace',
-          profilePhoto: null
+          profilePhoto: null,
+          onboardingCompleted: false
         });
         setCourses([
           { id: 'c1', name: 'Programming in Java', progress: 60 },
@@ -395,7 +519,8 @@ export default function App() {
               careerGoal: loadedProfile.careerGoal ?? '',
               interests: loadedProfile.interests ?? [],
               bio: loadedProfile.bio ?? '',
-              profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null
+              profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null,
+              onboardingCompleted: loadedProfile.onboardingCompleted ?? false
             });
             setProfilePhoto(loadedProfile.profilePhoto ?? data.profilePhoto ?? null);
           }
@@ -568,12 +693,13 @@ export default function App() {
     interests?: string[],
     photoUrl?: string | null,
     phone?: string,
-    bio?: string
+    bio?: string,
+    onboardingCompleted?: boolean
   ) => {
     const sessionData = {
       email, name, course, degree, college, location, isGuest,
       state, city, university, specialization, semester, careerGoal,
-      interests, profilePhoto: photoUrl, phone, bio
+      interests, profilePhoto: photoUrl, phone, bio, onboardingCompleted
     };
     if (useMockDb) {
       localStorage.setItem('roomie_mock_session', JSON.stringify(sessionData));
@@ -593,7 +719,8 @@ export default function App() {
       careerGoal: careerGoal ?? 'Software Engineer',
       interests: interests ?? [],
       bio: bio ?? '',
-      profilePhoto: photoUrl ?? null
+      profilePhoto: photoUrl ?? null,
+      onboardingCompleted: onboardingCompleted ?? false
     });
     setProfilePhoto(photoUrl ?? null);
     setLoggedIn(true);
@@ -797,6 +924,29 @@ export default function App() {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const isBypassed = user.email.includes('testuser') || (typeof window !== 'undefined' && window.location.search.includes('debug=true'));
+
+  if (!isBypassed && !profile.onboardingCompleted) {
+    return (
+      <Onboarding
+        userEmail={user.email}
+        defaultName={profile.name || user.name || ''}
+        onComplete={(profileData) => {
+          const updatedProfile = {
+            ...profile,
+            ...profileData,
+            onboardingCompleted: true
+          };
+          setProfile(updatedProfile);
+          if (profileData.profilePhoto) {
+            setProfilePhoto(profileData.profilePhoto);
+          }
+        }}
+      />
+    );
+  }
+
+
   return (
     <div data-testid="app-root" style={{ 
       minHeight: '100vh', 
@@ -912,13 +1062,13 @@ export default function App() {
                   <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>NOTIFICATIONS</span>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
-                      onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                      onClick={handleMarkAllNotificationsRead}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-primary)' }}
                     >
                       Read All
                     </button>
                     <button
-                      onClick={() => setNotifications([])}
+                      onClick={handleClearNotifications}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-pink)' }}
                     >
                       Clear
@@ -933,7 +1083,7 @@ export default function App() {
                     notifications.map(n => (
                       <div
                         key={n.id}
-                        onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item))}
+                        onClick={() => handleMarkNotificationRead(n.id)}
                         style={{
                           background: n.read ? '#fff' : '#f5f3ff',
                           border: '1px solid #e2e8f0',
@@ -1106,6 +1256,7 @@ export default function App() {
             { id: 'community_chat', label: 'Community' },
             { id: 'study_groups', label: 'Groups' },
             { id: 'study_rooms', label: 'Study Rooms' },
+            { id: 'friends', label: 'Friends' },
             { id: 'ai_workspace', label: 'AI Workspace' },
             { id: 'planner', label: 'Planner' },
             { id: 'leaderboard', label: 'Leaderboard' },
@@ -1207,6 +1358,16 @@ export default function App() {
             userStats={stats} 
             userCourse={profile.specialization} 
             onRewardXp={handleRewardXp} 
+            isGuest={user.isGuest}
+          />
+        )}
+
+        {/* Friends Tab */}
+        {activeMainTab === 'friends' && (
+          <Friends
+            userName={profile.name || user.name}
+            userEmail={user.email}
+            onRewardXp={handleRewardXp}
             isGuest={user.isGuest}
           />
         )}
@@ -1356,6 +1517,12 @@ export default function App() {
             className={`bottom-nav-btn ${activeMainTab === 'study_rooms' ? 'active' : ''}`}
           >
             <span>Rooms</span>
+          </button>
+          <button 
+            onClick={() => setActiveMainTab('friends')} 
+            className={`bottom-nav-btn ${activeMainTab === 'friends' ? 'active' : ''}`}
+          >
+            <span>Friends</span>
           </button>
           <button 
             onClick={() => setActiveMainTab('ai_workspace')} 

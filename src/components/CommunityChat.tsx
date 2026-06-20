@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { db, isFirebaseConfigured, ref, push, onChildAdded, get, set, onValue, uploadFile } from '../firebase';
+import { db, isFirebaseConfigured, ref, push, onChildAdded, get, set, onValue, uploadFile, auth } from '../firebase';
 
 interface ChatMessage {
   id: string;
@@ -12,6 +12,14 @@ interface ChatMessage {
     size: string;
     url: string;
     isVoice?: boolean;
+  };
+  noteReference?: {
+    id: string;
+    title: string;
+    author: string;
+    content: string;
+    course: string;
+    pdfAttachment?: any;
   };
 }
 
@@ -33,8 +41,8 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   isAdmin,
   isGuest
 }) => {
-  const [communities, setCommunities] = useState<{ id: string; name: string; description: string; createdBy?: string; moderators?: string[] }[]>([
-    { id: 'global', name: 'Global Roomie', description: 'The main Roomie student forum.' }
+  const [communities, setCommunities] = useState<{ id: string; name: string; description: string; createdBy?: string; moderators?: string[]; type?: string; members?: Record<string, boolean> }[]>([
+    { id: 'global', name: 'Global Roomie', description: 'The main Roomie student forum.', type: 'global' }
   ]);
   const [activeCommunityId, setActiveCommunityId] = useState('global');
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -46,6 +54,12 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
   const [newCommunityDesc, setNewCommunityDesc] = useState('');
+  const [newCommunityType, setNewCommunityType] = useState<'custom' | 'private' | 'college' | 'degree' | 'specialization'>('custom');
+  
+  // Note attachment state
+  const [attachedNote, setAttachedNote] = useState<any | null>(null);
+  const [myNotes, setMyNotes] = useState<any[]>([]);
+  const [showNoteSelector, setShowNoteSelector] = useState(false);
 
   // File Upload State
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -92,20 +106,31 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
     const commsRef = ref(db, 'custom_communities');
     const unsub = onValue(commsRef, (snap) => {
       const val = snap.val() || {};
-      const list = Object.values(val).map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        description: c.description || '',
-        createdBy: c.createdBy,
-        moderators: c.moderators || []
-      }));
+      const currentUid = auth?.currentUser?.uid || '';
+      const list = Object.values(val)
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description || '',
+          createdBy: c.createdBy,
+          moderators: c.moderators || [],
+          type: c.type || 'custom',
+          members: c.members || {}
+        }))
+        .filter((c: any) => {
+          if (c.type === 'private') {
+            const emailSlug = userEmail.replace(/\./g, '_');
+            return c.members?.[currentUid] === true || c.members?.[emailSlug] === true || c.createdBy === userEmail;
+          }
+          return true;
+        });
       setCommunities([
-        { id: 'global', name: 'Global Roomie', description: 'The main Roomie student forum.' },
+        { id: 'global', name: 'Global Roomie', description: 'The main Roomie student forum.', type: 'global' },
         ...list
       ]);
     });
     return () => unsub();
-  }, [isFirebaseConfigured]);
+  }, [isFirebaseConfigured, userEmail]);
 
   // Subscribe to Channels List based on active community
   useEffect(() => {
@@ -212,38 +237,32 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
 
   // Secure file download logic
   const handleDownloadFile = async (attachment: { name: string; url: string }) => {
-    if (!attachment || !attachment.url) return;
-    const url = attachment.url;
+    if (!attachment) return;
+    
+    // @ts-ignore
+    if (attachment.isNoteRef) {
+      // @ts-ignore
+      const text = `${attachment.noteDetails.title}\n\nSubject: ${attachment.noteDetails.course}\nAuthor: ${attachment.noteDetails.author}\n\n${attachment.noteDetails.content}`;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      // @ts-ignore
+      link.download = `${attachment.noteDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+      link.click();
+      return;
+    }
+
+    const url = previewDataUrl || attachment.url;
     const fileName = attachment.name;
 
-    if (url.startsWith('mock-file-url:')) {
-      const mockId = url.split(':')[1];
-      if (isFirebaseConfigured && db) {
-        try {
-          const snap = await get(ref(db, 'pdf_contents/' + mockId));
-          if (snap.exists()) {
-            const dataUrl = snap.val();
-            const link = document.createElement("a");
-            link.href = dataUrl;
-            link.download = fileName;
-            link.click();
-          } else {
-            alert("File content not found in mock database.");
-          }
-        } catch (e) {
-          console.error("Error downloading mock file:", e);
-        }
-      }
-    } else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Handle standard file selection
@@ -379,7 +398,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   // Send Message (Text & File attachments)
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() && !attachedFile) return;
+    if (!inputText.trim() && !attachedFile && !attachedNote) return;
 
     if (activeCommunityId === 'global' && activeChannelId === 'chan_announcements' && !isAdmin) {
       alert("Only administrators can post announcements.");
@@ -413,7 +432,16 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
       senderEmail: userEmail,
       text: inputText,
       timestamp: Date.now(),
-      attachment: attachmentObj
+      attachment: attachmentObj,
+      // @ts-ignore
+      noteReference: attachedNote ? {
+        id: attachedNote.id,
+        title: attachedNote.title,
+        author: attachedNote.author,
+        content: attachedNote.content,
+        course: attachedNote.course,
+        pdfAttachment: attachedNote.pdfAttachment || null
+      } : undefined
     };
 
     if (isFirebaseConfigured && db) {
@@ -425,6 +453,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
 
     setInputText('');
     setAttachedFile(null);
+    setAttachedNote(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setIsUploading(false);
   };
@@ -487,10 +516,12 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
       id: commId,
       name: newCommunityName,
       description: newCommunityDesc,
+      type: newCommunityType,
       createdBy: userEmail,
       moderators: [userEmail],
       members: {
-        [myEmailSlug]: true
+        [myEmailSlug]: true,
+        [auth?.currentUser?.uid || '']: true
       },
       channels: {
         chan_general: { id: 'chan_general', name: 'general' },
@@ -505,7 +536,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
           id: `sys_${Date.now()}`,
           sender: 'System',
           senderEmail: 'system@roomie.io',
-          text: `Community Space "${newCommunityName}" was formed. Welcome!`,
+          text: `Community Space "${newCommunityName}" (Type: ${newCommunityType}) was formed. Welcome!`,
           timestamp: Date.now()
         };
         await push(ref(db, `custom_communities/${commId}/channels/chan_general/messages`), sysMsg);
@@ -516,8 +547,29 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
 
     setNewCommunityName('');
     setNewCommunityDesc('');
+    setNewCommunityType('custom');
     setShowCreateCommunityModal(false);
     setActiveCommunityId(commId);
+  };
+
+  const loadMyNotes = async () => {
+    if (isFirebaseConfigured && db) {
+      try {
+        const snap = await get(ref(db, 'shared_notes'));
+        if (snap.exists()) {
+          const val = snap.val();
+          const list = Object.values(val).filter((n: any) => n.authorEmail === userEmail);
+          setMyNotes(list);
+        }
+      } catch (err) {
+        console.error('Error loading my notes:', err);
+      }
+    }
+  };
+
+  const handleOpenNoteSelector = () => {
+    loadMyNotes();
+    setShowNoteSelector(true);
   };
 
   const currentChannel = channels.find((c: Channel) => c.id === activeChannelId);
@@ -678,6 +730,46 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                   >
                     {msg.text && <div>{msg.text}</div>}
                     
+                    {/* Render Note Reference Card */}
+                    {msg.noteReference && (() => {
+                      const noteRef = msg.noteReference;
+                      return (
+                        <div 
+                          onClick={() => {
+                            setPreviewAttachment({
+                              name: noteRef.title + " (Note Reference)",
+                              url: noteRef.pdfAttachment?.url || '',
+                              // @ts-ignore
+                              isNoteRef: true,
+                              noteDetails: noteRef
+                            });
+                          }}
+                          style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                            border: isMe ? '1.5px solid rgba(255,255,255,0.4)' : '2px solid #000', 
+                            background: isMe ? 'rgba(255,255,255,0.15)' : '#fffcf0', 
+                            padding: '0.6rem', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer',
+                            marginTop: '0.4rem',
+                            boxShadow: isMe ? 'none' : '2px 2px 0px #000',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '1rem' }}>📝</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isMe ? '#fff' : '#0f172a' }}>
+                              Shared Note: {noteRef.title}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>
+                            Subject: {noteRef.course} | By: {noteRef.author}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    
                     {/* Render attachment inside message bubble */}
                     {msg.attachment && (
                       <div 
@@ -702,7 +794,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                         ) : (
                           <>
                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isMe ? '#fff' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {msg.attachment.name}
+                               {msg.attachment.name}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
                               ({msg.attachment.size})
@@ -737,6 +829,20 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                 </button>
               </div>
             )}
+            
+            {attachedNote && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', padding: '0.35rem 0.6rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-green)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Note Reference: {attachedNote.title}
+                </span>
+                <button 
+                  onClick={() => setAttachedNote(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
             {uploadError && <span style={{ fontSize: '0.7rem', color: 'var(--accent-pink)', fontWeight: 600 }}>{uploadError}</span>}
 
             <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
@@ -759,6 +865,18 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                 accept=".pdf,.docx,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp"
                 onChange={handleFileSelection}
               />
+
+              {/* Attach Note Reference Button */}
+              <button
+                type="button"
+                onClick={handleOpenNoteSelector}
+                className="cyber-btn"
+                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: 'var(--border-radius-sm)', background: '#f0fdf4', color: 'var(--accent-green)', border: '1px solid #bbf7d0' }}
+                title="Attach Shared Note Card"
+                disabled={isRecording || isUploading}
+              >
+                📝
+              </button>
 
               {/* Voice Notes Button */}
               {!isRecording ? (
@@ -785,19 +903,19 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
               {!isRecording && (
                 <>
                   <input
-                    type="text"
-                    className="cyber-input"
-                    style={{ flex: 1, minHeight: '38px' }}
-                    placeholder={activeChannelId === 'chan_announcements' ? "Post official announcement..." : `Message #${currentChannel?.name || 'channel'}...`}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    disabled={isUploading}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isUploading}
-                    className="cyber-btn purple-fill"
-                    style={{ padding: '0.5rem 1rem', minHeight: '38px' }}
+                     type="text"
+                     className="cyber-input"
+                     style={{ flex: 1, minHeight: '38px' }}
+                     placeholder={activeChannelId === 'chan_announcements' ? "Post official announcement..." : `Message #${currentChannel?.name || 'channel'}...`}
+                     value={inputText}
+                     onChange={(e) => setInputText(e.target.value)}
+                     disabled={isUploading}
+                   />
+                   <button
+                     type="submit"
+                     disabled={isUploading}
+                     className="cyber-btn purple-fill"
+                     style={{ padding: '0.5rem 1rem', minHeight: '38px' }}
                   >
                     {isUploading ? 'Sending...' : 'Send'}
                   </button>
@@ -837,7 +955,15 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
 
             {/* Inline Attachment Preview */}
             <div style={{ width: '100%', height: '240px', background: '#f1f5f9', borderRadius: '8px', border: '1px solid var(--outline-thick)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {isImageFile(previewAttachment.name) ? (
+              {/* @ts-ignore */}
+              {previewAttachment.isNoteRef ? (
+                <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#fff', padding: '1rem', color: '#000', fontSize: '0.8rem' }}>
+                  {/* @ts-ignore */}
+                  <h4 style={{ borderBottom: '2px solid #000', paddingBottom: '0.25rem', marginBottom: '0.5rem', fontWeight: 800 }}>{previewAttachment.noteDetails.title}</h4>
+                  {/* @ts-ignore */}
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{previewAttachment.noteDetails.content}</p>
+                </div>
+              ) : isImageFile(previewAttachment.name) ? (
                 <img src={previewDataUrl || ''} alt="Attachment File" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               ) : isPdfFile(previewAttachment.name) ? (
                 <iframe src={previewDataUrl || ''} title="PDF Attachment" style={{ width: '100%', height: '100%', border: 'none' }} />
@@ -849,12 +975,24 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              {/* @ts-ignore */}
+              {previewAttachment.isNoteRef && previewAttachment.noteDetails.pdfAttachment && (
+                <button 
+                  // @ts-ignore
+                  onClick={() => handleDownloadFile(previewAttachment.noteDetails.pdfAttachment)}
+                  className="cyber-btn purple-fill"
+                  style={{ padding: '0.4rem 1rem' }}
+                >
+                  Download Note File Attachment
+                </button>
+              )}
               <button 
                 onClick={() => handleDownloadFile(previewAttachment)}
                 className="cyber-btn cyan-fill"
                 style={{ padding: '0.4rem 1rem' }}
               >
-                Download File
+                {/* @ts-ignore */}
+                {previewAttachment.isNoteRef ? 'Download Note Text' : 'Download File'}
               </button>
             </div>
           </div>
@@ -941,6 +1079,21 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                   onChange={(e) => setNewCommunityDesc(e.target.value)}
                 />
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>SPACE TYPE</label>
+                <select
+                  className="cyber-input"
+                  style={{ appearance: 'auto', cursor: 'pointer' }}
+                  value={newCommunityType}
+                  onChange={(e: any) => setNewCommunityType(e.target.value)}
+                >
+                  <option value="custom">Custom (Public)</option>
+                  <option value="private">Private (Invite Only)</option>
+                  <option value="college">College (My Campus Space)</option>
+                  <option value="degree">Degree (Same Major)</option>
+                  <option value="specialization">Specialization (Branch Specific)</option>
+                </select>
+              </div>
               <button
                 type="submit"
                 className="cyber-btn cyan-fill"
@@ -949,6 +1102,58 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                 Create Space
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* NOTE REFERENCE SELECTOR MODAL */}
+      {showNoteSelector && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.4)', zIndex: 999999, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }} onClick={() => setShowNoteSelector(false)}>
+          <div className="glass-panel anim-pop" style={{
+            maxWidth: '450px', width: '100%', background: '#fff',
+            border: '1px solid var(--outline-thick)', borderRadius: '16px', padding: '1.5rem',
+            display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left',
+            boxShadow: 'var(--shadow-flat-lg)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '0.4rem' }}>
+              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem' }}>Attach Note Card</strong>
+              <button onClick={() => setShowNoteSelector(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: 800 }}>✕</button>
+            </div>
+            
+            <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--outline-medium)', borderRadius: '8px', padding: '0.25rem', background: '#f8fafc' }}>
+              {myNotes.length === 0 ? (
+                <div style={{ padding: '1rem', textShadow: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+                  You haven't shared any notes yet. Go to Notes Shelf to upload study material.
+                </div>
+              ) : (
+                myNotes.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => {
+                      setAttachedNote(n);
+                      setShowNoteSelector(false);
+                    }}
+                    style={{
+                      padding: '0.6rem',
+                      background: '#fff',
+                      border: '1px solid var(--outline-medium)',
+                      borderRadius: '6px',
+                      marginBottom: '0.35rem',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <div style={{ fontWeight: 800 }}>{n.title}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Course: {n.course}</div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

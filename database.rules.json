@@ -12,28 +12,40 @@
     },
     "private_chats": {
       "$chatId": {
-        ".read": "auth != null && (auth.token.email != null && $chatId.contains(auth.token.email.replace('.', '_')))",
-        ".write": "auth != null && (auth.token.email != null && $chatId.contains(auth.token.email.replace('.', '_')))"
+        ".read": "auth != null && $chatId.contains(auth.uid)",
+        ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
     "bookmarks": {
       "$userKey": {
-        ".read": "auth != null && (auth.token.email != null && auth.token.email.replace('.', '_') === $userKey)",
-        ".write": "auth != null && (auth.token.email != null && auth.token.email.replace('.', '_') === $userKey)"
+        ".read": "auth != null",
+        ".write": "auth != null"
       }
     },
     "shared_notes": {
       ".read": "auth != null",
       "$noteId": {
-        ".write": "auth != null && (!data.exists() || data.child('authorEmail').val() === auth.token.email || auth.token.admin === true)"
+        ".write": "auth != null && (!data.exists() || data.child('authorUid').val() === auth.uid || data.child('authorEmail').val() === auth.token.email || auth.token.admin === true)"
       }
     },
     "note_shares": {
       "$userKey": {
-        ".read": "auth != null && (auth.token.email.replace('.', '_') === $userKey || auth.token.admin === true)",
+        ".read": "auth != null",
         "$shareId": {
-          ".write": "auth != null && (!data.exists() || auth.token.email === data.child('authorEmail').val() || auth.token.admin === true)"
+          ".write": "auth != null"
         }
+      }
+    },
+    "friend_requests": {
+      ".read": "auth != null",
+      "$requestId": {
+        ".write": "auth != null && (!data.exists() || data.child('senderUid').val() === auth.uid || data.child('receiverUid').val() === auth.uid || newData.child('senderUid').val() === auth.uid)"
+      }
+    },
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null"
       }
     },
     "custom_communities": {
@@ -41,7 +53,7 @@
       "$communityId": {
         ".write": "auth != null && (!data.exists() || data.child('createdBy').val() === auth.token.email || auth.token.admin === true)",
         "channels": {
-          ".write": "auth != null && (!data.exists() || root.child('custom_communities').child($communityId).child('createdBy').val() === auth.token.email || auth.token.admin === true)",
+          ".write": "auth != null",
           "$channelId": {
             "messages": {
               ".write": "auth != null"
@@ -57,13 +69,13 @@
     "community_users": {
       ".read": "auth != null",
       "$userKey": {
-        ".write": "auth != null && (auth.token.email != null && auth.token.email.replace('.', '_') === $userKey || auth.token.admin === true)"
+        ".write": "auth != null"
       }
     },
     "community_channels": {
       ".read": "auth != null",
       "$channelId": {
-        ".write": "auth != null && auth.token.admin === true",
+        ".write": "auth != null && (auth.token.admin === true || !data.exists())",
         "messages": {
           ".write": "auth != null"
         },
@@ -74,46 +86,46 @@
           ".write": "auth != null"
         },
         "metadata": {
-          ".write": "auth != null && auth.token.admin === true"
+          ".write": "auth != null"
         }
       }
     },
     "community_groups": {
       ".read": "auth != null",
       "$groupId": {
-        ".write": "auth != null && (auth.token.admin === true || !data.exists())",
+        ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('metadata/createdBy').val() === auth.token.email || newData.child('metadata/createdBy').val() === auth.token.email)",
         "members": {
           "$userSlug": {
-            ".write": "auth != null && (auth.token.admin === true || auth.token.email.replace('.', '_') === $userSlug)"
+            ".write": "auth != null"
           }
         },
         "messages": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "notes": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "pdfs": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "roadmap": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "tasks": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "announcements": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         },
         "metadata": {
-          ".write": "auth != null && (auth.token.admin === true || !data.exists() || root.child('community_groups').child($groupId).child('members').child(auth.token.email.replace('.', '_')).val() === true)"
+          ".write": "auth != null"
         }
       }
     },
     "study_rooms": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('hostEmail').val() === auth.token.email)",
+        ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('hostEmail').val() === auth.token.email || data.child('hostPeerId').val() === auth.uid)",
         "participants": {
           "$peerId": {
             ".write": "auth != null"

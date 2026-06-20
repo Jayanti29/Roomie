@@ -314,120 +314,68 @@ export const popularUniversities = [
 ];
 
 export const degrees = [
-  // Engineering & Tech
-  "B.Tech (Bachelor of Technology)",
-  "B.E. (Bachelor of Engineering)",
-  "M.Tech (Concentrated Master of Technology)",
-  "M.E. (Master of Engineering)",
-  "Diploma in Engineering (Polytechnic)",
-  
-  // Computer Applications
-  "BCA (Bachelor of Computer Applications)",
-  "MCA (Master of Computer Applications)",
-  
-  // Medical & Paramedical
-  "MBBS (Bachelor of Medicine, Bachelor of Surgery)",
-  "BDS (Bachelor of Dental Surgery)",
-  "BAMS (Bachelor of Ayurvedic Medicine and Surgery)",
-  "BHMS (Bachelor of Homeopathic Medicine and Surgery)",
-  "BPT (Bachelor of Physiotherapy)",
-  "B.Sc Nursing",
-  "GNM (General Nursing and Midwifery)",
-  "B.Pharm (Bachelor of Pharmacy)",
-  "M.Pharm (Master of Pharmacy)",
-  
-  // Commerce & Finance
-  "B.Com (Bachelor of Commerce)",
-  "M.Com (Master of Commerce)",
-  "CA Aspirant (Chartered Accountancy)",
-  "CS Aspirant (Company Secretary)",
-  "CMA Aspirant (Cost and Management Accountancy)",
-  
-  // Management
-  "BBA (Bachelor of Business Administration)",
-  "MBA (Master of Business Administration)",
-  "PGDM (Post Graduate Diploma in Management)",
-  
-  // Science
-  "B.Sc (Bachelor of Science)",
-  "M.Sc (Master of Science)",
-  
-  // Arts & Humanities
-  "B.A. (Bachelor of Arts)",
-  "M.A. (Master of Arts)",
-  
-  // Law
-  "LLB (Bachelor of Laws)",
-  "BA LLB (Integrated Bachelor of Arts & Laws)",
-  "BBA LLB (Integrated Bachelor of Business Admin & Laws)",
-  "LLM (Master of Laws)",
-  
-  // Design
-  "B.Des (Bachelor of Design)",
-  "M.Des (Master of Design)",
-  "Fashion Design Certificate/Degree",
-  "Interior Design Certificate/Degree",
-  
-  // Agriculture
-  "B.Sc Agriculture",
-  "M.Sc Agriculture",
-  "BVSc (Bachelor of Veterinary Science)",
-  
-  // Education
-  "B.Ed (Bachelor of Education)",
-  "M.Ed (Master of Education)",
-  
-  // Government Exams Prep
-  "UPSC Prep (Union Public Service Commission)",
-  "SSC Prep (Staff Selection Commission)",
-  "Banking Exams Prep (IBPS/SBI)",
-  "Railways Exams Prep (RRB)",
-  "Defence Exams Prep (NDA/CDS/AFC)",
-  "State PSC Prep (Public Service Commission)"
+  "BTech",
+  "BE",
+  "MTech",
+  "ME",
+  "BCA",
+  "MCA",
+  "MBBS",
+  "BDS",
+  "BHMS",
+  "BAMS",
+  "BPT",
+  "BSc Nursing",
+  "GNM",
+  "BCom",
+  "MCom",
+  "CA",
+  "CS",
+  "CMA",
+  "BBA",
+  "MBA",
+  "PGDM",
+  "BA",
+  "MA",
+  "BSc",
+  "MSc",
+  "LLB",
+  "BALLB",
+  "LLM",
+  "BDes",
+  "MDes",
+  "Agriculture",
+  "Education",
+  "Government Exam Preparation",
+  "Custom Degree"
 ];
 
 export const specializations = [
-  "Computer Science & Engineering",
-  "Information Technology",
-  "Artificial Intelligence & Machine Learning (AI & ML)",
+  "Computer Science",
+  "AI",
+  "AI & ML",
   "Data Science",
   "Cyber Security",
-  "Cloud Computing",
-  "Software Engineering",
-  "Electronics & Communication Engineering",
-  "Electrical & Electronics Engineering",
-  "Mechanical Engineering",
-  "Civil Engineering",
-  "Biotechnology",
-  "Chemical Engineering",
-  "Aerospace Engineering",
-  "Automobile Engineering",
-  "General Management",
-  "Finance & Investment Banking",
-  "Marketing & Digital Media",
-  "Human Resource Management (HR)",
-  "Operations & Supply Chain Management",
-  "Clinical Psychology",
-  "Applied Economics",
+  "Cloud",
+  "DevOps",
+  "Information Science",
+  "Mechanical",
+  "Civil",
+  "Electrical",
+  "Electronics",
+  "Biotech",
+  "Finance",
+  "Marketing",
+  "HR",
+  "Economics",
+  "Psychology",
+  "Medicine",
+  "Surgery",
+  "Nursing",
+  "Pharmacy",
+  "History",
   "Political Science",
-  "English Literature",
-  "Modern History",
-  "Sociology & Social Work",
-  "Journalism & Mass Communication",
-  "General Medicine (MBBS)",
-  "General Surgery (MBBS)",
-  "Oral & Maxillofacial Surgery (BDS)",
-  "Pharmaceutics",
-  "Pharmacology",
-  "Cardiovascular Physiotherapy",
-  "Pediatric Nursing",
-  "Corporate Law",
-  "Criminal Law",
-  "Intellectual Property Law",
-  "UX/UI Design",
-  "Graphic Design",
-  "Interaction Design",
-  "Agronomy (Agriculture)",
-  "Horticulture",
-  "Veterinary Medicine"
+  "English",
+  "Journalism",
+  "Custom Specialization"
 ];

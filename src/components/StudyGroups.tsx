@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, update, onValue, uploadFile, get } from '../firebase';
+import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, onValue, uploadFile, get, auth } from '../firebase';
 
 interface GroupNote {
   id: string;
@@ -38,13 +38,147 @@ interface StudyGroup {
   name: string;
   description: string;
   createdBy: string;
-  members: Record<string, boolean>; // userEmailSlug -> true
+  members: Record<string, boolean>; // userEmailSlug -> true / userUid -> true
   messages?: Record<string, any>;
   notes?: Record<string, GroupNote>;
   tasks?: Record<string, GroupTask>;
   announcements?: Record<string, GroupAnnouncement>;
   roadmap?: Record<string, GroupRoadmap>;
+  resources?: Record<string, any>;
+  files?: Record<string, any>;
 }
+
+const DocxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #cbd5e1',
+      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+      padding: '1.5rem',
+      borderRadius: '4px',
+      maxHeight: '240px',
+      overflowY: 'auto',
+      fontFamily: 'Georgia, serif',
+      color: '#334155',
+      lineHeight: '1.6'
+    }}>
+      <h4 style={{ textAlign: 'center', marginBottom: '1rem', borderBottom: '2px solid #334155', paddingBottom: '0.25rem', fontSize: '1.1rem', color: '#1e293b' }}>
+        {fileName.replace(/\.docx$/i, '')}
+      </h4>
+      <p style={{ textIndent: '1.5em', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+        This is a simulated document reader preview for <strong>{fileName}</strong>. To view or edit the full formatted content, please download the original DOCX file.
+      </p>
+      <p style={{ textIndent: '1.5em', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+        <strong>Executive Summary:</strong> The study notes contained herein outline the primary research findings and curriculum modules. Detailed sections include methodology, structural analysis, core definitions, and sample quiz questions to solidify learning targets.
+      </p>
+    </div>
+  );
+};
+
+const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = [
+    {
+      bg: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      color: '#fff',
+      content: (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '1rem' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>{fileName.replace(/\.pptx$/i, '')}</span>
+          <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>Lecture Presentation Notes</span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '1rem' }}>Created by Roomie Student Registry</span>
+        </div>
+      )
+    },
+    {
+      bg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+      color: '#f8fafc',
+      content: (
+        <div style={{ padding: '1rem', fontSize: '0.75rem' }}>
+          <h5 style={{ fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>Key Academic Concepts</h5>
+          <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <li>Detailed diagrams and structural mappings.</li>
+            <li>Interactive equations with step-by-step resolution.</li>
+            <li>Summary sheets covering mid-semester assignments.</li>
+          </ul>
+        </div>
+      )
+    },
+    {
+      bg: 'linear-gradient(135deg, #111827 0%, #312e81 100%)',
+      color: '#f8fafc',
+      content: (
+        <div style={{ padding: '1rem', fontSize: '0.75rem' }}>
+          <h5 style={{ fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>Conclusion & Next Steps</h5>
+          <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <li>Complete the practice quiz on the AI Workspace tab.</li>
+            <li>Join the next scheduled video study room for live discussion.</li>
+            <li>Bookmark this resource on your Academic Study Shelf.</li>
+          </ul>
+        </div>
+      )
+    }
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div style={{
+        height: '180px',
+        borderRadius: '8px',
+        background: slides[currentSlide].bg,
+        color: slides[currentSlide].color,
+        border: '2px solid #000',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {slides[currentSlide].content}
+        <div style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.6rem' }}>
+          Slide {currentSlide + 1} of {slides.length}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+        <button
+          type="button"
+          onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
+          disabled={currentSlide === 0}
+          className="cyber-btn"
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+        >
+          ◀ Prev
+        </button>
+
+        <div style={{ display: 'flex', gap: '0.3rem' }}>
+          {slides.map((_, idx) => (
+            <div
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: currentSlide === idx ? 'var(--accent-primary)' : '#cbd5e1',
+                cursor: 'pointer',
+                border: '1px solid #000'
+              }}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1))}
+          disabled={currentSlide === slides.length - 1}
+          className="cyber-btn"
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+        >
+          Next ▶
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface StudyGroupsProps {
   userName: string;
@@ -61,7 +195,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
 }) => {
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [subTab, setSubTab] = useState<'chat' | 'notes' | 'tasks' | 'announcements' | 'roadmap' | 'members'>('chat');
+  const [subTab, setSubTab] = useState<'chat' | 'notes' | 'resources' | 'files' | 'members'>('chat');
 
   // Input states
   const [newGroupName, setNewGroupName] = useState('');
@@ -77,6 +211,16 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
   const [noteUploadError, setNoteUploadError] = useState('');
   const [noteSubmitting, setNoteSubmitting] = useState(false);
   const noteFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Files Tab states
+  const [groupFile, setGroupFile] = useState<File | null>(null);
+  const [groupFileUploadProgress, setGroupFileUploadProgress] = useState(0);
+  const [groupFileUploadError, setGroupFileUploadError] = useState('');
+  const [groupFileUploading, setGroupFileUploading] = useState(false);
+  const groupFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Resources Tab states
+  const [bookmarkedNotesList, setBookmarkedNotesList] = useState<any[]>([]);
 
   // Group Chat File Attachment State
   const [chatAttachedFile, setChatAttachedFile] = useState<File | null>(null);
@@ -96,17 +240,31 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
 
   // Task inputs
-  const [taskTitle, setTaskTitle] = useState('');
+  // const [taskTitle, setTaskTitle] = useState('');
 
   // Announcement inputs
-  const [announcementText, setAnnouncementText] = useState('');
+  // const [announcementText, setAnnouncementText] = useState('');
 
   // Roadmap inputs
-  const [roadmapTitle, setRoadmapTitle] = useState('');
-  const [roadmapDate, setRoadmapDate] = useState('');
+  // const [roadmapTitle, setRoadmapTitle] = useState('');
+  // const [roadmapDate, setRoadmapDate] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const myEmailSlug = userEmail.replace(/\./g, '_');
+
+  // Listen to join-study-group event from private DMs
+  useEffect(() => {
+    const handleJoinGroupEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { groupId } = customEvent.detail || {};
+      if (groupId) {
+        setActiveGroupId(groupId);
+        setSubTab('chat');
+      }
+    };
+    window.addEventListener('join-study-group', handleJoinGroupEvent);
+    return () => window.removeEventListener('join-study-group', handleJoinGroupEvent);
+  }, []);
 
   // Load groups list (metadata & members only)
   useEffect(() => {
@@ -192,6 +350,26 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       } : g));
     }));
 
+    // Listen to resources
+    const resourcesRef = ref(db, `community_groups/${activeGroupId}/resources`);
+    unsubs.push(onValue(resourcesRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        resources: val
+      } : g));
+    }));
+
+    // Listen to files
+    const filesRef = ref(db, `community_groups/${activeGroupId}/files`);
+    unsubs.push(onValue(filesRef, (snap: any) => {
+      const val = snap.val() || {};
+      setGroups(prev => prev.map(g => g.id === activeGroupId ? {
+        ...g,
+        files: val
+      } : g));
+    }));
+
     // Listen to tasks
     const tasksRef = ref(db, `community_groups/${activeGroupId}/tasks`);
     unsubs.push(onValue(tasksRef, (snap: any) => {
@@ -262,40 +440,42 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
     return name.toLowerCase().endsWith('.pdf');
   };
 
+  const isDocxFile = (name: string) => {
+    return name.toLowerCase().endsWith('.docx');
+  };
+
+  const isPptxFile = (name: string) => {
+    return name.toLowerCase().endsWith('.pptx');
+  };
+
   // Secure file download
   const handleDownloadFile = async (attachment: { name: string; url: string }) => {
-    if (!attachment || !attachment.url) return;
-    const url = attachment.url;
+    if (!attachment) return;
+    
+    // @ts-ignore
+    if (attachment.isNoteRef) {
+      // @ts-ignore
+      const text = `${attachment.noteDetails.title}\n\nSubject: ${attachment.noteDetails.course}\nAuthor: ${attachment.noteDetails.author}\n\n${attachment.noteDetails.content}`;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      // @ts-ignore
+      link.download = `${attachment.noteDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+      link.click();
+      return;
+    }
+
+    const url = previewDataUrl || attachment.url;
     const fileName = attachment.name;
 
-    if (url.startsWith('mock-file-url:')) {
-      const mockId = url.split(':')[1];
-      if (isFirebaseConfigured && db) {
-        try {
-          const snap = await get(ref(db, 'pdf_contents/' + mockId));
-          if (snap.exists()) {
-            const dataUrl = snap.val();
-            const link = document.createElement("a");
-            link.href = dataUrl;
-            link.download = fileName;
-            link.click();
-          } else {
-            alert("File content not found in mock database.");
-          }
-        } catch (e) {
-          console.error("Error downloading mock file:", e);
-        }
-      }
-    } else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Create Group
@@ -316,6 +496,8 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       timestamp: Date.now()
     };
 
+    const currentUid = auth?.currentUser?.uid || 'guest';
+
     const newGp = {
       metadata: {
         id: groupId,
@@ -324,7 +506,8 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
         createdBy: userEmail
       },
       members: {
-        [myEmailSlug]: true
+        [myEmailSlug]: true,
+        [currentUid]: true
       },
       messages: {
         join_msg: initialMessage
@@ -347,7 +530,8 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
   const handleToggleJoin = async (groupId: string) => {
     const gp = groups.find(g => g.id === groupId);
     if (!gp) return;
-    const isCurrentlyMember = !!gp.members[myEmailSlug];
+    const currentUid = auth?.currentUser?.uid || 'guest';
+    const isCurrentlyMember = !!gp.members[myEmailSlug] || !!gp.members[currentUid];
 
     const sysMsg = {
       id: `sys_join_${Date.now()}`,
@@ -359,6 +543,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
 
     if (isFirebaseConfigured && db) {
       await set(ref(db, `community_groups/${groupId}/members/${myEmailSlug}`), isCurrentlyMember ? null : true);
+      await set(ref(db, `community_groups/${groupId}/members/${currentUid}`), isCurrentlyMember ? null : true);
       await push(ref(db, `community_groups/${groupId}/messages`), sysMsg);
     }
   };
@@ -380,6 +565,118 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       setActiveGroupId(null);
     }
   };
+
+  const handlePinResource = async (note: any) => {
+    if (!activeGroupId) return;
+    const resourceId = `resource_${Date.now()}`;
+    const newResource = {
+      id: resourceId,
+      noteId: note.id,
+      title: note.title,
+      content: note.content,
+      course: note.course,
+      author: note.author,
+      authorEmail: note.authorEmail,
+      pdfAttachment: note.pdfAttachment || null,
+      pinnedBy: userName,
+      pinnedAt: Date.now()
+    };
+    if (isFirebaseConfigured && db) {
+      await set(ref(db, `community_groups/${activeGroupId}/resources/${resourceId}`), newResource);
+      
+      const sysMsg = {
+        id: `sys_res_${Date.now()}`,
+        sender: 'System',
+        senderEmail: 'system@roomie.io',
+        text: `${userName} pinned a note to resources: "${note.title}".`,
+        timestamp: Date.now()
+      };
+      await push(ref(db, `community_groups/${activeGroupId}/messages`), sysMsg);
+    }
+  };
+
+  const handleUploadGroupFile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupFile || !activeGroupId) return;
+
+    setGroupFileUploading(true);
+    setGroupFileUploadProgress(0);
+    setGroupFileUploadError('');
+
+    const progressInterval = setInterval(() => {
+      setGroupFileUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.floor(Math.random() * 15) + 5;
+      });
+    }, 150);
+
+    const fileId = `file_${Date.now()}`;
+    let fileUrl = '';
+
+    try {
+      fileUrl = await uploadFile(groupFile, groupFile.name, userEmail);
+    } catch (err) {
+      console.error('Group file upload failed:', err);
+      setGroupFileUploadError('Upload failed. Please try again.');
+      clearInterval(progressInterval);
+      setGroupFileUploading(false);
+      return;
+    }
+
+    clearInterval(progressInterval);
+    setGroupFileUploadProgress(100);
+
+    const newFile = {
+      id: fileId,
+      name: groupFile.name,
+      size: groupFile.size > 1024 * 1024 
+        ? (groupFile.size / (1024 * 1024)).toFixed(1) + ' MB' 
+        : (groupFile.size / 1024).toFixed(1) + ' KB',
+      url: fileUrl,
+      uploadedBy: userName,
+      uploadedEmail: userEmail,
+      uploadedAt: Date.now()
+    };
+
+    if (isFirebaseConfigured && db) {
+      await set(ref(db, `community_groups/${activeGroupId}/files/${fileId}`), newFile);
+      
+      const sysMsg = {
+        id: `sys_file_${Date.now()}`,
+        sender: 'System',
+        senderEmail: 'system@roomie.io',
+        text: `${userName} uploaded group file: "${groupFile.name}".`,
+        timestamp: Date.now()
+      };
+      await push(ref(db, `community_groups/${activeGroupId}/messages`), sysMsg);
+    }
+
+    setTimeout(() => {
+      setGroupFile(null);
+      if (groupFileInputRef.current) groupFileInputRef.current.value = '';
+      setGroupFileUploading(false);
+      setGroupFileUploadProgress(0);
+    }, 500);
+  };
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !userEmail) return;
+    const userKey = userEmail.replace(/\./g, '_');
+    // Fetch bookmarks first
+    get(ref(db, 'bookmarks/' + userKey)).then((bookmarkSnap) => {
+      if (bookmarkSnap.exists()) {
+        const bookmarkIds = bookmarkSnap.val() || [];
+        // Fetch all shared notes and filter
+        get(ref(db, 'shared_notes')).then((notesSnap) => {
+          if (notesSnap.exists()) {
+            const allNotes = Object.values(notesSnap.val() || {});
+            const filtered = allNotes.filter((n: any) => bookmarkIds.includes(n.id));
+            setBookmarkedNotesList(filtered);
+          }
+        });
+      }
+    });
+  }, [userEmail, activeGroupId, subTab]);
 
   // Chat File Selection Handler
   const handleChatFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -609,6 +906,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
     setNoteSubmitting(false);
   };
 
+  /*
   // Group Task Add
   const handleAddGroupTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -683,15 +981,14 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
       });
     }
   };
+  */
 
   // Parsing values safely
   const activeGroup = groups.find(g => g.id === activeGroupId);
-  const isMember = activeGroup ? !!activeGroup.members[myEmailSlug] : false;
+  const currentUid = auth?.currentUser?.uid || 'guest';
+  const isMember = activeGroup ? (!!activeGroup.members[myEmailSlug] || !!activeGroup.members[currentUid] || activeGroup.createdBy === userEmail) : false;
   const activeMessages = activeGroup?.messages ? Object.values(activeGroup.messages).sort((a,b) => a.timestamp - b.timestamp) : [];
   const activeNotes = activeGroup?.notes ? Object.values(activeGroup.notes) : [];
-  const activeTasks = activeGroup?.tasks ? Object.values(activeGroup.tasks) : [];
-  const activeAnnouncements = activeGroup?.announcements ? Object.values(activeGroup.announcements).sort((a,b) => b.timestamp - a.timestamp) : [];
-  const activeRoadmaps = activeGroup?.roadmap ? Object.values(activeGroup.roadmap) : [];
   const activeMembersKeys = activeGroup?.members ? Object.keys(activeGroup.members) : [];
 
   return (
@@ -809,8 +1106,8 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
             </div>
 
             {/* Sub-tabs list */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '1px', gap: '0.2rem', flexWrap: 'wrap' }}>
-              {(['chat', 'notes', 'tasks', 'announcements', 'roadmap', 'members'] as const).map(tab => (
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '1px', gap: '0.25rem', flexWrap: 'wrap' }}>
+              {(['chat', 'notes', 'resources', 'files', 'members'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setSubTab(tab)}
@@ -828,7 +1125,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {tab.toUpperCase()}
+                  {tab === 'chat' ? 'CHAT' : tab === 'notes' ? 'NOTES' : tab === 'resources' ? 'RESOURCES' : tab === 'files' ? 'FILES' : 'MEMBERS'}
                 </button>
               ))}
             </div>
@@ -1106,50 +1403,89 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                 </div>
               )}
 
-              {/* 3. GROUP TASKS */}
-              {subTab === 'tasks' && (
+              {/* 3. GROUP SHARED RESOURCES */}
+              {subTab === 'resources' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <form onSubmit={handleAddGroupTask} style={{ display: 'flex', gap: '0.4rem' }}>
-                    <input
-                      type="text"
-                      className="cyber-input"
-                      placeholder="Add shared group task (e.g. Finish PPT slides)"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                      required
-                    />
-                    <button type="submit" className="cyber-btn cyan-fill" style={{ padding: '0.4rem 0.8rem', minHeight: '40px' }}>Add</button>
-                  </form>
+                  <div style={{ borderBottom: '1.5px solid var(--outline-thick)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>Pinned Study Resources ({activeGroup?.resources ? Object.keys(activeGroup.resources).length : 0})</h4>
+                  </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {activeTasks.length === 0 ? (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No tasks assigned to this group yet.</span>
+                  {/* Add Resource Selector */}
+                  <div style={{ border: '1px dashed var(--outline-thick)', padding: '1rem', borderRadius: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Pin Pinned/Bookmarked Note to Group Shelf</label>
+                    {bookmarkedNotesList.length === 0 ? (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>You don't have any bookmarked notes to pin. Share or save notes in the Shared Notes tab first!</span>
                     ) : (
-                      activeTasks.map(t => (
-                        <div
-                          key={t.id}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifySelf: 'stretch', justifyContent: 'space-between',
-                            border: '1px solid var(--outline-thick)', padding: '0.5rem 0.8rem', borderRadius: '10px',
-                            background: t.status === 'Completed' ? 'var(--accent-primary-light)' : '#fff',
-                            boxShadow: 'var(--shadow-flat-sm)'
-                          }}
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <select
+                          className="cyber-input"
+                          style={{ flex: 1, minWidth: '200px', appearance: 'auto', cursor: 'pointer' }}
+                          id="pin-note-select"
                         >
-                          <span style={{ fontSize: '0.8rem', textDecoration: t.status === 'Completed' ? 'line-through' : 'none', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {t.title}
-                          </span>
-                          <button
-                            onClick={() => handleToggleTaskStatus(t.id, t.status)}
-                            className="cyber-btn"
-                            style={{
-                              padding: '0.15rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto',
-                              background: t.status === 'Completed' ? '#fff' : 'var(--accent-gold)',
-                              color: t.status === 'Completed' ? 'var(--text-primary)' : '#fff',
-                              border: t.status === 'Completed' ? '1px solid var(--outline-thick)' : 'none'
-                            }}
-                          >
-                            {t.status === 'Completed' ? 'Undo' : 'Done'}
-                          </button>
+                          {bookmarkedNotesList.map(n => (
+                            <option key={n.id} value={n.id}>{n.title} (by {n.author})</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const selectEl = document.getElementById('pin-note-select') as HTMLSelectElement;
+                            const noteId = selectEl?.value;
+                            const note = bookmarkedNotesList.find(n => n.id === noteId);
+                            if (note) handlePinResource(note);
+                          }}
+                          className="cyber-btn cyan-fill"
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', minHeight: '38px' }}
+                        >
+                          Pin Resource
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resources List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    {(!activeGroup?.resources || Object.keys(activeGroup.resources).length === 0) ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No resources pinned in this group yet.</span>
+                    ) : (
+                      Object.values(activeGroup.resources).map((r: any) => (
+                        <div key={r.id} style={{ border: '1px solid var(--outline-thick)', padding: '1rem', borderRadius: '12px', background: '#fff', boxShadow: 'var(--shadow-flat-sm)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px', marginBottom: '8px' }}>
+                            <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{r.title}</strong>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Pinned by {r.pinnedBy}</span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', display: 'block', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Subject: {r.course} | Original Author: {r.author}</span>
+                          
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            <button
+                              onClick={() => {
+                                setPreviewAttachment({
+                                  name: r.title + " (Pinned Resource)",
+                                  url: r.pdfAttachment?.url || '',
+                                  // @ts-ignore
+                                  isNoteRef: true,
+                                  noteDetails: r
+                                });
+                              }}
+                              className="cyber-btn"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: '#eae8e8' }}
+                            >
+                              Preview
+                            </button>
+                            <button
+                              onClick={() => handleDownloadFile({
+                                name: r.title,
+                                url: r.pdfAttachment?.url || '',
+                                // @ts-ignore
+                                isNoteRef: true,
+                                noteDetails: r
+                              })}
+                              className="cyber-btn"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: '#eae8e8' }}
+                            >
+                              Download Note
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -1157,93 +1493,108 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                 </div>
               )}
 
-              {/* 4. GROUP ANNOUNCEMENTS */}
-              {subTab === 'announcements' && (
+              {/* 4. GROUP FILES */}
+              {subTab === 'files' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <form onSubmit={handleAddGroupAnnouncement} style={{ display: 'flex', gap: '0.4rem' }}>
-                    <input
-                      type="text"
-                      className="cyber-input"
-                      placeholder="Post official notice/announcement to members"
-                      value={announcementText}
-                      onChange={(e) => setAnnouncementText(e.target.value)}
-                      required
-                    />
-                    <button type="submit" className="cyber-btn gold-fill" style={{ padding: '0.4rem 0.8rem', minHeight: '40px' }}>Post</button>
-                  </form>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {activeAnnouncements.length === 0 ? (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No announcements posted.</span>
-                    ) : (
-                      activeAnnouncements.map(a => (
-                        <div key={a.id} style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '0.75rem 1rem', borderRadius: '10px', textAlign: 'left' }}>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--accent-gold)', fontWeight: 700, marginBottom: '4px', letterSpacing: '0.05em' }}>
-                            ANNOUNCEMENT • {new Date(a.timestamp).toLocaleDateString()}
-                          </div>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{a.text}</span>
-                        </div>
-                      ))
-                    )}
+                  <div style={{ borderBottom: '1.5px solid var(--outline-thick)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>Shared Files Shelf ({activeGroup?.files ? Object.keys(activeGroup.files).length : 0})</h4>
                   </div>
-                </div>
-              )}
 
-              {/* 5. GROUP SHARED ROADMAP */}
-              {subTab === 'roadmap' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <form onSubmit={handleAddRoadmapMilestone} style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <input
-                      type="text"
-                      className="cyber-input"
-                      style={{ flex: 2, minWidth: '150px' }}
-                      placeholder="Milestone goal (e.g. Finish Unit 1 syllabus)"
-                      value={roadmapTitle}
-                      onChange={(e) => roadmapTitle && setRoadmapTitle(e.target.value)}
-                      required
-                    />
-                    <input
-                      type="date"
-                      className="cyber-input"
-                      style={{ flex: 1, minWidth: '100px' }}
-                      value={roadmapDate}
-                      onChange={(e) => setRoadmapDate(e.target.value)}
-                    />
-                    <button type="submit" className="cyber-btn purple-fill" style={{ padding: '0.4rem 0.8rem', minHeight: '40px' }}>Add Goal</button>
+                  {/* Upload Form */}
+                  <form onSubmit={handleUploadGroupFile} style={{ border: '1px dashed var(--outline-thick)', padding: '1rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.6rem', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Upload File (PDF/DOCX/PPTX/Images up to 100MB)</label>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => groupFileInputRef.current?.click()}
+                          className="cyber-btn"
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: '34px', background: '#e2e8f0' }}
+                          disabled={groupFileUploading}
+                        >
+                          Select File
+                        </button>
+                        <input
+                          type="file"
+                          ref={groupFileInputRef}
+                          style={{ display: 'none' }}
+                          accept=".pdf,.docx,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            setGroupFileUploadError('');
+                            if (!file) return;
+                            if (file.size > 100 * 1024 * 1024) {
+                              setGroupFileUploadError('File exceeds 100MB limit.');
+                              setGroupFile(null);
+                              return;
+                            }
+                            setGroupFile(file);
+                          }}
+                        />
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {groupFile ? groupFile.name : 'No file chosen'}
+                        </span>
+                      </div>
+                      {groupFileUploadError && <span style={{ fontSize: '0.7rem', color: 'var(--accent-pink)', fontWeight: 600 }}>{groupFileUploadError}</span>}
+                    </div>
+
+                    {groupFileUploading && (
+                      <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', marginTop: '0.25rem' }}>
+                        <div style={{ width: `${groupFileUploadProgress}%`, height: '100%', background: 'var(--accent-primary)', transition: 'width 0.2s ease-in-out' }} />
+                      </div>
+                    )}
+
+                    <button 
+                      type="submit" 
+                      disabled={groupFileUploading || !groupFile}
+                      className="cyber-btn pink-fill" 
+                      style={{ alignSelf: 'flex-end', marginTop: '0.5rem' }}
+                    >
+                      {groupFileUploading ? `Uploading (${groupFileUploadProgress}%)` : 'Upload File'}
+                    </button>
                   </form>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {activeRoadmaps.length === 0 ? (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No roadmap goals registered yet.</span>
+                  {/* Files List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    {(!activeGroup?.files || Object.keys(activeGroup.files).length === 0) ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No files uploaded to this group yet.</span>
                     ) : (
-                      activeRoadmaps.map(mile => (
-                        <div
-                          key={mile.id}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            border: '1px solid var(--outline-thick)', padding: '0.6rem 0.8rem', borderRadius: '12px',
-                            background: mile.completed ? 'var(--accent-primary-light)' : '#fff',
-                            boxShadow: 'var(--shadow-flat-sm)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <strong style={{ fontSize: '0.8rem', textDecoration: mile.completed ? 'line-through' : 'none', color: 'var(--text-primary)' }}>{mile.title}</strong>
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Target: {mile.targetDate}</span>
-                            </div>
+                      Object.values(activeGroup.files).map((f: any) => (
+                        <div key={f.id} style={{ border: '1px solid var(--outline-thick)', padding: '1rem', borderRadius: '12px', background: '#fff', boxShadow: 'var(--shadow-flat-sm)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px', marginBottom: '8px' }}>
+                            <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{f.name}</strong>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Uploaded by {f.uploadedBy}</span>
                           </div>
-                          <button
-                            onClick={() => handleToggleRoadmapCompleted(mile.id, mile.completed)}
-                            className="cyber-btn"
-                            style={{
-                              padding: '0.15rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto',
-                              background: mile.completed ? '#fff' : 'var(--accent-cyan)',
-                              color: mile.completed ? 'var(--text-primary)' : '#fff',
-                              border: mile.completed ? '1px solid var(--outline-thick)' : 'none'
-                            }}
-                          >
-                            {mile.completed ? 'Reopen' : 'Complete'}
-                          </button>
+                          <span style={{ fontSize: '0.75rem', display: 'block', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Size: {f.size}</span>
+                          
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            <button
+                              onClick={() => {
+                                setPreviewAttachment(f);
+                              }}
+                              className="cyber-btn"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: '#eae8e8' }}
+                            >
+                              Preview
+                            </button>
+                            <button
+                              onClick={() => handleDownloadFile(f)}
+                              className="cyber-btn"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: '#eae8e8' }}
+                            >
+                              Download
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(f.url);
+                                alert('File download link copied to clipboard!');
+                              }}
+                              className="cyber-btn"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto', background: '#eae8e8' }}
+                            >
+                              Copy Link
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -1295,10 +1646,22 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
 
             {/* Inline Attachment Preview */}
             <div style={{ width: '100%', height: '240px', background: '#f1f5f9', borderRadius: '8px', border: '1px solid var(--outline-thick)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {isImageFile(previewAttachment.name) ? (
+              {/* @ts-ignore */}
+              {previewAttachment.isNoteRef ? (
+                <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#fff', padding: '1rem', color: '#000', fontSize: '0.8rem' }}>
+                  {/* @ts-ignore */}
+                  <h4 style={{ borderBottom: '2px solid #000', paddingBottom: '0.25rem', marginBottom: '0.5rem', fontWeight: 800 }}>{previewAttachment.noteDetails.title}</h4>
+                  {/* @ts-ignore */}
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{previewAttachment.noteDetails.content}</p>
+                </div>
+              ) : isImageFile(previewAttachment.name) ? (
                 <img src={previewDataUrl || ''} alt="Attachment Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               ) : isPdfFile(previewAttachment.name) ? (
                 <iframe src={previewDataUrl || ''} title="Attachment Frame" style={{ width: '100%', height: '100%', border: 'none' }} />
+              ) : isDocxFile(previewAttachment.name) ? (
+                <DocxPreview fileName={previewAttachment.name} />
+              ) : isPptxFile(previewAttachment.name) ? (
+                <PptxPreview fileName={previewAttachment.name} />
               ) : (
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem', textAlign: 'center' }}>
                   No inline preview available. Click Download to fetch the file.
@@ -1307,12 +1670,24 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              {/* @ts-ignore */}
+              {previewAttachment.isNoteRef && previewAttachment.noteDetails.pdfAttachment && (
+                <button 
+                  // @ts-ignore
+                  onClick={() => handleDownloadFile(previewAttachment.noteDetails.pdfAttachment)}
+                  className="cyber-btn purple-fill"
+                  style={{ padding: '0.4rem 1rem' }}
+                >
+                  Download Note File Attachment
+                </button>
+              )}
               <button 
                 onClick={() => handleDownloadFile(previewAttachment)}
                 className="cyber-btn cyan-fill"
                 style={{ padding: '0.4rem 1rem' }}
               >
-                Download File
+                {/* @ts-ignore */}
+                {previewAttachment.isNoteRef ? 'Download Note Text' : 'Download File'}
               </button>
             </div>
           </div>

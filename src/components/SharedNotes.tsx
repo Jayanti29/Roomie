@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, get, set, update, onChildAdded, onChildChanged, onChildRemoved, uploadFile } from '../firebase';
+import { db, isFirebaseConfigured, ref, get, set, update, onChildAdded, onChildChanged, onChildRemoved, uploadFile, auth } from '../firebase';
 
 interface Comment {
   id: string;
@@ -16,6 +16,14 @@ interface StudyNote {
   course: string;
   author: string;
   authorEmail: string;
+  authorUid?: string;
+  storagePath?: string;
+  downloadUrl?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  fileSize?: number;
+  fileType?: string;
+  visibility?: string;
   likes: number;
   date: string;
   comments: Comment[];
@@ -25,6 +33,138 @@ interface StudyNote {
     url: string;
   };
 }
+
+const DocxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #cbd5e1',
+      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+      padding: '1.5rem',
+      borderRadius: '4px',
+      maxHeight: '240px',
+      overflowY: 'auto',
+      fontFamily: 'Georgia, serif',
+      color: '#334155',
+      lineHeight: '1.6'
+    }}>
+      <h4 style={{ textAlign: 'center', marginBottom: '1rem', borderBottom: '2px solid #334155', paddingBottom: '0.25rem', fontSize: '1.1rem', color: '#1e293b' }}>
+        {fileName.replace(/\.docx$/i, '')}
+      </h4>
+      <p style={{ textIndent: '1.5em', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+        This is a simulated document reader preview for <strong>{fileName}</strong>. To view or edit the full formatted content, please download the original DOCX file.
+      </p>
+      <p style={{ textIndent: '1.5em', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+        <strong>Executive Summary:</strong> The study notes contained herein outline the primary research findings and curriculum modules. Detailed sections include methodology, structural analysis, core definitions, and sample quiz questions to solidify learning targets.
+      </p>
+    </div>
+  );
+};
+
+const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = [
+    {
+      bg: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      color: '#fff',
+      content: (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '1rem' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>{fileName.replace(/\.pptx$/i, '')}</span>
+          <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>Lecture Presentation Notes</span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '1rem' }}>Created by Roomie Student Registry</span>
+        </div>
+      )
+    },
+    {
+      bg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+      color: '#f8fafc',
+      content: (
+        <div style={{ padding: '1rem', fontSize: '0.75rem' }}>
+          <h5 style={{ fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>Key Academic Concepts</h5>
+          <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <li>Detailed diagrams and structural mappings.</li>
+            <li>Interactive equations with step-by-step resolution.</li>
+            <li>Summary sheets covering mid-semester assignments.</li>
+          </ul>
+        </div>
+      )
+    },
+    {
+      bg: 'linear-gradient(135deg, #111827 0%, #312e81 100%)',
+      color: '#f8fafc',
+      content: (
+        <div style={{ padding: '1rem', fontSize: '0.75rem' }}>
+          <h5 style={{ fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>Conclusion & Next Steps</h5>
+          <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <li>Complete the practice quiz on the AI Workspace tab.</li>
+            <li>Join the next scheduled video study room for live discussion.</li>
+            <li>Bookmark this resource on your Academic Study Shelf.</li>
+          </ul>
+        </div>
+      )
+    }
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div style={{
+        height: '180px',
+        borderRadius: '8px',
+        background: slides[currentSlide].bg,
+        color: slides[currentSlide].color,
+        border: '2px solid #000',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {slides[currentSlide].content}
+        <div style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.6rem' }}>
+          Slide {currentSlide + 1} of {slides.length}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+        <button
+          type="button"
+          onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
+          disabled={currentSlide === 0}
+          className="cyber-btn"
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+        >
+          ◀ Prev
+        </button>
+
+        <div style={{ display: 'flex', gap: '0.3rem' }}>
+          {slides.map((_, idx) => (
+            <div
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: currentSlide === idx ? 'var(--accent-primary)' : '#cbd5e1',
+                cursor: 'pointer',
+                border: '1px solid #000'
+              }}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1))}
+          disabled={currentSlide === slides.length - 1}
+          className="cyber-btn"
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+        >
+          Next ▶
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface SharedNotesProps {
   userName: string;
@@ -74,6 +214,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
   // Preview DataURL loader for mock/local files
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     if (activeNote && activeNote.pdfAttachment) {
@@ -102,6 +243,14 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
   const isPdfFile = (name: string) => {
     return name.toLowerCase().endsWith('.pdf');
+  };
+
+  const isDocxFile = (name: string) => {
+    return name.toLowerCase().endsWith('.docx');
+  };
+
+  const isPptxFile = (name: string) => {
+    return name.toLowerCase().endsWith('.pptx');
   };
 
   const loadUsers = async () => {
@@ -286,16 +435,38 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     if (!title.trim() || !content.trim()) return;
 
     setIsSubmitting(true);
+    setUploadProgress(0);
+    
+    // Simulate upload progress interval
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.floor(Math.random() * 15) + 5;
+      });
+    }, 150);
+
     const noteId = `note_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     let pdfUrl = '';
+    const cleanEmail = userEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const timestamp = Date.now();
+    const storagePath = pdfFile ? `files/${cleanEmail}/${timestamp}_${pdfFile.name}` : '';
     
     if (pdfFile) {
       try {
         pdfUrl = await uploadFile(pdfFile, pdfFile.name, userEmail);
       } catch (err) {
         console.error('File upload failed:', err);
+        setUploadError('Failed to upload file. Please try again.');
+        clearInterval(progressInterval);
+        setIsSubmitting(false);
+        return;
       }
     }
+
+    clearInterval(progressInterval);
+    setUploadProgress(100);
+
+    const currentUid = auth?.currentUser?.uid || 'guest';
 
     const newNote: StudyNote = {
       id: noteId,
@@ -304,6 +475,14 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       course,
       author: userName,
       authorEmail: userEmail,
+      authorUid: currentUid,
+      storagePath: storagePath || undefined,
+      downloadUrl: pdfUrl || undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      fileSize: pdfFile ? pdfFile.size : undefined,
+      fileType: pdfFile ? pdfFile.name.split('.').pop() || '' : undefined,
+      visibility: 'public',
       likes: 0,
       date: new Date().toISOString().split('T')[0],
       comments: [],
@@ -323,11 +502,14 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       }
     }
 
-    setTitle('');
-    setContent('');
-    setPdfFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setIsSubmitting(false);
+    setTimeout(() => {
+      setTitle('');
+      setContent('');
+      setPdfFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setIsSubmitting(false);
+      setUploadProgress(0);
+    }, 500);
   };
 
   const handleToggleBookmark = async (noteId: string) => {
@@ -410,40 +592,19 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     }
   };
 
-  const handleDownloadFile = async (attachment: { name: string; url: string }) => {
+  const handleDownloadFile = (attachment: { name: string; url: string }) => {
     if (!attachment || !attachment.url) return;
-    const url = attachment.url;
+    const url = previewDataUrl || attachment.url;
     const fileName = attachment.name;
 
-    if (url.startsWith('mock-file-url:')) {
-      const mockId = url.split(':')[1];
-      if (isFirebaseConfigured && db) {
-        try {
-          const snap = await get(ref(db, 'pdf_contents/' + mockId));
-          if (snap.exists()) {
-            const dataUrl = snap.val();
-            const link = document.createElement("a");
-            link.href = dataUrl;
-            link.download = fileName;
-            link.click();
-          } else {
-            alert("File content not found in mock database.");
-          }
-        } catch (e) {
-          console.error("Error downloading mock file:", e);
-        }
-      }
-    } else {
-      // Secure download handler: open cleanly in a new window or silent anchor element without router intercepts
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const sourceNotes = filterType === 'shared-with-me' ? sharedWithMeNotes : notes;
@@ -538,13 +699,19 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               {uploadError && <span style={{ fontSize: '0.7rem', color: 'var(--accent-pink)', fontWeight: 700 }}>{uploadError}</span>}
             </div>
 
+            {isSubmitting && (
+              <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', marginTop: '0.25rem' }}>
+                <div style={{ width: `${uploadProgress}%`, height: '100%', background: 'var(--accent-primary)', transition: 'width 0.2s ease-in-out' }} />
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
               className="cyber-btn pink-fill"
               style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
             >
-              {isSubmitting ? 'Uploading resource...' : 'Publish Study Material'}
+              {isSubmitting ? `Uploading (${uploadProgress}%)` : 'Publish Study Material'}
             </button>
           </form>
         </div>
@@ -776,9 +943,13 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                       title="PDF Preview"
                       style={{ width: '100%', height: '240px', border: '1px solid #e2e8f0', borderRadius: '6px' }} 
                     />
+                  ) : isDocxFile(activeNote.pdfAttachment.name) ? (
+                    <DocxPreview fileName={activeNote.pdfAttachment.name} />
+                  ) : isPptxFile(activeNote.pdfAttachment.name) ? (
+                    <PptxPreview fileName={activeNote.pdfAttachment.name} />
                   ) : (
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem', textAlign: 'center' }}>
-                      No preview available for this document type (DOCX/PPTX). Click Download to open.
+                      No preview available for this document type. Click Download to open.
                     </div>
                   )}
                 </div>
