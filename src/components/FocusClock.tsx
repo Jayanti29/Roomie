@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, push, auth, onValue } from '../firebase';
+import { db, isFirebaseConfigured, ref, auth, onValue } from '../firebase';
 import { Clock, BookOpen, Volume2, VolumeX, BarChart2, Play, Pause, Square, Award, List, Flame, Calendar } from 'lucide-react';
 
 interface Course {
@@ -20,33 +20,49 @@ interface FocusSession {
 interface FocusClockProps {
   userEmail: string;
   courses: Course[];
-  onRewardXp: (amount: number, reason: string) => void;
+  timerActive: boolean;
+  timerPaused: boolean;
+  timerTimeLeft: number;
+  timerTotal: number;
+  timerTaskName: string;
+  timerSubject: string;
+  timerMode: boolean; // true = pomodoro
+  timerCycle: 'focus' | 'break';
+  setTimerTaskName: (name: string) => void;
+  setTimerSubject: (subj: string) => void;
+  onStartTimer: (task: string, subject: string, totalSecs: number, isPomo: boolean, cycleVal: 'focus' | 'break') => void;
+  onPauseTimer: () => void;
+  onResumeTimer: () => void;
+  onStopTimer: () => void;
+  onToggleMode: () => void;
+  onSetDuration: (totalSecs: number) => void;
 }
 
-export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRewardXp }) => {
+export const FocusClock: React.FC<FocusClockProps> = ({
+  userEmail,
+  courses,
+  timerActive,
+  timerPaused,
+  timerTimeLeft,
+  timerTotal,
+  timerTaskName,
+  timerSubject,
+  timerMode,
+  timerCycle,
+  setTimerTaskName,
+  setTimerSubject,
+  onStartTimer,
+  onPauseTimer,
+  onResumeTimer,
+  onStopTimer,
+  onToggleMode,
+  onSetDuration
+}) => {
   const currentUid = auth?.currentUser?.uid || userEmail.replace(/\./g, '_');
-  const [taskName, setTaskName] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState('');
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(25);
   const [seconds, setSeconds] = useState(0);
-  const [isActive, setIsActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isLofiOn, setIsLofiOn] = useState(false);
-
-  // Pomodoro Mode States
-  const [pomodoroMode, setPomodoroMode] = useState(false);
-  const [pomodoroCycle, setPomodoroCycle] = useState<'focus' | 'break'>('focus');
-  
-  // Timer calculations
-  const [totalSeconds, setTotalSeconds] = useState(25 * 60);
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const timerRef = useRef<any>(null);
-  const startedAtRef = useRef<string | null>(null);
-
-  // Focus Sessions Database State
-  const [sessions, setSessions] = useState<FocusSession[]>([]);
-  const [loadingStats, setLoadingStats] = useState(true);
 
   // Audio Context synthesis references
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -65,6 +81,10 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
     { label: '1 Hour', h: 1, m: 0 },
     { label: '2 Hours', h: 2, m: 0 }
   ];
+
+  // Focus Sessions Database State
+  const [sessions, setSessions] = useState<FocusSession[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   // Fetch session history from Realtime Database
   useEffect(() => {
@@ -96,32 +116,28 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
 
   // Set presets (disabled in Pomodoro mode)
   const handlePreset = (hVal: number, mVal: number) => {
-    if (isActive || pomodoroMode) return;
+    if (timerActive || timerMode) return;
     setHours(hVal);
     setMinutes(mVal);
     setSeconds(0);
     const secs = (hVal * 3600) + (mVal * 60);
-    setTotalSeconds(secs);
-    setTimeLeft(secs);
+    onSetDuration(secs);
   };
 
   // Switch between custom duration and Pomodoro Mode
   useEffect(() => {
-    if (isActive) return;
-    if (pomodoroMode) {
-      if (pomodoroCycle === 'focus') {
-        setTotalSeconds(25 * 60);
-        setTimeLeft(25 * 60);
+    if (timerActive) return;
+    if (timerMode) {
+      if (timerCycle === 'focus') {
+        onSetDuration(25 * 60);
       } else {
-        setTotalSeconds(5 * 60);
-        setTimeLeft(5 * 60);
+        onSetDuration(5 * 60);
       }
     } else {
       const secs = (hours * 3600) + (minutes * 60) + seconds;
-      setTotalSeconds(secs);
-      setTimeLeft(secs);
+      onSetDuration(secs);
     }
-  }, [hours, minutes, seconds, pomodoroMode, pomodoroCycle, isActive]);
+  }, [hours, minutes, seconds, timerMode, timerCycle, timerActive]);
 
   // Web Audio Synthesizer Logic
   const startSynth = () => {
@@ -234,151 +250,48 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
   };
 
   useEffect(() => {
-    if (isLofiOn && isActive && !isPaused) {
+    if (isLofiOn && timerActive && !timerPaused) {
       startSynth();
     } else {
       stopSynth();
     }
     return () => stopSynth();
-  }, [isLofiOn, isActive, isPaused]);
-
-  // Countdown timer logic
-  useEffect(() => {
-    if (isActive && !isPaused) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current);
-            handleCompleteTimer();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isActive, isPaused]);
+  }, [isLofiOn, timerActive, timerPaused]);
 
   const handleStart = () => {
-    if (totalSeconds <= 0) {
+    const duration = timerMode
+      ? (timerCycle === 'focus' ? 25 * 60 : 5 * 60)
+      : (hours * 3600 + minutes * 60 + seconds);
+
+    if (duration <= 0) {
       alert("Please select or enter a valid duration.");
       return;
     }
-    setIsActive(true);
-    setIsPaused(false);
-    startedAtRef.current = new Date().toISOString();
-    setShowStatus(pomodoroMode 
-      ? `Pomodoro ${pomodoroCycle === 'focus' ? 'Focus Block' : 'Break'} Started!` 
+
+    onStartTimer(timerTaskName, timerSubject, duration, timerMode, timerCycle);
+    
+    setShowStatus(timerMode 
+      ? `Pomodoro ${timerCycle === 'focus' ? 'Focus Block' : 'Break'} Started!` 
       : "Focus Session Started! Keep it up.");
     setTimeout(() => setShowStatus(null), 3000);
   };
 
   const handlePause = () => {
-    setIsPaused(true);
+    onPauseTimer();
     setShowStatus("Session paused.");
     setTimeout(() => setShowStatus(null), 2000);
   };
 
   const handleResume = () => {
-    setIsPaused(false);
+    onResumeTimer();
     setShowStatus("Session resumed.");
     setTimeout(() => setShowStatus(null), 2000);
   };
 
   const handleStop = () => {
-    if (!confirm("Stop current focus session? Progress so far will be saved.")) return;
-    saveSession(false);
-    setIsActive(false);
-    setIsPaused(false);
-    setTimeLeft(totalSeconds);
-    stopSynth();
+    onStopTimer();
     setShowStatus("Session stopped. Partially recorded.");
     setTimeout(() => setShowStatus(null), 4000);
-  };
-
-  const handleCompleteTimer = () => {
-    saveSession(true);
-    setIsActive(false);
-    setIsPaused(false);
-    stopSynth();
-    
-    // Play sound beep
-    try {
-      const beepCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = beepCtx.createOscillator();
-      const gain = beepCtx.createGain();
-      osc.connect(gain);
-      gain.connect(beepCtx.destination);
-      osc.frequency.value = 520;
-      gain.gain.setValueAtTime(0.12, beepCtx.currentTime);
-      osc.start();
-      osc.stop(beepCtx.currentTime + 0.85);
-    } catch(e){}
-
-    if (pomodoroMode) {
-      if (pomodoroCycle === 'focus') {
-        onRewardXp(25, "Completed Pomodoro Focus Block! (+25 Study Points)");
-        alert("Focus Block Completed! Time for a short break.");
-        setPomodoroCycle('break');
-      } else {
-        onRewardXp(5, "Completed Pomodoro Break Segment! (+5 Study Points)");
-        alert("Break Ended! Ready to focus again?");
-        setPomodoroCycle('focus');
-      }
-    } else {
-      const rewardPoints = Math.min(50, Math.max(10, Math.round(totalSeconds / 60)));
-      onRewardXp(rewardPoints, `Completed focus session! (+${rewardPoints} Study Points)`);
-      alert(`Awesome job! Focus session completed successfully!`);
-    }
-
-    setTimeLeft(totalSeconds);
-  };
-
-  const saveSession = async (completedStatus: boolean) => {
-    const elapsedSeconds = totalSeconds - timeLeft;
-    const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
-    const targetMinutes = Math.round(totalSeconds / 60);
-    const finalDuration = completedStatus ? targetMinutes : elapsedMinutes;
-
-    if (finalDuration <= 0) return;
-
-    const startedVal = startedAtRef.current || new Date(Date.now() - (elapsedSeconds * 1000)).toISOString();
-    const completedVal = new Date().toISOString();
-
-    const subject = selectedCourse ? selectedCourse : (taskName.trim() || 'General Study');
-
-    const sessionPayload: FocusSession = {
-      taskName: subject,
-      duration: finalDuration,
-      completed: completedStatus,
-      startedAt: startedVal,
-      completedAt: completedVal
-    };
-
-    if (isFirebaseConfigured && db) {
-      try {
-        await push(ref(db, `users/${currentUid}/focus_sessions`), sessionPayload);
-      } catch (err) {
-        console.error('[FocusClock] DB save error:', err);
-      }
-    } else {
-      try {
-        const localKey = 'roomie_mock_focus_sessions';
-        const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
-        existing.push(sessionPayload);
-        localStorage.setItem(localKey, JSON.stringify(existing));
-        // Refresh local state manually
-        setSessions(existing.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()));
-      } catch (err) {
-        console.error('[FocusClock] Mock save error:', err);
-      }
-    }
   };
 
   const formatTime = (secs: number) => {
@@ -388,7 +301,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
     return `${h > 0 ? String(h).padStart(2, '0') + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const spentPercent = totalSeconds > 0 ? (totalSeconds - timeLeft) / totalSeconds : 0;
+  const spentPercent = timerTotal > 0 ? (timerTotal - timerTimeLeft) / timerTotal : 0;
   const handRotationAngle = spentPercent * 360;
 
   // Math Statistics
@@ -421,22 +334,22 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
 
         <button
           onClick={() => {
-            if (isActive) return;
-            setPomodoroMode(!pomodoroMode);
+            if (timerActive) return;
+            onToggleMode();
           }}
           className="cyber-btn"
           style={{
             border: '2px solid #0f172a',
             boxShadow: '3px 3px 0px #0f172a',
             fontWeight: 800,
-            background: pomodoroMode ? 'var(--accent-purple-light)' : '#ffffff',
+            background: timerMode ? 'var(--accent-purple-light)' : '#ffffff',
             borderRadius: '12px',
             color: '#0f172a',
-            cursor: isActive ? 'not-allowed' : 'pointer'
+            cursor: timerActive ? 'not-allowed' : 'pointer'
           }}
-          disabled={isActive}
+          disabled={timerActive}
         >
-          {pomodoroMode ? 'Switch to Custom Timer' : 'Switch to Pomodoro Mode'}
+          {timerMode ? 'Switch to Custom Timer' : 'Switch to Pomodoro Mode'}
         </button>
       </div>
 
@@ -504,12 +417,12 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
               </label>
               
               <select
-                value={selectedCourse}
+                value={timerSubject}
                 onChange={(e) => {
-                  setSelectedCourse(e.target.value);
-                  setTaskName('');
+                  setTimerSubject(e.target.value);
+                  setTimerTaskName('');
                 }}
-                disabled={isActive}
+                disabled={timerActive}
                 className="cyber-input"
                 style={{
                   appearance: 'auto',
@@ -517,7 +430,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                   borderRadius: '12px',
                   padding: '0.6rem',
                   fontWeight: 700,
-                  background: isActive ? '#f1f5f9' : '#ffffff',
+                  background: timerActive ? '#f1f5f9' : '#ffffff',
                   cursor: 'pointer'
                 }}
               >
@@ -528,13 +441,13 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                 <option value="custom">-- Use Custom Topic Name --</option>
               </select>
 
-              {(selectedCourse === 'custom' || selectedCourse === '') && (
+              {(timerSubject === 'custom' || timerSubject === '') && (
                 <input
                   type="text"
                   placeholder="Type subject/topic name..."
-                  value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
-                  disabled={isActive}
+                  value={timerTaskName}
+                  onChange={(e) => setTimerTaskName(e.target.value)}
+                  disabled={timerActive}
                   className="cyber-input"
                   style={{
                     marginTop: '0.4rem',
@@ -542,16 +455,16 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                     borderRadius: '12px',
                     padding: '0.6rem',
                     fontWeight: 700,
-                    background: isActive ? '#f1f5f9' : '#ffffff'
+                    background: timerActive ? '#f1f5f9' : '#ffffff'
                   }}
                 />
               )}
             </div>
 
             {/* Pomodoro Mode States indicator */}
-            {pomodoroMode && (
+            {timerMode && (
               <div style={{
-                background: pomodoroCycle === 'focus' ? '#fed7aa' : '#bbf7d0',
+                background: timerCycle === 'focus' ? '#fed7aa' : '#bbf7d0',
                 border: '2px solid #0f172a',
                 borderRadius: '12px',
                 padding: '0.75rem',
@@ -564,15 +477,15 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                 <div>
                   <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', display: 'block' }}>CYCLE STATUS</span>
                   <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>
-                    {pomodoroCycle === 'focus' ? 'FOCUS BLOCK (25 Min)' : 'SHORT BREAK (5 Min)'}
+                    {timerCycle === 'focus' ? 'FOCUS BLOCK (25 Min)' : 'SHORT BREAK (5 Min)'}
                   </strong>
                 </div>
-                <Flame size={20} className="anim-float" style={{ color: pomodoroCycle === 'focus' ? '#ea580c' : '#16a34a' }} />
+                <Flame size={20} className="anim-float" style={{ color: timerCycle === 'focus' ? '#ea580c' : '#16a34a' }} />
               </div>
             )}
 
             {/* Custom durations (only visible when Pomodoro mode is off) */}
-            {!pomodoroMode && (
+            {!timerMode && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a' }}>QUICK PRESETS</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -580,7 +493,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                     <button
                       key={idx}
                       onClick={() => handlePreset(p.h, p.m)}
-                      disabled={isActive}
+                      disabled={timerActive}
                       className="cyber-btn"
                       style={{
                         flex: '1 1 auto',
@@ -604,7 +517,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                     <select
                       value={hours}
                       onChange={(e) => handlePreset(Number(e.target.value), minutes)}
-                      disabled={isActive}
+                      disabled={timerActive}
                       className="cyber-input"
                       style={{ border: '2px solid #0f172a', borderRadius: '8px', padding: '0.3rem', fontWeight: 700 }}
                     >
@@ -618,7 +531,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                     <select
                       value={minutes}
                       onChange={(e) => handlePreset(hours, Number(e.target.value))}
-                      disabled={isActive}
+                      disabled={timerActive}
                       className="cyber-input"
                       style={{ border: '2px solid #0f172a', borderRadius: '8px', padding: '0.3rem', fontWeight: 700 }}
                     >
@@ -658,7 +571,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                     strokeDasharray="440"
                     strokeDashoffset={440 - (440 * spentPercent)}
                     strokeLinecap="round"
-                    style={{ transition: isActive ? 'stroke-dashoffset 1s linear' : 'stroke-dashoffset 0.3s ease' }}
+                    style={{ transition: timerActive ? 'stroke-dashoffset 1s linear' : 'stroke-dashoffset 0.3s ease' }}
                   />
                   {[0, 90, 180, 270].map((deg, i) => {
                     const rad = (deg * Math.PI) / 180;
@@ -676,7 +589,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                   width: '100%',
                   height: '100%',
                   transform: `rotate(${handRotationAngle}deg)`,
-                  transition: isActive && !isPaused ? 'transform 1s linear' : 'transform 0.3s ease',
+                  transition: timerActive && !timerPaused ? 'transform 1s linear' : 'transform 0.3s ease',
                   pointerEvents: 'none'
                 }}>
                   <div style={{
@@ -703,13 +616,13 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                   borderRadius: '6px',
                   boxShadow: '2px 2px 0px #0f172a'
                 }}>
-                  {formatTime(timeLeft)}
+                  {formatTime(timerTimeLeft)}
                 </div>
               </div>
 
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: '0.6rem' }}>
-                {!isActive ? (
+                {!timerActive ? (
                   <button
                     onClick={handleStart}
                     className="cyber-btn pink-fill"
@@ -719,7 +632,7 @@ export const FocusClock: React.FC<FocusClockProps> = ({ userEmail, courses, onRe
                   </button>
                 ) : (
                   <>
-                    {isPaused ? (
+                    {timerPaused ? (
                       <button
                         onClick={handleResume}
                         className="cyber-btn"

@@ -1,6 +1,7 @@
 // src/components/AIWorkspace.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { db, isFirebaseConfigured, ref, onChildAdded, onChildChanged, onChildRemoved, set, update } from '../firebase';
+import { db, isFirebaseConfigured, ref, onChildAdded, onChildChanged, onChildRemoved, set, update, auth } from '../firebase';
+
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -57,7 +58,8 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
   const [editTitleText, setEditTitleText] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const userKey = userEmail.replace(/\./g, '_');
+  const currentUid = auth?.currentUser?.uid;
+  const userKey = currentUid || userEmail.replace(/\./g, '_');
 
   // Load chat history from Firebase
   useEffect(() => {

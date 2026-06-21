@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { Dashboard } from './components/Dashboard';
 import { SharedNotes } from './components/SharedNotes';
@@ -14,7 +14,7 @@ import { Onboarding } from './components/Onboarding';
 import { Friends } from './components/Friends';
 import { FocusClock } from './components/FocusClock';
 import { LearningRoadmaps } from './components/LearningRoadmaps';
-import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
+import { databaseService, authService, auth, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
 import {
   LayoutDashboard,
   Users,
@@ -125,6 +125,18 @@ export default function App() {
   const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
 
+  // Global Focus Timer Engine States
+  const [focusTimerActive, setFocusTimerActive] = useState(false);
+  const [focusTimerPaused, setFocusTimerPaused] = useState(false);
+  const [focusTimerTimeLeft, setFocusTimerTimeLeft] = useState(25 * 60);
+  const [focusTimerTotal, setFocusTimerTotal] = useState(25 * 60);
+  const [focusTimerTaskName, setFocusTimerTaskName] = useState('');
+  const [focusTimerSubject, setFocusTimerSubject] = useState('');
+  const [focusTimerStartedAt, setFocusTimerStartedAt] = useState<string | null>(null);
+  const [focusTimerMode, setFocusTimerMode] = useState(false); // false = custom, true = pomodoro
+  const [focusTimerCycle, setFocusTimerCycle] = useState<'focus' | 'break'>('focus');
+
+
   // Real-Time Notification Center & Toast states
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -194,21 +206,22 @@ export default function App() {
               try {
                 const data = await databaseService.getUserData(email);
                 if (data) {
-                  course = data.course || data.specialization || course;
-                  degree = data.degree || degree;
-                  college = data.college || college;
-                  location = data.location || data.city || location;
-                  stateVal = data.state || '';
-                  cityVal = data.city || '';
-                  uniVal = data.university || '';
-                  specVal = data.specialization || '';
-                  semVal = data.semester || '1st Semester';
-                  careerGoalVal = data.careerGoal || '';
-                  interestsVal = data.interests || [];
-                  profilePhotoVal = data.profilePhoto || null;
-                  phoneVal = data.phone || '';
-                  bioVal = data.bio || '';
-                  onboardingCompletedVal = data.profile?.onboardingCompleted ?? false;
+                  const prof = data.profile || {};
+                  course = prof.specialization || data.course || data.specialization || course;
+                  degree = prof.degree || data.degree || degree;
+                  college = prof.college || data.college || college;
+                  location = prof.city && prof.state ? `${prof.city}, ${prof.state}` : (data.location || data.city || location);
+                  stateVal = prof.state || data.state || '';
+                  cityVal = prof.city || data.city || '';
+                  uniVal = prof.university || data.university || '';
+                  specVal = prof.specialization || data.specialization || '';
+                  semVal = prof.semester || data.semester || '1st Semester';
+                  careerGoalVal = prof.careerGoal || data.careerGoal || '';
+                  interestsVal = prof.interests || data.interests || [];
+                  profilePhotoVal = prof.profilePhoto || data.profilePhoto || null;
+                  phoneVal = prof.phone || data.phone || '';
+                  bioVal = prof.bio || data.bio || '';
+                  onboardingCompletedVal = prof.onboardingCompleted ?? data.profile?.onboardingCompleted ?? false;
                 }
               } catch (e) {
                 console.warn("Could not load user details on restore:", e);
@@ -490,11 +503,210 @@ export default function App() {
     };
   }, []);
 
+  // --- Global Focus Session states ref for countdown closure safety ---
+  const focusTimerStateRef = useRef({
+    total: 25 * 60,
+    timeLeft: 25 * 60,
+    taskName: '',
+    subject: '',
+    startedAt: null as string | null,
+    mode: false,
+    cycle: 'focus' as 'focus' | 'break'
+  });
+
+  useEffect(() => {
+    focusTimerStateRef.current = {
+      total: focusTimerTotal,
+      timeLeft: focusTimerTimeLeft,
+      taskName: focusTimerTaskName,
+      subject: focusTimerSubject,
+      startedAt: focusTimerStartedAt,
+      mode: focusTimerMode,
+      cycle: focusTimerCycle
+    };
+  }, [focusTimerTotal, focusTimerTimeLeft, focusTimerTaskName, focusTimerSubject, focusTimerStartedAt, focusTimerMode, focusTimerCycle]);
+
+  // --- Global Focus Session Database Saver ---
+  const saveGlobalFocusSession = async (completedStatus: boolean) => {
+    const currentState = focusTimerStateRef.current;
+    const elapsedSeconds = currentState.total - currentState.timeLeft;
+    const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+    const targetMinutes = Math.round(currentState.total / 60);
+    const finalDuration = completedStatus ? targetMinutes : elapsedMinutes;
+
+    if (finalDuration <= 0) return;
+
+    const startedVal = currentState.startedAt || new Date(Date.now() - (elapsedSeconds * 1000)).toISOString();
+    const completedVal = new Date().toISOString();
+
+    const subject = currentState.subject ? currentState.subject : (currentState.taskName.trim() || 'General Study');
+
+    const specPayload = {
+      startTime: startedVal,
+      endTime: completedVal,
+      duration: finalDuration,
+      subject: subject,
+      taskName: currentState.taskName || subject,
+      completed: completedStatus
+    };
+
+    const legacyPayload = {
+      taskName: subject,
+      duration: finalDuration,
+      completed: completedStatus,
+      startedAt: startedVal,
+      completedAt: completedVal
+    };
+
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      try {
+        const currentUid = auth?.currentUser?.uid;
+        const userKey = currentUid || user.email.replace(/\./g, '_');
+        const newSessionId = `session_${Date.now()}`;
+        const updates: any = {};
+        
+        if (currentUid) {
+          updates[`users/${currentUid}/focus_sessions/${newSessionId}`] = legacyPayload;
+          updates[`users/${currentUid}/focusSessions/${newSessionId}`] = specPayload;
+        }
+        updates[`users/${userKey}/focus_sessions/${newSessionId}`] = legacyPayload;
+        updates[`users/${userKey}/focusSessions/${newSessionId}`] = specPayload;
+
+        await update(ref(db), updates);
+      } catch (err) {
+        console.error('[Focus Timer] Database save error:', err);
+      }
+    } else {
+      try {
+        const localKey = 'roomie_mock_focus_sessions';
+        const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
+        existing.push(legacyPayload);
+        localStorage.setItem(localKey, JSON.stringify(existing));
+
+        const specLocalKey = 'roomie_mock_focusSessions';
+        const specExisting = JSON.parse(localStorage.getItem(specLocalKey) || '[]');
+        specExisting.push(specPayload);
+        localStorage.setItem(specLocalKey, JSON.stringify(specExisting));
+
+        setFocusSessions(existing.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()));
+      } catch (err) {
+        console.error('[Focus Timer] Local mock save error:', err);
+      }
+    }
+  };
+
+  const handleCompleteGlobalTimer = () => {
+    const currentState = focusTimerStateRef.current;
+    saveGlobalFocusSession(true);
+
+    if (currentState.mode) {
+      if (currentState.cycle === 'focus') {
+        handleRewardXp(25, "Completed Pomodoro Focus Block! (+25 Study Points)");
+        alert("Focus Block Completed! Time for a short break.");
+        setFocusTimerCycle('break');
+        setFocusTimerTotal(5 * 60);
+        setFocusTimerTimeLeft(5 * 60);
+      } else {
+        handleRewardXp(5, "Completed Pomodoro Break Segment! (+5 Study Points)");
+        alert("Break Ended! Ready to focus again?");
+        setFocusTimerCycle('focus');
+        setFocusTimerTotal(25 * 60);
+        setFocusTimerTimeLeft(25 * 60);
+      }
+    } else {
+      const rewardPoints = Math.min(50, Math.max(10, Math.round(currentState.total / 60)));
+      handleRewardXp(rewardPoints, `Completed focus session! (+${rewardPoints} Study Points)`);
+      alert(`Awesome job! Focus session completed successfully!`);
+      setFocusTimerTimeLeft(currentState.total);
+    }
+
+    setFocusTimerActive(false);
+    setFocusTimerPaused(false);
+  };
+
+  // Restore Focus Timer state from localStorage on load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('roomie_global_timer_state');
+      if (saved) {
+        const state = JSON.parse(saved);
+        setFocusTimerActive(state.active ?? false);
+        setFocusTimerPaused(state.paused ?? false);
+        setFocusTimerTotal(state.total ?? 25 * 60);
+        setFocusTimerTaskName(state.taskName ?? '');
+        setFocusTimerSubject(state.subject ?? '');
+        setFocusTimerStartedAt(state.startedAt ?? null);
+        setFocusTimerMode(state.mode ?? false);
+        setFocusTimerCycle(state.cycle ?? 'focus');
+
+        if (state.active && !state.paused && state.savedAt) {
+          const elapsed = Math.floor((Date.now() - state.savedAt) / 1000);
+          const remaining = (state.timeLeft ?? 0) - elapsed;
+          if (remaining <= 0) {
+            setFocusTimerTimeLeft(0);
+            setTimeout(() => {
+              handleCompleteGlobalTimer();
+            }, 0);
+          } else {
+            setFocusTimerTimeLeft(remaining);
+          }
+        } else {
+          setFocusTimerTimeLeft(state.timeLeft ?? 25 * 60);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore global timer state:", e);
+    }
+  }, []);
+
+  // Sync Focus Timer state to localStorage on state changes
+  useEffect(() => {
+    if (!loggedIn) return;
+    const state = {
+      active: focusTimerActive,
+      paused: focusTimerPaused,
+      timeLeft: focusTimerTimeLeft,
+      total: focusTimerTotal,
+      taskName: focusTimerTaskName,
+      subject: focusTimerSubject,
+      startedAt: focusTimerStartedAt,
+      mode: focusTimerMode,
+      cycle: focusTimerCycle,
+      savedAt: Date.now()
+    };
+    localStorage.setItem('roomie_global_timer_state', JSON.stringify(state));
+  }, [focusTimerActive, focusTimerPaused, focusTimerTimeLeft, focusTimerTotal, focusTimerTaskName, focusTimerSubject, focusTimerStartedAt, focusTimerMode, focusTimerCycle, loggedIn]);
+
+  // Main countdown tick loop
+  useEffect(() => {
+    let intervalId: any = null;
+    if (focusTimerActive && !focusTimerPaused) {
+      intervalId = setInterval(() => {
+        setFocusTimerTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(intervalId);
+            setTimeout(() => {
+              handleCompleteGlobalTimer();
+            }, 0);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (intervalId) clearInterval(intervalId);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [focusTimerActive, focusTimerPaused]);
+
 
   // Load User Data, Profile, Tasks, Courses, Learning Tracks
   useEffect(() => {
     if (loggedIn && user) {
-      const userKey = user.email.replace(/\./g, '_');
+      const currentUid = auth?.currentUser?.uid;
+      const userKey = currentUid || user.email.replace(/\./g, '_');
 
       if (user.isGuest) {
         setLevel(1);
@@ -851,7 +1063,8 @@ export default function App() {
 
   // Planner handlers
   const handleAddTask = async (title: string, deadline: string, priority: string) => {
-    const userKey = user?.email.replace(/\./g, '_');
+    const currentUid = auth?.currentUser?.uid;
+    const userKey = currentUid || user?.email.replace(/\./g, '_');
     const taskId = `task_${Date.now()}`;
     const newTask = {
       id: taskId,
@@ -868,7 +1081,8 @@ export default function App() {
   };
 
   const handleUpdateTaskStatus = async (id: string, nextStatus: string) => {
-    const userKey = user?.email.replace(/\./g, '_');
+    const currentUid = auth?.currentUser?.uid;
+    const userKey = currentUid || user?.email.replace(/\./g, '_');
     if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
       await update(ref(db, `users/${userKey}/tasks/${id}`), { status: nextStatus });
     } else {
@@ -877,7 +1091,8 @@ export default function App() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    const userKey = user?.email.replace(/\./g, '_');
+    const currentUid = auth?.currentUser?.uid;
+    const userKey = currentUid || user?.email.replace(/\./g, '_');
     if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/tasks/${id}`), null);
     } else {
@@ -885,16 +1100,49 @@ export default function App() {
     }
   };
 
-  const handleUpdateProfile = (updatedProfile: any) => {
+  const handleUpdateProfile = async (updatedProfile: any) => {
     setProfile(updatedProfile);
     if (updatedProfile.profilePhoto) {
       setProfilePhoto(updatedProfile.profilePhoto);
+    }
+    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+      const currentUid = auth?.currentUser?.uid;
+      const userKey = user.email.replace(/\./g, '_');
+      const payload = {
+        email: user.email,
+        name: updatedProfile.name,
+        level,
+        xp,
+        maxXp,
+        studyPoints,
+        stats,
+        achievements,
+        profile: updatedProfile,
+        course: updatedProfile.specialization,
+        degree: updatedProfile.degree,
+        college: updatedProfile.college,
+        location: `${updatedProfile.city}, ${updatedProfile.state}`,
+        profilePhoto: updatedProfile.profilePhoto || profilePhoto
+      };
+      try {
+        const updates: any = {};
+        if (currentUid) {
+          updates[`users/${currentUid}`] = payload;
+        }
+        updates[`users/${userKey}`] = payload;
+        await update(ref(db), updates);
+      } catch (err) {
+        console.error('Failed to save profile updates:', err);
+      }
+    } else {
+      localStorage.setItem('roomie_mock_profile', JSON.stringify(updatedProfile));
     }
   };
 
   const handleUpdateCourses = async (updatedCourses: Course[]) => {
     setCourses(updatedCourses);
-    const userKey = user?.email.replace(/\./g, '_');
+    const currentUid = auth?.currentUser?.uid;
+    const userKey = currentUid || user?.email.replace(/\./g, '_');
     if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/courses`), updatedCourses);
     }
@@ -902,7 +1150,8 @@ export default function App() {
 
   const handleUpdateLearningTracks = async (updatedTracks: LearningTrack[]) => {
     setLearningTracks(updatedTracks);
-    const userKey = user?.email.replace(/\./g, '_');
+    const currentUid = auth?.currentUser?.uid;
+    const userKey = currentUid || user?.email.replace(/\./g, '_');
     if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/learningTracks`), updatedTracks);
     }
@@ -1020,10 +1269,7 @@ export default function App() {
             ...profileData,
             onboardingCompleted: true
           };
-          setProfile(updatedProfile);
-          if (profileData.profilePhoto) {
-            setProfilePhoto(profileData.profilePhoto);
-          }
+          handleUpdateProfile(updatedProfile);
         }}
       />
     );
@@ -1116,13 +1362,6 @@ export default function App() {
               </button>
             ))}
           </div>
-
-          {/* Collapsed/footer info */}
-          {sidebarOpen && (
-            <div style={{ marginTop: 'auto', borderTop: '2px solid #f1f5f9', paddingTop: '1rem', paddingLeft: '0.5rem' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>V5.0 CARTOON EDITION</span>
-            </div>
-          )}
         </aside>
       )}
 
@@ -1216,10 +1455,6 @@ export default function App() {
                   <span style={{ textTransform: 'uppercase' }}>{tab.label}</span>
                 </button>
               ))}
-            </div>
-
-            <div style={{ marginTop: 'auto', borderTop: '2px solid #f1f5f9', paddingTop: '1rem', paddingLeft: '0.5rem' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>V5.0 CARTOON EDITION</span>
             </div>
           </div>
         </>
@@ -1615,7 +1850,42 @@ export default function App() {
             <FocusClock
               userEmail={user.email}
               courses={courses}
-              onRewardXp={handleRewardXp}
+              timerActive={focusTimerActive}
+              timerPaused={focusTimerPaused}
+              timerTimeLeft={focusTimerTimeLeft}
+              timerTotal={focusTimerTotal}
+              timerTaskName={focusTimerTaskName}
+              timerSubject={focusTimerSubject}
+              timerMode={focusTimerMode}
+              timerCycle={focusTimerCycle}
+              setTimerTaskName={setFocusTimerTaskName}
+              setTimerSubject={setFocusTimerSubject}
+              onStartTimer={(task, subj, totalSecs, isPomo, cycleVal) => {
+                setFocusTimerTaskName(task);
+                setFocusTimerSubject(subj);
+                setFocusTimerTotal(totalSecs);
+                setFocusTimerTimeLeft(totalSecs);
+                setFocusTimerMode(isPomo);
+                setFocusTimerCycle(cycleVal);
+                setFocusTimerStartedAt(new Date().toISOString());
+                setFocusTimerActive(true);
+                setFocusTimerPaused(false);
+              }}
+              onPauseTimer={() => setFocusTimerPaused(true)}
+              onResumeTimer={() => setFocusTimerPaused(false)}
+              onStopTimer={() => {
+                if (confirm("Stop current focus session? Progress so far will be saved.")) {
+                  saveGlobalFocusSession(false);
+                  setFocusTimerActive(false);
+                  setFocusTimerPaused(false);
+                  setFocusTimerTimeLeft(focusTimerTotal);
+                }
+              }}
+              onToggleMode={() => setFocusTimerMode(!focusTimerMode)}
+              onSetDuration={(totalSecs) => {
+                setFocusTimerTotal(totalSecs);
+                setFocusTimerTimeLeft(totalSecs);
+              }}
             />
           )}
 

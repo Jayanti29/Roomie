@@ -39,46 +39,14 @@ export const downloadFileHelper = async (url: string, fileName: string) => {
   }
 
   // 3. For http/https URLs:
-  // Open blank window synchronously inside user click event to bypass popup blockers
-  let newWindow: Window | null = null;
-  try {
-    newWindow = window.open('', '_blank');
-  } catch (e) {
-    console.warn('[Download] Synchronous window.open failed:', e);
-  }
-
-  try {
-    // Attempt CORS fetch. If it succeeds, force download via Blob.
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Fetch failed');
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    
-    // Close the blank window since we can download it locally
-    if (newWindow) {
-      newWindow.close();
-    }
-    
-    triggerDownload(blobUrl, fileName);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-  } catch (err) {
-    console.warn('[Download] Fetch failed (likely CORS), downloading directly in the new tab:', err);
-    // If CORS blocked or fetch failed, load the URL directly in the already open window.
-    // The browser's native download/view handler will capture it without reloading the main SPA tab.
-    if (newWindow) {
-      newWindow.location.href = url;
-    } else {
-      // Direct anchor fallback
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noreferrer';
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  }
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 const triggerDownload = (dataUrl: string, fileName: string) => {
@@ -86,7 +54,7 @@ const triggerDownload = (dataUrl: string, fileName: string) => {
   link.href = dataUrl;
   link.download = fileName;
   link.target = '_blank';
-  link.rel = 'noreferrer';
+  link.rel = 'noopener noreferrer';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -136,7 +136,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Calculations
   const completedSessions = focusSessions.filter(s => s.completed);
   const totalCompletedSessionsCount = completedSessions.length;
-  const totalFocusHours = Math.round(focusSessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60);
+
+  const todaySessions = focusSessions.filter(s => {
+    if (!s.completed || !s.completedAt) return false;
+    try {
+      return new Date(s.completedAt).toDateString() === new Date().toDateString();
+    } catch (e) {
+      return false;
+    }
+  });
+  const todayFocusMinutes = todaySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+  const todayFocusHours = (todayFocusMinutes / 60).toFixed(1);
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const weeklySessions = focusSessions.filter(s => {
+    if (!s.completed || !s.completedAt) return false;
+    try {
+      const completedTime = new Date(s.completedAt).getTime();
+      return completedTime >= sevenDaysAgo.getTime();
+    } catch (e) {
+      return false;
+    }
+  });
+  const weeklyFocusMinutes = weeklySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+  const weeklyFocusHours = (weeklyFocusMinutes / 60).toFixed(1);
 
   const calculateOverallProgress = () => {
     const totalItems = courses.length + roadmaps.length;
@@ -500,29 +524,50 @@ export const Dashboard: React.FC<DashboardProps> = ({
           }}>
             <Timer size={12} /> FOCUS HOURS
           </div>
-          <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 950, color: '#166534', margin: 0 }}>
-                {totalFocusHours} Hrs
-              </h4>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 750 }}>
-                {totalCompletedSessionsCount} sessions completed
-              </span>
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 750, display: 'block', textTransform: 'uppercase' }}>
+                  Today
+                </span>
+                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 950, color: '#166534', margin: 0 }}>
+                  {todayFocusHours} Hrs
+                </h4>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 750, display: 'block', textTransform: 'uppercase' }}>
+                  Weekly
+                </span>
+                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 950, color: '#166534', margin: 0 }}>
+                  {weeklyFocusHours} Hrs
+                </h4>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 750, display: 'block', textTransform: 'uppercase' }}>
+                  Completed
+                </span>
+                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 950, color: '#166534', margin: 0 }}>
+                  {totalCompletedSessionsCount} Sessions
+                </h4>
+              </div>
             </div>
-            <button
-              onClick={() => onNavigate('focus_clock')}
-              className="cyber-btn purple-fill"
-              style={{
-                border: '2px solid #0f172a',
-                boxShadow: '2px 2px 0px #0f172a',
-                fontSize: '0.75rem',
-                fontWeight: 900,
-                borderRadius: '8px',
-                padding: '0.35rem 0.65rem'
-              }}
-            >
-              Start Clock
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+              <button
+                onClick={() => onNavigate('focus_clock')}
+                className="cyber-btn purple-fill"
+                style={{
+                  border: '2px solid #0f172a',
+                  boxShadow: '2px 2px 0px #0f172a',
+                  fontSize: '0.75rem',
+                  fontWeight: 900,
+                  borderRadius: '8px',
+                  padding: '0.35rem 0.65rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Start Clock
+              </button>
+            </div>
           </div>
         </div>
 

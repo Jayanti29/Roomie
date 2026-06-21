@@ -447,7 +447,11 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
     const cleanEmail = ownerEmail.replace(/[^a-zA-Z0-9]/g, '_');
     const path = `files/${cleanEmail}/${Date.now()}_${fileName}`;
     const storageRefInstance = sRef(storage, path);
-    await uploadBytes(storageRefInstance, file);
+    const metadata = {
+      contentDisposition: `attachment; filename="${fileName}"`,
+      contentType: file.type || 'application/octet-stream'
+    };
+    await uploadBytes(storageRefInstance, file, metadata);
     const downloadUrl = await getDownloadURL(storageRefInstance);
     return downloadUrl;
   }
