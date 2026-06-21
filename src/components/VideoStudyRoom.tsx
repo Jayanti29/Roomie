@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
 import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf, uploadFile } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
+import { Hand, Volume2 } from 'lucide-react';
 
 const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
   if (!idOrUrl) return;
@@ -140,7 +141,7 @@ const AudioUnlockOverlay: React.FC<{ remoteStreams: Record<string, MediaStream> 
         animation: 'fadeIn 0.3s ease',
       }}
     >
-      <span style={{ fontSize: '1.1rem' }}>🔊</span>
+      <Volume2 size={18} style={{ display: 'inline-block', marginRight: '6px' }} />
       Tap to enable audio
     </div>
   );
@@ -1075,13 +1076,53 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     updateMyPresence({ isMuted: !nextMicState, micOn: nextMicState });
   };
 
-  const toggleCamera = () => {
+  const toggleCamera = async () => {
     const nextCamState = !cameraOn;
     setCameraOn(nextCamState);
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach(track => {
-        track.enabled = nextCamState;
+    if (!nextCamState) {
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach(track => {
+          track.enabled = false;
+          track.stop();
+          localStreamRef.current?.removeTrack(track);
+        });
+      }
+      setCameraStream(null);
+      Object.values(peerConnections.current).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          sender.replaceTrack(null).catch(console.error);
+        }
       });
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    } else {
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }
+        });
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        if (newVideoTrack) {
+          if (localStreamRef.current) {
+            localStreamRef.current.addTrack(newVideoTrack);
+          } else {
+            localStreamRef.current = newStream;
+          }
+          setCameraStream(localStreamRef.current);
+          Object.values(peerConnections.current).forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+              sender.replaceTrack(newVideoTrack).catch(console.error);
+            }
+          });
+          if (videoRef.current) {
+            videoRef.current.srcObject = localStreamRef.current;
+          }
+        }
+      } catch (err) {
+        console.error('[WebRTC] Error re-enabling camera:', err);
+      }
     }
     updateMyPresence({ cameraOn: nextCamState });
   };
@@ -3083,12 +3124,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '1.2rem',
                               boxShadow: '1.5px 1.5px 0px #000',
                               animation: 'float-bouncy 2s infinite',
                               zIndex: 10
                             }}>
-                              ✋
+                              <Hand size={18} color="#000" fill="#000" />
                             </div>
                           )}
                           <div style={{ position: 'absolute', bottom: '0.5rem', left: '0.5rem', background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -3142,12 +3182,11 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '1.2rem',
                                 boxShadow: '1.5px 1.5px 0px #000',
                                 animation: 'float-bouncy 2s infinite',
                                 zIndex: 10
                               }}>
-                                ✋
+                                <Hand size={18} color="#000" fill="#000" />
                               </div>
                             )}
                             <div style={{ 

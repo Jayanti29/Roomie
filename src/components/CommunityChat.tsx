@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db, isFirebaseConfigured, ref, push, onChildAdded, get, set, onValue, uploadFile, auth } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
+import { Paperclip, FileText, Mic, X } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -749,7 +750,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span style={{ fontSize: '1rem' }}>📝</span>
+                            <FileText size={16} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
                             <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isMe ? '#fff' : '#0f172a' }}>
                               Shared Note: {noteRef.title}
                             </span>
@@ -779,7 +780,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                       >
                         {msg.attachment.isVoice ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%' }} onClick={e => e.stopPropagation()}>
-                            <span style={{ fontSize: '0.8rem' }}>🎙️</span>
+                            <Mic size={14} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
                             <audio src={msg.attachment.url} controls style={{ height: '32px', width: '200px' }} />
                           </div>
                         ) : (
@@ -847,7 +848,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                 title="Attach Document/Image"
                 disabled={isRecording || isUploading}
               >
-                📎
+                <Paperclip size={18} />
               </button>
               <input
                 type="file"
@@ -866,7 +867,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                 title="Attach Shared Note Card"
                 disabled={isRecording || isUploading}
               >
-                📝
+                <FileText size={18} />
               </button>
 
               {/* Voice Notes Button */}
@@ -879,7 +880,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                   title="Record Voice Note"
                   disabled={isUploading}
                 >
-                  🎙️
+                  <Mic size={18} />
                 </button>
               ) : (
                 <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center', background: '#ffe4e6', border: '1px solid #fecdd3', borderRadius: 'var(--border-radius-sm)', padding: '0.2rem 0.5rem', height: '38px' }}>
@@ -1112,7 +1113,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '0.4rem' }}>
               <strong style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem' }}>Attach Note Card</strong>
-              <button onClick={() => setShowNoteSelector(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: 800 }}>✕</button>
+              <button onClick={() => setShowNoteSelector(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><X size={16} /></button>
             </div>
             
             <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--outline-medium)', borderRadius: '8px', padding: '0.25rem', background: '#f8fafc' }}>

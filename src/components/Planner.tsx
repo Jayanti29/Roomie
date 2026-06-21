@@ -1,5 +1,6 @@
 // src/components/Planner.tsx
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -221,11 +222,11 @@ export const Planner: React.FC<PlannerProps> = ({
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.85rem', padding: '0.25rem', color: 'var(--text-muted)'
+                        padding: '0.25rem', color: 'var(--text-muted)'
                       }}
                       title="Delete task"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   </div>
                 </div>

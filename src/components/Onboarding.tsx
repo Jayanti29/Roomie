@@ -1,5 +1,6 @@
 // src/components/Onboarding.tsx
 import React, { useState, useRef } from 'react';
+import { User } from 'lucide-react';
 import { statesAndUTs, popularColleges, popularUniversities, degrees, specializations, citiesByState } from '../utils/collegeData';
 
 interface OnboardingProps {
@@ -615,7 +616,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ defaultName, onComplete 
                 {profilePhoto ? (
                   <img src={profilePhoto} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <span style={{ fontSize: '2.5rem' }}>👤</span>
+                  <User size={40} style={{ color: 'var(--text-muted)' }} />
                 )}
               </div>
               <button

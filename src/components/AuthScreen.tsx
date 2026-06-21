@@ -493,7 +493,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 textAlign: 'left',
                 marginBottom: '1rem'
               }}>
-                ⚠️ {errorMessage}
+                <span style={{ fontWeight: 800 }}>Error:</span> {errorMessage}
               </div>
             )}
 

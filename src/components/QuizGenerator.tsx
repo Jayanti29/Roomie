@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
+import { Star } from 'lucide-react';
 
 interface QuizQuestion {
   question: string;
@@ -262,7 +263,9 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onRewardXp }) => {
           </div>
 
           <div style={{ background: '#f5f5f5', border: '2px solid #000', borderRadius: '10px', padding: '0.65rem', width: '100%', fontSize: '0.75rem', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div style={{ color: 'var(--accent-pink)' }}>★ Earned +{(score * 30) + 30} Study Points!</div>
+            <div style={{ color: 'var(--accent-pink)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Star size={12} fill="currentColor" /> Earned +{(score * 30) + 30} Study Points!
+            </div>
           </div>
 
           <button 

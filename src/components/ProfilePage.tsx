@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, set, auth, useMockDb } from '../firebase';
 import { statesAndUTs, popularColleges, popularUniversities, degrees, specializations } from '../utils/collegeData';
+import { X } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -725,10 +726,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</strong>
                         <button
                           onClick={() => handleRemoveCourse(c.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
                           title="Remove Course"
                         >
-                          ✕
+                          <X size={14} />
                         </button>
                       </div>
                       
@@ -792,10 +793,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         <strong style={{ fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{track.name}</strong>
                         <button
                           onClick={() => handleRemoveTrack(track.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
                           title="Remove Track"
                         >
-                          ✕
+                          <X size={14} />
                         </button>
                       </div>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Goal: {track.goal || 'No specified goal'} | Due: {track.targetDate || 'No date'}</span>
@@ -843,7 +844,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 {accountAction === 'change_email' && "Change Email Address"}
                 {accountAction === 'delete_account' && "Delete Account"}
               </strong>
-              <button onClick={() => setAccountAction(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: 900 }}>✕</button>
+              <button onClick={() => setAccountAction(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><X size={16} /></button>
             </div>
 
             {accountAction === 'delete_account' && (

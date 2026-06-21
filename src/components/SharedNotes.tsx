@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, get, set, update, onChildAdded, onChildChanged, onChildRemoved, uploadFile, auth } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
+import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 
 interface Comment {
   id: string;
@@ -131,9 +132,9 @@ const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
           onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
           disabled={currentSlide === 0}
           className="cyber-btn"
-          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto', display: 'inline-flex', alignItems: 'center' }}
         >
-          ◀ Prev
+          <ArrowLeft size={10} style={{ marginRight: '4px' }} /> Prev
         </button>
 
         <div style={{ display: 'flex', gap: '0.3rem' }}>
@@ -158,9 +159,9 @@ const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
           onClick={() => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1))}
           disabled={currentSlide === slides.length - 1}
           className="cyber-btn"
-          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
+          style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto', display: 'inline-flex', alignItems: 'center' }}
         >
-          Next ▶
+          Next <ArrowRight size={10} style={{ marginLeft: '4px' }} />
         </button>
       </div>
     </div>
@@ -890,9 +891,9 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
               </div>
               <button
                 onClick={() => setActiveNote(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 900 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
@@ -1017,7 +1018,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
               <strong style={{ fontSize: '1rem', fontFamily: 'var(--font-heading)', color: '#0f172a' }}>Share Note</strong>
-              <button onClick={() => setShareModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 900 }}>✕</button>
+              <button onClick={() => setShareModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><X size={18} /></button>
             </div>
             
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>

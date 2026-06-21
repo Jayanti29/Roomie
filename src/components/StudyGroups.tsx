@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, onChildRemoved, set, onValue, uploadFile, get, auth } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
+import { ArrowLeft, ArrowRight, Paperclip, Mic } from 'lucide-react';
 
 interface GroupNote {
   id: string;
@@ -147,7 +148,7 @@ const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
           className="cyber-btn"
           style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
         >
-          ◀ Prev
+          <ArrowLeft size={10} style={{ display: 'inline-block', marginRight: '2px', verticalAlign: 'middle' }} /> Prev
         </button>
 
         <div style={{ display: 'flex', gap: '0.3rem' }}>
@@ -174,7 +175,7 @@ const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
           className="cyber-btn"
           style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', minHeight: 'auto' }}
         >
-          Next ▶
+          Next <ArrowRight size={10} style={{ display: 'inline-block', marginLeft: '2px', verticalAlign: 'middle' }} />
         </button>
       </div>
     </div>
@@ -1183,7 +1184,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                                 >
                                   {msg.attachment.isVoice ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
-                                      <span style={{ fontSize: '0.8rem' }}>🎙️</span>
+                                      <Mic size={14} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
                                       <audio src={msg.attachment.url} controls style={{ height: '32px', width: '180px' }} />
                                     </div>
                                   ) : (
@@ -1234,7 +1235,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                         title="Attach file to chat"
                         disabled={isRecording || chatUploading}
                       >
-                        📎
+                        <Paperclip size={18} />
                       </button>
                       <input
                         type="file"
@@ -1254,7 +1255,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
                           title="Record Group Voice Note"
                           disabled={chatUploading}
                         >
-                          🎙️
+                          <Mic size={18} />
                         </button>
                       ) : (
                         <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center', background: '#ffe4e6', border: '1px solid #fecdd3', borderRadius: 'var(--border-radius-sm)', padding: '0.2rem 0.5rem', height: '38px' }}>

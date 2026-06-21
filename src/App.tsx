@@ -13,7 +13,25 @@ import { QuizGenerator } from './components/QuizGenerator';
 import { Onboarding } from './components/Onboarding';
 import { Friends } from './components/Friends';
 import { FocusClock } from './components/FocusClock';
+import { LearningRoadmaps } from './components/LearningRoadmaps';
 import { databaseService, authService, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
+import {
+  LayoutDashboard,
+  Users,
+  MessageSquare,
+  Folder,
+  Video,
+  BookOpen,
+  Bot,
+  Timer,
+  Calendar,
+  Trophy,
+  Settings,
+  Map,
+  GraduationCap,
+  LogOut,
+  User
+} from 'lucide-react';
 
 
 interface ToastItem {
@@ -54,7 +72,25 @@ interface Task {
   status: string;
 }
 
-type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock';
+interface Roadmap {
+  id: string;
+  name: string;
+  goal: string;
+  targetDate: string;
+  progress: number;
+  type: 'ai' | 'manual';
+}
+
+interface FocusSession {
+  id?: string;
+  taskName: string;
+  duration: number;
+  completed: boolean;
+  startedAt: string;
+  completedAt: string;
+}
+
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock' | 'learning_roadmaps';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -86,6 +122,8 @@ export default function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [learningTracks, setLearningTracks] = useState<LearningTrack[]>([]);
   const [notesList, setNotesList] = useState<any[]>([]);
+  const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
 
   // Real-Time Notification Center & Toast states
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -563,11 +601,52 @@ export default function App() {
           }
         });
 
+        const roadmapsRef = ref(db, `users/${userKey}/roadmaps`);
+        const unsubRoadmaps = onValue(roadmapsRef, (snap) => {
+          if (snap.exists()) {
+            const val = snap.val();
+            const list = Object.entries(val).map(([id, r]: [string, any]) => ({
+              id,
+              ...r,
+              checkpoints: r.checkpoints ? (Array.isArray(r.checkpoints) ? r.checkpoints : Object.values(r.checkpoints)) : []
+            }));
+            setRoadmaps(list);
+          } else {
+            setRoadmaps([]);
+          }
+        });
+
+        const focusRef = ref(db, `users/${userKey}/focus_sessions`);
+        const unsubFocus = onValue(focusRef, (snap) => {
+          if (snap.exists()) {
+            const val = snap.val();
+            const list = Object.entries(val).map(([id, s]: [string, any]) => ({
+              id,
+              ...s
+            }));
+            setFocusSessions(list);
+          } else {
+            setFocusSessions([]);
+          }
+        });
+
         return () => {
           unsubTasks();
           unsubCourses();
           unsubTracks();
+          unsubRoadmaps();
+          unsubFocus();
         };
+      } else {
+        // Localstorage mock fallback for local testing
+        try {
+          const list = JSON.parse(localStorage.getItem('roomie_mock_roadmaps') || '[]');
+          setRoadmaps(list);
+        } catch (e) {}
+        try {
+          const list = JSON.parse(localStorage.getItem('roomie_mock_focus_sessions') || '[]');
+          setFocusSessions(list);
+        } catch (e) {}
       }
     }
   }, [loggedIn, user]);
@@ -987,7 +1066,7 @@ export default function App() {
           {/* Logo Brand */}
           {sidebarOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '2rem', paddingLeft: '0.5rem' }}>
-              <div style={{ fontSize: '1.4rem' }}>🎒</div>
+              <GraduationCap size={24} style={{ color: 'var(--accent-primary)' }} />
               <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 950, color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
                 ROOMIE
               </h2>
@@ -996,19 +1075,20 @@ export default function App() {
 
           {/* Links list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-            {([
-              { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-              { id: 'friends', label: 'Friends', icon: '👥' },
-              { id: 'community_chat', label: 'Communities', icon: '💬' },
-              { id: 'study_groups', label: 'Study Groups', icon: '📂' },
-              { id: 'study_rooms', label: 'Study Rooms', icon: '🎥' },
-              { id: 'shared_notes', label: 'Shared Notes', icon: '📚' },
-              { id: 'ai_workspace', label: 'AI Workspace', icon: '🤖' },
-              { id: 'focus_clock', label: 'Focus Clock', icon: '⏱️' },
-              { id: 'planner', label: 'Planner', icon: '📅' },
-              { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
-              { id: 'profile', label: 'Settings', icon: '⚙️' }
-            ] as const).map(tab => (
+            {[
+              { id: 'dashboard' as const, label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+              { id: 'friends' as const, label: 'Friends', icon: <Users size={18} /> },
+              { id: 'community_chat' as const, label: 'Communities', icon: <MessageSquare size={18} /> },
+              { id: 'study_groups' as const, label: 'Study Groups', icon: <Folder size={18} /> },
+              { id: 'study_rooms' as const, label: 'Study Rooms', icon: <Video size={18} /> },
+              { id: 'shared_notes' as const, label: 'Shared Notes', icon: <BookOpen size={18} /> },
+              { id: 'learning_roadmaps' as const, label: 'Learning Roadmaps', icon: <Map size={18} /> },
+              { id: 'ai_workspace' as const, label: 'AI Workspace', icon: <Bot size={18} /> },
+              { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
+              { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
+              { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
+              { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> }
+            ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveMainTab(tab.id)}
@@ -1031,7 +1111,7 @@ export default function App() {
                   boxShadow: activeMainTab === tab.id ? '3px 3px 0px #0f172a' : 'none'
                 }}
               >
-                <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span>
+                <span style={{ display: 'flex', alignItems: 'center' }}>{tab.icon}</span>
                 {sidebarOpen && <span style={{ textTransform: 'uppercase' }}>{tab.label}</span>}
               </button>
             ))}
@@ -1079,7 +1159,7 @@ export default function App() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingLeft: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.3rem' }}>🎒</span>
+                <GraduationCap size={24} style={{ color: 'var(--accent-primary)' }} />
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 950, color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
                   ROOMIE
                 </h2>
@@ -1094,19 +1174,20 @@ export default function App() {
 
             {/* Links list */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto' }}>
-              {([
-                { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-                { id: 'friends', label: 'Friends', icon: '👥' },
-                { id: 'community_chat', label: 'Communities', icon: '💬' },
-                { id: 'study_groups', label: 'Study Groups', icon: '📂' },
-                { id: 'study_rooms', label: 'Study Rooms', icon: '🎥' },
-                { id: 'shared_notes', label: 'Shared Notes', icon: '📚' },
-                { id: 'ai_workspace', label: 'AI Workspace', icon: '🤖' },
-                { id: 'focus_clock', label: 'Focus Clock', icon: '⏱️' },
-                { id: 'planner', label: 'Planner', icon: '📅' },
-                { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
-                { id: 'profile', label: 'Settings', icon: '⚙️' }
-              ] as const).map(tab => (
+              {[
+                { id: 'dashboard' as const, label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+                { id: 'friends' as const, label: 'Friends', icon: <Users size={18} /> },
+                { id: 'community_chat' as const, label: 'Communities', icon: <MessageSquare size={18} /> },
+                { id: 'study_groups' as const, label: 'Study Groups', icon: <Folder size={18} /> },
+                { id: 'study_rooms' as const, label: 'Study Rooms', icon: <Video size={18} /> },
+                { id: 'shared_notes' as const, label: 'Shared Notes', icon: <BookOpen size={18} /> },
+                { id: 'learning_roadmaps' as const, label: 'Learning Roadmaps', icon: <Map size={18} /> },
+                { id: 'ai_workspace' as const, label: 'AI Workspace', icon: <Bot size={18} /> },
+                { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
+                { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
+                { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
+                { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> }
+              ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => {
@@ -1131,7 +1212,7 @@ export default function App() {
                     boxShadow: activeMainTab === tab.id ? '3px 3px 0px #0f172a' : 'none'
                   }}
                 >
-                  <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span>
+                  <span style={{ display: 'flex', alignItems: 'center' }}>{tab.icon}</span>
                   <span style={{ textTransform: 'uppercase' }}>{tab.label}</span>
                 </button>
               ))}
@@ -1383,28 +1464,13 @@ export default function App() {
                     style={{
                       background: 'none', border: 'none', textAlign: 'left',
                       padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                      color: 'var(--text-primary)', fontWeight: 650
+                      color: 'var(--text-primary)', fontWeight: 650,
+                      display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                   >
-                    My Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMainTab('profile');
-                      setProfileSubTab('academic');
-                      setShowProfileDropdown(false);
-                    }}
-                    style={{
-                      background: 'none', border: 'none', textAlign: 'left',
-                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                      color: 'var(--text-primary)', fontWeight: 650
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                  >
-                    Academic Profile
+                    <User size={14} /> Profile
                   </button>
                   <button
                     onClick={() => {
@@ -1414,27 +1480,13 @@ export default function App() {
                     style={{
                       background: 'none', border: 'none', textAlign: 'left',
                       padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                      color: 'var(--text-primary)', fontWeight: 650
+                      color: 'var(--text-primary)', fontWeight: 650,
+                      display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                   >
-                    Settings
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMainTab('account');
-                      setShowProfileDropdown(false);
-                    }}
-                    style={{
-                      background: 'none', border: 'none', textAlign: 'left',
-                      padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                      color: 'var(--text-primary)', fontWeight: 650
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                  >
-                    Account
+                    <Settings size={14} /> Settings
                   </button>
                   <div style={{ borderTop: '2px solid #f1f5f9', margin: '0.25rem 0' }} />
                   <button
@@ -1445,12 +1497,13 @@ export default function App() {
                     style={{
                       background: 'none', border: 'none', textAlign: 'left',
                       padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer',
-                      color: 'var(--accent-pink)', fontWeight: 800
+                      color: 'var(--accent-pink)', fontWeight: 800,
+                      display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                   >
-                    Logout
+                    <LogOut size={14} /> Logout
                   </button>
                 </div>
               )}
@@ -1464,22 +1517,17 @@ export default function App() {
           {/* Dashboard Tab */}
           {activeMainTab === 'dashboard' && (
             <Dashboard
-              profile={{
-                name: profile.name || user.name,
-                email: user.email,
-                college: profile.college,
-                university: profile.university,
-                degree: profile.degree,
-                specialization: profile.specialization,
-                semester: profile.semester,
-                careerGoal: profile.careerGoal,
-                profilePhoto: profilePhoto
-              }}
+              level={level}
+              xp={xp}
+              maxXp={maxXp}
+              studyPoints={studyPoints}
+              milestonesCount={achievements.filter((a: any) => a.unlocked).length}
               tasks={tasks}
               notes={notesList}
               courses={courses}
-              studyPoints={studyPoints}
-              milestonesCount={achievements.filter((a: any) => a.unlocked).length}
+              roadmaps={roadmaps}
+              focusSessions={focusSessions}
+              onUpdateCourses={handleUpdateCourses}
               onNavigate={(tab) => {
                 if (tab === 'notes') {
                   setActiveMainTab('shared_notes');
@@ -1499,6 +1547,16 @@ export default function App() {
               onRewardXp={handleRewardXp}
               isGuest={user.isGuest}
               isAdmin={isAdmin}
+            />
+          )}
+
+          {/* Learning Roadmaps Tab */}
+          {activeMainTab === 'learning_roadmaps' && (
+            <LearningRoadmaps
+              userEmail={user.email}
+              userName={profile.name || user.name}
+              onRewardXp={handleRewardXp}
+              isGuest={user.isGuest}
             />
           )}
 
@@ -1556,6 +1614,8 @@ export default function App() {
           {activeMainTab === 'focus_clock' && (
             <FocusClock
               userEmail={user.email}
+              courses={courses}
+              onRewardXp={handleRewardXp}
             />
           )}
 

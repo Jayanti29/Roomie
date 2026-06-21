@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, isFirebaseConfigured, ref, push, set, update, onValue, uploadFile, get, auth } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
+import { 
+  Paperclip, 
+  FileText, 
+  Mic, 
+  Map, 
+  X, 
+  ChevronRight, 
+  ChevronLeft,
+  Users
+} from 'lucide-react';
 
 interface UserProfile {
   uid: string;
@@ -48,6 +58,22 @@ interface DirectMessage {
     content: string;
     course: string;
     pdfAttachment?: any;
+  };
+  roadmapReference?: {
+    id: string;
+    name: string;
+    goal: string;
+    targetDate: string;
+    progress: number;
+    type: 'ai' | 'manual';
+    checkpoints: {
+      id: string;
+      title: string;
+      completed: boolean;
+      tasks?: string[];
+      milestone?: string;
+      week?: number;
+    }[];
   };
   inviteType?: 'room' | 'group';
   inviteId?: string;
@@ -138,18 +164,18 @@ const PptxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
           onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
           disabled={currentSlide === 0}
           className="cyber-btn"
-          style={{ padding: '0.15rem 0.3rem', fontSize: '0.6rem', minHeight: 'auto' }}
+          style={{ padding: '0.15rem 0.3rem', fontSize: '0.6rem', minHeight: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          ◀
+          <ChevronLeft size={10} />
         </button>
         <button
           type="button"
           onClick={() => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1))}
           disabled={currentSlide === slides.length - 1}
           className="cyber-btn"
-          style={{ padding: '0.15rem 0.3rem', fontSize: '0.6rem', minHeight: 'auto' }}
+          style={{ padding: '0.15rem 0.3rem', fontSize: '0.6rem', minHeight: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          ▶
+          <ChevronRight size={10} />
         </button>
       </div>
     </div>
@@ -191,6 +217,11 @@ export const Friends: React.FC<FriendsProps> = ({
   const [attachedNote, setAttachedNote] = useState<any | null>(null);
   const [myNotes, setMyNotes] = useState<any[]>([]);
   const [showNoteSelector, setShowNoteSelector] = useState(false);
+
+  // Roadmap sharing states
+  const [showRoadmapSelector, setShowRoadmapSelector] = useState(false);
+  const [myRoadmaps, setMyRoadmaps] = useState<any[]>([]);
+  const [previewRoadmap, setPreviewRoadmap] = useState<any | null>(null);
 
   // Invite triggers
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
@@ -618,6 +649,105 @@ export const Friends: React.FC<FriendsProps> = ({
     setShowNoteSelector(true);
   };
 
+  const loadMyRoadmaps = async () => {
+    if (isFirebaseConfigured && db) {
+      try {
+        const snap = await get(ref(db, `users/${currentUid}/roadmaps`));
+        if (snap.exists()) {
+          const val = snap.val();
+          const list = Object.entries(val).map(([id, r]: [string, any]) => ({
+            id,
+            ...r,
+            checkpoints: r.checkpoints ? (Array.isArray(r.checkpoints) ? r.checkpoints : Object.values(r.checkpoints)) : []
+          }));
+          setMyRoadmaps(list);
+        } else {
+          setMyRoadmaps([]);
+        }
+      } catch (err) {
+        console.error('Error loading roadmaps:', err);
+      }
+    } else {
+      try {
+        const list = JSON.parse(localStorage.getItem('roomie_mock_roadmaps') || '[]');
+        setMyRoadmaps(list);
+      } catch (e) {
+        setMyRoadmaps([]);
+      }
+    }
+  };
+
+  const handleOpenRoadmapSelector = () => {
+    loadMyRoadmaps();
+    setShowRoadmapSelector(true);
+  };
+
+  const handleShareRoadmap = async (roadmap: any) => {
+    if (!activeDmUid) return;
+    const chatId = currentUid < activeDmUid ? `${currentUid}_${activeDmUid}` : `${activeDmUid}_${currentUid}`;
+    
+    const newMsg: DirectMessage = {
+      id: `msg_${Date.now()}`,
+      senderUid: currentUid,
+      senderName: userName,
+      text: `Shared a learning roadmap: "${roadmap.name}"`,
+      timestamp: Date.now(),
+      roadmapReference: {
+        id: roadmap.id,
+        name: roadmap.name,
+        goal: roadmap.goal,
+        targetDate: roadmap.targetDate,
+        progress: roadmap.progress,
+        type: roadmap.type,
+        checkpoints: roadmap.checkpoints || []
+      }
+    };
+
+    if (isFirebaseConfigured && db) {
+      await push(ref(db, `private_chats/${chatId}/messages`), newMsg);
+      await push(ref(db, `notifications/${activeDmUid}`), {
+        title: `Shared a roadmap from ${userName}`,
+        message: `Shared roadmap: ${roadmap.name}`,
+        type: 'chat',
+        timestamp: Date.now()
+      });
+    } else {
+      const localKey = `roomie_mock_private_chats_${chatId}`;
+      const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
+      existing.push(newMsg);
+      localStorage.setItem(localKey, JSON.stringify(existing));
+      setDmMessages(existing);
+    }
+  };
+
+  const handleImportRoadmap = async (roadmap: any) => {
+    if (isGuest) {
+      alert("Guest accounts cannot save roadmaps.");
+      return;
+    }
+    const newRoadmapId = `roadmap_${Date.now()}`;
+    const importedRoadmap = {
+      ...roadmap,
+      id: newRoadmapId,
+      progress: 0,
+      checkpoints: roadmap.checkpoints.map((cp: any, idx: number) => ({
+        ...cp,
+        id: `cp_imported_${idx}_${Date.now()}`,
+        completed: false
+      })),
+      createdAt: Date.now()
+    };
+
+    if (isFirebaseConfigured && db) {
+      await set(ref(db, `users/${currentUid}/roadmaps/${newRoadmapId}`), importedRoadmap);
+    } else {
+      const list = JSON.parse(localStorage.getItem('roomie_mock_roadmaps') || '[]');
+      list.unshift(importedRoadmap);
+      localStorage.setItem('roomie_mock_roadmaps', JSON.stringify(list));
+    }
+    alert(`Success! Imported roadmap "${roadmap.name}" into your curriculum.`);
+  };
+
   // Suggest connections recommendation algorithm
   // Collates points based on profile overlaps: college (3pt), degree (2pt), spec (1pt), interest match (1pt)
   const getSuggestions = () => {
@@ -834,7 +964,7 @@ export const Friends: React.FC<FriendsProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
             <div style={{ borderBottom: '1.5px solid #000', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong style={{ fontSize: '0.85rem' }}>Conversations</strong>
-              <button onClick={() => setActiveDmUid(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>✕ Back</button>
+              <button onClick={() => setActiveDmUid(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}><ChevronLeft size={14} /> Back</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {friendsList.map(p => (
@@ -934,10 +1064,53 @@ export const Friends: React.FC<FriendsProps> = ({
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 800 }}>
-                            <span>📝</span>
+                            <FileText size={14} />
                             <span style={{ fontSize: '0.78rem' }}>{msg.noteReference.title}</span>
                           </div>
                           <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>Subject: {msg.noteReference.course}</span>
+                        </div>
+                      )}
+
+                      {/* Roadmap Reference Render */}
+                      {msg.roadmapReference && (
+                        <div 
+                          style={{
+                            padding: '0.6rem',
+                            borderRadius: '12px',
+                            background: isMe ? 'rgba(255,255,255,0.15)' : '#fef3c7',
+                            border: isMe ? '1px solid rgba(255,255,255,0.3)' : '2px solid #0f172a',
+                            marginTop: '0.2rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            color: isMe ? '#ffffff' : '#0f172a',
+                            boxShadow: isMe ? 'none' : '3px 3px 0px #0f172a'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 800 }}>
+                            <Map size={14} />
+                            <span style={{ fontSize: '0.78rem' }}>{msg.roadmapReference.name}</span>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>Goal: {msg.roadmapReference.goal}</span>
+                          <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>Checkpoints: {msg.roadmapReference.checkpoints?.length || 0}</span>
+                          <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem' }}>
+                            <button
+                              onClick={() => setPreviewRoadmap(msg.roadmapReference)}
+                              className="cyber-btn"
+                              style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem', flex: 1, color: '#000', background: '#fff' }}
+                            >
+                              Preview
+                            </button>
+                            {!isMe && (
+                              <button
+                                onClick={() => handleImportRoadmap(msg.roadmapReference)}
+                                className="cyber-btn pink-fill"
+                                style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem', flex: 1 }}
+                              >
+                                Import
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -994,7 +1167,7 @@ export const Friends: React.FC<FriendsProps> = ({
                         >
                           {msg.attachment.isVoice ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
-                              <span style={{ fontSize: '0.8rem' }}>🎙️</span>
+                              <Mic size={14} style={{ color: isMe ? '#fff' : 'var(--text-secondary)' }} />
                               <audio src={msg.attachment.url} controls style={{ height: '30px', width: '170px' }} />
                             </div>
                           ) : (
@@ -1042,10 +1215,10 @@ export const Friends: React.FC<FriendsProps> = ({
                 type="button"
                 onClick={() => chatFileInputRef.current?.click()}
                 className="cyber-btn"
-                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#f1f5f9' }}
+                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 disabled={isRecording || chatUploading}
               >
-                📎
+                <Paperclip size={16} />
               </button>
               <input
                 type="file"
@@ -1058,10 +1231,20 @@ export const Friends: React.FC<FriendsProps> = ({
                 type="button"
                 onClick={handleOpenNoteSelector}
                 className="cyber-btn"
-                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#f0fdf4', color: 'var(--accent-green)', border: '1px solid #bbf7d0' }}
+                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#f0fdf4', color: 'var(--accent-green)', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 disabled={isRecording || chatUploading}
               >
-                📝
+                <FileText size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenRoadmapSelector}
+                className="cyber-btn"
+                style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#fef3c7', color: '#d97706', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                disabled={isRecording || chatUploading}
+              >
+                <Map size={16} />
               </button>
 
               {!isRecording ? (
@@ -1069,10 +1252,10 @@ export const Friends: React.FC<FriendsProps> = ({
                   type="button"
                   onClick={startRecording}
                   className="cyber-btn"
-                  style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#ffe4e6', color: 'var(--accent-pink)', border: '1px solid #fecdd3' }}
+                  style={{ padding: '0.5rem', minHeight: '38px', minWidth: '38px', borderRadius: '10px', background: '#ffe4e6', color: 'var(--accent-pink)', border: '1px solid #fecdd3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   disabled={chatUploading}
                 >
-                  🎙️
+                  <Mic size={16} />
                 </button>
               ) : (
                 <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center', background: '#ffe4e6', border: '1px solid #fecdd3', borderRadius: '10px', padding: '0.2rem 0.5rem', height: '38px' }}>
@@ -1103,7 +1286,7 @@ export const Friends: React.FC<FriendsProps> = ({
         </div>
       ) : (
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>
-          <span style={{ fontSize: '3rem' }}>👥</span>
+          <Users size={48} style={{ color: 'var(--text-muted)' }} />
           <span>Select a friend to begin private direct messaging (DMs) or search classmates in the Discover tab.</span>
         </div>
       )}
@@ -1210,6 +1393,73 @@ export const Friends: React.FC<FriendsProps> = ({
               <button onClick={() => handleDownloadFile(previewAttachment)} className="cyber-btn cyan-fill" style={{ padding: '0.4rem 1rem' }}>
                 {previewAttachment.isNoteRef ? 'Download Note Text' : 'Download File'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROADMAP SELECTOR MODAL FOR DMs */}
+      {showRoadmapSelector && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowRoadmapSelector(false)}>
+          <div className="glass-panel anim-pop" style={{ maxWidth: '400px', width: '100%', background: '#fff', border: '2px solid #000', borderRadius: '16px', padding: '1.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #000', paddingBottom: '0.5rem', marginBottom: '0.8rem' }}>
+              <strong style={{ fontSize: '1rem' }}>Share Roadmap to DM</strong>
+              <button onClick={() => setShowRoadmapSelector(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><X size={16} /></button>
+            </div>
+            <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {myRoadmaps.length === 0 ? (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>You don't have any active roadmaps yet. Go to Learning Roadmaps tab to create one!</span>
+              ) : (
+                myRoadmaps.map(r => (
+                  <div 
+                    key={r.id} 
+                    onClick={() => { handleShareRoadmap(r); setShowRoadmapSelector(false); }} 
+                    style={{ padding: '0.6rem', background: '#fef3c7', border: '2px solid #0f172a', borderRadius: '12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 800, display: 'flex', flexDirection: 'column', gap: '2px', boxShadow: '2px 2px 0px #0f172a' }}
+                  >
+                    <span>{r.name}</span>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Goal: {r.goal}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROADMAP PREVIEW MODAL */}
+      {previewRoadmap && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setPreviewRoadmap(null)}>
+          <div className="glass-panel anim-pop" style={{ maxWidth: '500px', width: '100%', background: '#fff', border: '2px solid #000', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #000', paddingBottom: '0.5rem' }}>
+              <strong style={{ fontSize: '1.1rem' }}>Roadmap Curriculum: {previewRoadmap.name}</strong>
+              <button onClick={() => setPreviewRoadmap(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><X size={18} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Goal: {previewRoadmap.goal}</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Target Date: {previewRoadmap.targetDate}</span>
+            </div>
+
+            <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.2rem' }}>
+              {(!previewRoadmap.checkpoints || previewRoadmap.checkpoints.length === 0) ? (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No checkpoints defined.</span>
+              ) : (
+                previewRoadmap.checkpoints.map((cp: any, idx: number) => (
+                  <div key={idx} style={{ padding: '0.5rem 0.75rem', background: '#f8fafc', border: '1.5px solid #0f172a', borderRadius: '10px', textAlign: 'left' }}>
+                    <strong style={{ fontSize: '0.8rem', display: 'block' }}>{cp.title}</strong>
+                    {cp.milestone && <span style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', fontWeight: 800 }}>Objective: {cp.milestone}</span>}
+                    {cp.tasks && cp.tasks.length > 0 && (
+                      <ul style={{ margin: '0.2rem 0 0 0', paddingLeft: '1rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        {cp.tasks.map((task: string, tIdx: number) => <li key={tIdx}>{task}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button onClick={() => setPreviewRoadmap(null)} className="cyber-btn" style={{ padding: '0.4rem 1rem' }}>Close</button>
             </div>
           </div>
         </div>
