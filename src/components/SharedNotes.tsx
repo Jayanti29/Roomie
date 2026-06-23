@@ -19,7 +19,10 @@ interface StudyNote {
   author: string;
   authorEmail: string;
   authorUid?: string;
+  ownerId?: string;
+  fileName?: string;
   storagePath?: string;
+  downloadURL?: string;
   downloadUrl?: string;
   createdAt?: number;
   updatedAt?: number;
@@ -914,8 +917,8 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={() => handleDownloadFile({
-                        name: (activeNote as any).fileName || activeNote.pdfAttachment?.name || 'file',
-                        url: (activeNote as any).downloadURL || activeNote.downloadUrl || activeNote.pdfAttachment?.url || ''
+                        name: activeNote.fileName || activeNote.pdfAttachment?.name || 'file',
+                        url: activeNote.downloadURL || activeNote.downloadUrl || activeNote.pdfAttachment?.url || ''
                       })}
                       className="cyber-btn cyan-fill"
                       style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 'auto' }}

@@ -249,12 +249,24 @@ export const Friends: React.FC<FriendsProps> = ({
         const snap = await get(ref(db, 'users'));
         if (snap.exists()) {
           const val = snap.val() || {};
-          const list = Object.keys(val).map(uid => ({
-            uid,
-            ...val[uid].profile,
-            email: val[uid].profile?.email || '',
-            name: val[uid].profile?.name || 'Classmate'
-          }));
+          const list = Object.keys(val).map(uid => {
+            const prof = val[uid].profile || {};
+            let interestsStr = '';
+            if (prof.academicInterests) {
+              interestsStr = prof.academicInterests;
+            } else if (Array.isArray(prof.interests)) {
+              interestsStr = prof.interests.join(', ');
+            } else if (typeof prof.interests === 'string') {
+              interestsStr = prof.interests;
+            }
+            return {
+              uid,
+              ...prof,
+              email: prof.email || val[uid].email || '',
+              name: prof.fullName || prof.name || val[uid].name || 'Classmate',
+              interests: interestsStr
+            };
+          });
           setProfiles(list.filter(p => p.uid !== currentUid));
         }
       } catch (err) {

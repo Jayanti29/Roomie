@@ -1048,6 +1048,34 @@ export default function App() {
     });
     setProfilePhoto(photoUrl ?? null);
     setLoggedIn(true);
+
+    if (isFirebaseConfigured && db && !isGuest) {
+      const uid = auth?.currentUser?.uid;
+      const userKey = uid || email.replace(/\./g, '_');
+      const finalProfile = {
+        fullName: name,
+        email: email,
+        phone: phone ?? '',
+        state: state ?? (location?.split(',')[1]?.trim()) ?? 'Karnataka',
+        city: city ?? (location?.split(',')[0]?.trim()) ?? 'Bangalore',
+        university: university ?? 'Christ University',
+        college: college ?? 'Christ University, Bangalore',
+        degree: degree ?? 'BCA (Bachelor of Computer Applications)',
+        specialization: specialization ?? course ?? 'Computer Science',
+        semester: semester ?? '1st Semester',
+        careerGoal: careerGoal ?? 'Software Engineer',
+        academicInterests: interests?.join(', ') ?? 'Computer Science, Software Engineering',
+        profilePhoto: photoUrl ?? null,
+        bio: bio ?? '',
+        onboardingCompleted: onboardingCompleted ?? false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      if (uid) {
+        set(ref(db, `users/${uid}/profile`), finalProfile).catch(err => console.error('Failed to write users/uid/profile:', err));
+      }
+      set(ref(db, `users/${userKey}/profile`), finalProfile).catch(err => console.error('Failed to write users/userKey/profile:', err));
+    }
   };
 
   const handleLogOut = async () => {
