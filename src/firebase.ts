@@ -340,7 +340,25 @@ export const authService = {
         course: course || 'Computer Science',
         degree: degree || 'Bachelor of Science',
         college: college || 'State University',
-        location: location || 'San Francisco, CA'
+        location: location || 'San Francisco, CA',
+        profile: {
+          fullName: name,
+          email: email,
+          phone: '',
+          bio: '',
+          degree: degree || 'Bachelor of Science',
+          specialization: course || 'Computer Science',
+          semester: 'Semester 1',
+          college: college || 'State University',
+          university: 'State University System',
+          state: location ? location.split(',')[1]?.trim() || '' : 'CA',
+          city: location ? location.split(',')[0]?.trim() || '' : 'San Francisco',
+          careerGoal: 'Software Engineer',
+          academicInterests: 'Computer Science, Software Engineering',
+          profilePhoto: null,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
       });
       return { email, name, course, degree, college, location };
     }
@@ -420,8 +438,10 @@ if (typeof window !== 'undefined') {
 }
 
 export async function uploadFile(file: File | Blob, fileName: string, ownerEmail: string): Promise<string> {
+  console.log('[UPLOAD] Starting upload of', fileName, 'for', ownerEmail);
   // 100MB Limit: 100 * 1024 * 1024 = 104,857,600 bytes
   if (file.size > 104857600) {
+    console.error('[UPLOAD FAILED] File size exceeds 100MB limit.');
     throw new Error('File size exceeds 100MB limit.');
   }
 
@@ -432,28 +452,40 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
       reader.onloadend = async () => {
         try {
           await set(ref(db, 'pdf_contents/' + mockId), reader.result as string);
+          console.log('[UPLOAD SUCCESS]');
           resolve(`mock-file-url:${mockId}`);
         } catch (e) {
+          console.error('[UPLOAD FAILED]', e);
           reject(e);
         }
       };
-      reader.onerror = reject;
+      reader.onerror = (e) => {
+        console.error('[UPLOAD FAILED] FileReader error', e);
+        reject(e);
+      };
       reader.readAsDataURL(file);
     });
   } else {
     if (!storage) {
+      console.error('[UPLOAD FAILED] Firebase Storage is not initialized');
       throw new Error('Firebase Storage is not initialized');
     }
-    const cleanEmail = ownerEmail.replace(/[^a-zA-Z0-9]/g, '_');
-    const path = `files/${cleanEmail}/${Date.now()}_${fileName}`;
-    const storageRefInstance = sRef(storage, path);
-    const metadata = {
-      contentDisposition: `attachment; filename="${fileName}"`,
-      contentType: file.type || 'application/octet-stream'
-    };
-    await uploadBytes(storageRefInstance, file, metadata);
-    const downloadUrl = await getDownloadURL(storageRefInstance);
-    return downloadUrl;
+    try {
+      const uid = auth?.currentUser?.uid || 'guest';
+      const path = `notes/${uid}/${fileName}`;
+      const storageRefInstance = sRef(storage, path);
+      const metadata = {
+        contentDisposition: `attachment; filename="${fileName}"`,
+        contentType: file.type || 'application/octet-stream'
+      };
+      await uploadBytes(storageRefInstance, file, metadata);
+      const downloadUrl = await getDownloadURL(storageRefInstance);
+      console.log('[UPLOAD SUCCESS]');
+      return downloadUrl;
+    } catch (err) {
+      console.error('[UPLOAD FAILED]', err);
+      throw err;
+    }
   }
 }
 

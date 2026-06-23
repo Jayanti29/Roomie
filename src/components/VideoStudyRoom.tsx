@@ -176,6 +176,23 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      const videos = document.querySelectorAll<HTMLVideoElement>('video[data-remote="true"]');
+      videos.forEach(v => {
+        if (v.srcObject && v.paused) {
+          v.play().catch(err => {
+            console.log('[WebRTC] Autoplay bypass click failed to play remote video:', err);
+          });
+        }
+      });
+    };
+    document.addEventListener('click', handleGlobalClick);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, []);
+
 
   useEffect(() => {
     setRoomNickname(userName);
@@ -455,7 +472,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+            video: cameraOnRef.current ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false, 
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
           console.log(`[WebRTC] getUserMedia SUCCESS: audioTracks=${stream.getAudioTracks().length}, videoTracks=${stream.getVideoTracks().length}`);
@@ -1307,6 +1324,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           }
           const offer = await pc.createOffer({ iceRestart: true });
           await pc.setLocalDescription(offer);
+          console.log('[WEBRTC OFFER CREATED]');
           const callRef = ref(db, `study_rooms/${room.id}/calls/${myPeerId}_${peerId}`);
           await update(callRef, { offer: { type: offer.type, sdp: offer.sdp }, answer: null });
         } catch (e) {
@@ -1327,6 +1345,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         scheduleIceRestart(5000);
       }
       if (pc.connectionState === 'connected') {
+        console.log('[WEBRTC ICE CONNECTED]');
         // Clear any pending restart timers on successful connection
         if (iceRestartTimers.current[peerId]) {
           clearTimeout(iceRestartTimers.current[peerId]);
@@ -1337,6 +1356,9 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
     pc.oniceconnectionstatechange = () => {
       console.log(`[WebRTC] ICE connection state with ${peerId}: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === 'connected') {
+        console.log('[WEBRTC ICE CONNECTED]');
+      }
       if (pc.iceConnectionState === 'failed') {
         scheduleIceRestart(1000);
       }
@@ -1374,10 +1396,13 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       }
     };
 
-    // ── ontrack: unified audio+video into one stream per peer ──
     pc.ontrack = (event) => {
       const track = event.track;
       console.log(`[WebRTC] ontrack: ${track.kind} from peer ${peerId}, readyState=${track.readyState}`);
+      console.log('[WEBRTC STREAM RECEIVED]');
+      if (track.kind === 'audio') {
+        console.log('[WEBRTC AUDIO TRACK RECEIVED]');
+      }
 
       setRemoteStreams(prev => {
         const existing = prev[peerId];
@@ -1539,6 +1564,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
+              console.log('[WEBRTC ANSWER CREATED]');
               console.log(`[WebRTC] Sending answer to ${callerId}`);
               await update(ref(db, `study_rooms/${roomId}/calls/${callId}`), {
                 answer: { type: answer.type, sdp: answer.sdp }
@@ -1603,6 +1629,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        console.log('[WEBRTC OFFER CREATED]');
 
         if (isFirebaseConfigured && db) {
           const callRef = ref(db, `study_rooms/${activeRoom.id}/calls/${myPeerId}_${peerId}`);

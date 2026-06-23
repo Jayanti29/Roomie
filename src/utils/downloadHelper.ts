@@ -9,6 +9,7 @@ import { db, isFirebaseConfigured, ref, get } from '../firebase';
 export const downloadFileHelper = async (url: string, fileName: string) => {
   if (!url) {
     console.error('[Download] Empty URL provided.');
+    console.error('[DOWNLOAD FAILED] Empty URL');
     return;
   }
 
@@ -21,12 +22,15 @@ export const downloadFileHelper = async (url: string, fileName: string) => {
         if (snap.exists()) {
           const dataUrl = snap.val();
           triggerDownload(dataUrl, fileName);
+          console.log('[DOWNLOAD SUCCESS]');
         } else {
           console.warn('[Download] Mock file content not found for ID:', mockId);
+          console.error('[DOWNLOAD FAILED] Mock file not found in DB');
           alert('Local mock file not found in database.');
         }
       } catch (err) {
         console.error('[Download] Error fetching mock PDF:', err);
+        console.error('[DOWNLOAD FAILED]', err);
       }
     }
     return;
@@ -34,19 +38,40 @@ export const downloadFileHelper = async (url: string, fileName: string) => {
 
   // 2. Resolve data/base64 URLs directly
   if (url.startsWith('data:')) {
-    triggerDownload(url, fileName);
+    try {
+      triggerDownload(url, fileName);
+      console.log('[DOWNLOAD SUCCESS]');
+    } catch (err) {
+      console.error('[DOWNLOAD FAILED]', err);
+    }
     return;
   }
 
-  // 3. For http/https URLs:
-  const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // 3. For http/https URLs: fetch as a blob first to force download and prevent navigation
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    triggerDownload(blobUrl, fileName);
+    URL.revokeObjectURL(blobUrl);
+    console.log('[DOWNLOAD SUCCESS]');
+  } catch (err) {
+    console.warn('[Download] Blob fetch failed, falling back to standard anchor download:', err);
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      console.log('[DOWNLOAD SUCCESS]');
+    } catch (fallbackErr) {
+      console.error('[DOWNLOAD FAILED]', fallbackErr);
+    }
+  }
 };
 
 const triggerDownload = (dataUrl: string, fileName: string) => {

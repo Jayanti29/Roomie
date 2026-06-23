@@ -59,16 +59,32 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
     if (isFirebaseConfigured && db) {
       const roadmapsRef = ref(db, `users/${currentUid}/roadmaps`);
       const unsub = onValue(roadmapsRef, (snap) => {
-        if (snap.exists()) {
-          const val = snap.val();
-          const list = Object.entries(val).map(([id, r]: [string, any]) => ({
-            id,
-            ...r,
-            checkpoints: r.checkpoints ? (Array.isArray(r.checkpoints) ? r.checkpoints : Object.values(r.checkpoints)) : []
-          }));
-          setRoadmaps(list.sort((a, b) => b.createdAt - a.createdAt));
-        } else {
-          setRoadmaps([]);
+        try {
+          if (snap.exists()) {
+            const val = snap.val();
+            const list = Object.entries(val).map(([id, r]: [string, any]) => {
+              const checkpoints = r.checkpoints || r.milestones || [];
+              const checkpointsList = Array.isArray(checkpoints) ? checkpoints : Object.values(checkpoints);
+              return {
+                id,
+                ...r,
+                name: r.name || r.title || '',
+                title: r.title || r.name || '',
+                goal: r.goal || r.description || '',
+                description: r.description || r.goal || '',
+                targetDate: r.targetDate || r.deadline || '',
+                deadline: r.deadline || r.targetDate || '',
+                checkpoints: checkpointsList,
+                milestones: checkpointsList
+              };
+            });
+            setRoadmaps(list.sort((a, b) => b.createdAt - a.createdAt));
+          } else {
+            setRoadmaps([]);
+          }
+          console.log('[ROADMAP LOAD SUCCESS]');
+        } catch (e) {
+          console.error('[ROADMAP LOAD FAILED]', e);
         }
         setLoading(false);
       });
@@ -119,19 +135,28 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
         completed: false
       }));
 
-    const newRoadmap: Roadmap = {
+    const newRoadmap: any = {
       id: `roadmap_${Date.now()}`,
       name: topic,
+      title: topic,
       goal: goal || `Learn ${topic}`,
+      description: goal || `Learn ${topic}`,
       targetDate: targetDate || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
+      deadline: targetDate || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
       progress: 0,
       type: 'manual',
       checkpoints: parsedCheckpoints,
+      milestones: parsedCheckpoints,
       createdAt: Date.now()
     };
 
     if (isFirebaseConfigured && db) {
-      await set(ref(db, `users/${currentUid}/roadmaps/${newRoadmap.id}`), newRoadmap);
+      try {
+        await set(ref(db, `users/${currentUid}/roadmaps/${newRoadmap.id}`), newRoadmap);
+        console.log('[ROADMAP SAVE SUCCESS]', newRoadmap.id);
+      } catch (err) {
+        console.error('Failed to save manual roadmap:', err);
+      }
     } else {
       saveRoadmapsMock([newRoadmap, ...roadmaps]);
     }
@@ -204,19 +229,28 @@ Example response structure:
         week: weekObj.week
       }));
 
-      const newRoadmap: Roadmap = {
+      const newRoadmap: any = {
         id: `roadmap_${Date.now()}`,
         name: topic,
+        title: topic,
         goal: goal || `Learn ${topic}`,
+        description: goal || `Learn ${topic}`,
         targetDate: targetDate || new Date(Date.now() + durationWeeks * 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        deadline: targetDate || new Date(Date.now() + durationWeeks * 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
         progress: 0,
         type: 'ai',
         checkpoints: generatedCheckpoints,
+        milestones: generatedCheckpoints,
         createdAt: Date.now()
       };
 
       if (isFirebaseConfigured && db) {
-        await set(ref(db, `users/${currentUid}/roadmaps/${newRoadmap.id}`), newRoadmap);
+        try {
+          await set(ref(db, `users/${currentUid}/roadmaps/${newRoadmap.id}`), newRoadmap);
+          console.log('[ROADMAP SAVE SUCCESS]', newRoadmap.id);
+        } catch (err) {
+          console.error('Failed to save AI roadmap:', err);
+        }
       } else {
         saveRoadmapsMock([newRoadmap, ...roadmaps]);
       }
@@ -265,8 +299,14 @@ Example response structure:
         return acc;
       }, {} as any);
 
-      await set(ref(db, `users/${currentUid}/roadmaps/${roadmapId}/checkpoints`), checkpointsObj);
-      await set(ref(db, `users/${currentUid}/roadmaps/${roadmapId}/progress`), progress);
+      try {
+        await set(ref(db, `users/${currentUid}/roadmaps/${roadmapId}/checkpoints`), checkpointsObj);
+        await set(ref(db, `users/${currentUid}/roadmaps/${roadmapId}/milestones`), checkpointsObj);
+        await set(ref(db, `users/${currentUid}/roadmaps/${roadmapId}/progress`), progress);
+        console.log('[ROADMAP SAVE SUCCESS]', roadmapId);
+      } catch (err) {
+        console.error('Failed to update roadmap in DB:', err);
+      }
     }
   };
 

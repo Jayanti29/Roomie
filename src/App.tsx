@@ -184,7 +184,7 @@ export default function App() {
           const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
             if (firebaseUser) {
               const email = firebaseUser.email || `guest_${firebaseUser.uid}@roomie.io`;
-              const name = firebaseUser.displayName || email.split('@')[0];
+              let name = firebaseUser.displayName || email.split('@')[0];
               const isGuest = firebaseUser.isAnonymous;
               
               let course = 'Computer Science';
@@ -202,11 +202,12 @@ export default function App() {
               let phoneVal = '';
               let bioVal = '';
               let onboardingCompletedVal = false;
-
+ 
               try {
                 const data = await databaseService.getUserData(email);
                 if (data) {
                   const prof = data.profile || {};
+                  name = prof.fullName || data.name || name;
                   course = prof.specialization || data.course || data.specialization || course;
                   degree = prof.degree || data.degree || degree;
                   college = prof.college || data.college || college;
@@ -217,7 +218,7 @@ export default function App() {
                   specVal = prof.specialization || data.specialization || '';
                   semVal = prof.semester || data.semester || '1st Semester';
                   careerGoalVal = prof.careerGoal || data.careerGoal || '';
-                  interestsVal = prof.interests || data.interests || [];
+                  interestsVal = prof.interests || (prof.academicInterests ? prof.academicInterests.split(',').map((s: any) => s.trim()).filter(Boolean) : []) || data.interests || [];
                   profilePhotoVal = prof.profilePhoto || data.profilePhoto || null;
                   phoneVal = prof.phone || data.phone || '';
                   bioVal = prof.bio || data.bio || '';
@@ -758,7 +759,7 @@ export default function App() {
 
             const loadedProfile = data.profile ?? {};
             setProfile({
-              name: loadedProfile.name ?? data.name ?? user.name ?? '',
+              name: loadedProfile.fullName ?? loadedProfile.name ?? data.name ?? user.name ?? '',
               email: loadedProfile.email ?? data.email ?? user.email ?? '',
               phone: loadedProfile.phone ?? '',
               state: loadedProfile.state ?? data.state ?? 'Karnataka',
@@ -769,7 +770,7 @@ export default function App() {
               specialization: loadedProfile.specialization ?? data.course ?? 'Computer Science',
               semester: loadedProfile.semester ?? '1st Semester',
               careerGoal: loadedProfile.careerGoal ?? '',
-              interests: loadedProfile.interests ?? [],
+              interests: loadedProfile.interests ?? (loadedProfile.academicInterests ? loadedProfile.academicInterests.split(',').map((s: any) => s.trim()).filter(Boolean) : []),
               bio: loadedProfile.bio ?? '',
               profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null,
               onboardingCompleted: loadedProfile.onboardingCompleted ?? false
@@ -815,16 +816,32 @@ export default function App() {
 
         const roadmapsRef = ref(db, `users/${userKey}/roadmaps`);
         const unsubRoadmaps = onValue(roadmapsRef, (snap) => {
-          if (snap.exists()) {
-            const val = snap.val();
-            const list = Object.entries(val).map(([id, r]: [string, any]) => ({
-              id,
-              ...r,
-              checkpoints: r.checkpoints ? (Array.isArray(r.checkpoints) ? r.checkpoints : Object.values(r.checkpoints)) : []
-            }));
-            setRoadmaps(list);
-          } else {
-            setRoadmaps([]);
+          try {
+            if (snap.exists()) {
+              const val = snap.val();
+              const list = Object.entries(val).map(([id, r]: [string, any]) => {
+                const checkpoints = r.checkpoints || r.milestones || [];
+                const checkpointsList = Array.isArray(checkpoints) ? checkpoints : Object.values(checkpoints);
+                return {
+                  id,
+                  ...r,
+                  name: r.name || r.title || '',
+                  title: r.title || r.name || '',
+                  goal: r.goal || r.description || '',
+                  description: r.description || r.goal || '',
+                  targetDate: r.targetDate || r.deadline || '',
+                  deadline: r.deadline || r.targetDate || '',
+                  checkpoints: checkpointsList,
+                  milestones: checkpointsList
+                };
+              });
+              setRoadmaps(list);
+            } else {
+              setRoadmaps([]);
+            }
+            console.log('[ROADMAP LOAD SUCCESS]');
+          } catch (e) {
+            console.error('[ROADMAP LOAD FAILED]', e);
           }
         });
 
@@ -903,8 +920,22 @@ export default function App() {
         stats,
         achievements,
         profile: {
-          ...profile,
-          profilePhoto: profilePhoto
+          fullName: profile.name,
+          email: profile.email,
+          phone: profile.phone,
+          bio: profile.bio,
+          degree: profile.degree,
+          specialization: profile.specialization,
+          semester: profile.semester,
+          college: profile.college,
+          university: profile.university,
+          city: profile.city,
+          state: profile.state,
+          careerGoal: profile.careerGoal,
+          academicInterests: profile.interests.join(', '),
+          profilePhoto: profilePhoto,
+          onboardingCompleted: profile.onboardingCompleted,
+          updatedAt: Date.now()
         },
         course: profile.specialization,
         degree: profile.degree,
@@ -1770,6 +1801,7 @@ export default function App() {
                   setActiveMainTab(tab as Tab);
                 }
               }}
+              profile={profile}
             />
           )}
 

@@ -449,9 +449,9 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
     const noteId = `note_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     let pdfUrl = '';
-    const cleanEmail = userEmail.replace(/[^a-zA-Z0-9]/g, '_');
     const timestamp = Date.now();
-    const storagePath = pdfFile ? `files/${cleanEmail}/${timestamp}_${pdfFile.name}` : '';
+    const currentUid = auth?.currentUser?.uid || 'guest';
+    const storagePath = pdfFile ? `notes/${currentUid}/${pdfFile.name}` : '';
     
     if (pdfFile) {
       try {
@@ -468,9 +468,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     clearInterval(progressInterval);
     setUploadProgress(100);
 
-    const currentUid = auth?.currentUser?.uid || 'guest';
-
-    const newNote: StudyNote = {
+    const newNote: any = {
       id: noteId,
       title,
       content,
@@ -478,8 +476,11 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       author: userName,
       authorEmail: userEmail,
       authorUid: currentUid,
-      storagePath: storagePath || undefined,
-      downloadUrl: pdfUrl || undefined,
+      ownerId: currentUid,
+      fileName: pdfFile ? pdfFile.name : '',
+      storagePath: storagePath || '',
+      downloadURL: pdfUrl || '',
+      downloadUrl: pdfUrl || '', // Compatibility fallback
       createdAt: timestamp,
       updatedAt: timestamp,
       fileSize: pdfFile ? pdfFile.size : undefined,
@@ -912,7 +913,10 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
-                      onClick={() => handleDownloadFile(activeNote.pdfAttachment!)}
+                      onClick={() => handleDownloadFile({
+                        name: (activeNote as any).fileName || activeNote.pdfAttachment?.name || 'file',
+                        url: (activeNote as any).downloadURL || activeNote.downloadUrl || activeNote.pdfAttachment?.url || ''
+                      })}
                       className="cyber-btn cyan-fill"
                       style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 'auto' }}
                     >

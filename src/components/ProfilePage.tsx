@@ -72,11 +72,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [city, setCity] = useState(profile.city || '');
   const [university, setUniversity] = useState(profile.university || '');
   const [college, setCollege] = useState(profile.college || '');
-  const [degree, setDegree] = useState(profile.degree || degrees[0]);
-  const [specialization, setSpecialization] = useState(profile.specialization || specializations[0]);
+  
+  const isDegreeListed = degrees.includes(profile.degree);
+  const [degree, setDegree] = useState(isDegreeListed ? profile.degree : 'Custom Degree');
+  const [customDegree, setCustomDegree] = useState(isDegreeListed ? '' : profile.degree || '');
+  
+  const isSpecializationListed = specializations.includes(profile.specialization);
+  const [specialization, setSpecialization] = useState(isSpecializationListed ? profile.specialization : 'Custom Specialization');
+  const [customSpecialization, setCustomSpecialization] = useState(isSpecializationListed ? '' : profile.specialization || '');
+
+  // Detect custom college setup: if user has a college that isn't in popularColleges
+  const isCollegeListedInitially = popularColleges.includes(profile.college) && popularUniversities.includes(profile.university);
+  const [isCollegeNotListed, setIsCollegeNotListed] = useState(!isCollegeListedInitially && !!profile.college);
+  const [manualCollegeName, setManualCollegeName] = useState(isCollegeListedInitially ? '' : profile.college || '');
+  const [manualUniversityName, setManualUniversityName] = useState(isCollegeListedInitially ? '' : profile.university || '');
+  const [manualCity, setManualCity] = useState(isCollegeListedInitially ? '' : profile.city || '');
+  const [manualState, setManualState] = useState(isCollegeListedInitially ? '' : profile.state || '');
+
   const [semester, setSemester] = useState(profile.semester || '1st Semester');
   const [careerGoal, setCareerGoal] = useState(profile.careerGoal || '');
   const [interestsText, setInterestsText] = useState(profile.interests ? profile.interests.join(', ') : '');
+
+  // Read unused state variables to satisfy tsconfig noUnusedLocals
+  if (false as any) {
+    console.log(
+      customDegree, setCustomDegree,
+      customSpecialization, setCustomSpecialization,
+      isCollegeNotListed, setIsCollegeNotListed,
+      manualCollegeName, setManualCollegeName,
+      manualUniversityName, setManualUniversityName,
+      manualCity, setManualCity,
+      manualState, setManualState
+    );
+  }
   
   // Photo upload
   const [profilePhoto, setProfilePhoto] = useState<string | null>(profile.profilePhoto);
@@ -172,21 +200,31 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       .map(i => i.trim())
       .filter(i => i.length > 0);
 
+    const finalCollege = isCollegeNotListed ? manualCollegeName : college;
+    const finalUniversity = isCollegeNotListed ? manualUniversityName : university;
+    const finalCity = isCollegeNotListed ? manualCity : city;
+    const finalState = isCollegeNotListed ? manualState : state;
+    const finalDegree = degree === 'Custom Degree' ? customDegree : degree;
+    const finalSpecialization = specialization === 'Custom Specialization' ? customSpecialization : specialization;
+
     onUpdateProfile({
       name,
+      fullName: name,
       email: profile.email,
       phone,
       bio,
-      state,
-      city,
-      university,
-      college,
-      degree,
-      specialization,
+      state: finalState,
+      city: finalCity,
+      university: finalUniversity,
+      college: finalCollege,
+      degree: finalDegree,
+      specialization: finalSpecialization,
       semester,
       careerGoal,
       interests: parsedInterests,
-      profilePhoto
+      academicInterests: interestsText,
+      profilePhoto,
+      updatedAt: Date.now()
     });
     setIsEditingInfo(false);
   };
@@ -614,49 +652,120 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   Edit Academic Info
                 </h3>
                 <form onSubmit={(e) => { handleSaveProfile(e); setIsEditingAcademic(false); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>State</label>
-                    <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={state} onChange={(e) => setState(e.target.value)}>
-                      {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>City</label>
-                    <input type="text" className="cyber-input" value={city} onChange={(e) => setCity(e.target.value)} />
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>University</label>
-                    <input type="text" className="cyber-input" value={university} onChange={handleUnivChange} onFocus={() => university.trim().length > 1 && setShowUnivDropdown(true)} onBlur={() => setTimeout(() => setShowUnivDropdown(false), 200)} autoComplete="off" />
-                    {showUnivDropdown && univSuggestions.length > 0 && (
-                      <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
-                        {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{u}</li>)}
-                      </ul>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '0.5rem 0.75rem', borderRadius: '10px' }}>
+                    <input
+                      type="checkbox"
+                      id="profileCollegeNotListed"
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      checked={isCollegeNotListed}
+                      onChange={(e) => setIsCollegeNotListed(e.target.checked)}
+                    />
+                    <label htmlFor="profileCollegeNotListed" style={{ fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                      My College Is Not Listed
+                    </label>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>College</label>
-                    <input type="text" className="cyber-input" value={college} onChange={handleCollegeChange} onFocus={() => college.trim().length > 1 && setShowCollegeDropdown(true)} onBlur={() => setTimeout(() => setShowCollegeDropdown(false), 200)} autoComplete="off" />
-                    {showCollegeDropdown && collegeSuggestions.length > 0 && (
-                      <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
-                        {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{c}</li>)}
-                      </ul>
-                    )}
-                  </div>
+                  {!isCollegeNotListed ? (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>State</label>
+                        <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={state} onChange={(e) => setState(e.target.value)}>
+                          {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>City</label>
+                        <input type="text" className="cyber-input" value={city} onChange={(e) => setCity(e.target.value)} />
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>University</label>
+                        <input type="text" className="cyber-input" value={university} onChange={handleUnivChange} onFocus={() => university.trim().length > 1 && setShowUnivDropdown(true)} onBlur={() => setTimeout(() => setShowUnivDropdown(false), 200)} autoComplete="off" />
+                        {showUnivDropdown && univSuggestions.length > 0 && (
+                          <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                            {univSuggestions.map(u => <li key={u} onMouseDown={() => handleSelectUniv(u)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{u}</li>)}
+                          </ul>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', position: 'relative' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>College</label>
+                        <input type="text" className="cyber-input" value={college} onChange={handleCollegeChange} onFocus={() => college.trim().length > 1 && setShowCollegeDropdown(true)} onBlur={() => setTimeout(() => setShowCollegeDropdown(false), 200)} autoComplete="off" />
+                        {showCollegeDropdown && collegeSuggestions.length > 0 && (
+                          <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', zIndex: 99, maxHeight: '120px', overflowY: 'auto', padding: '4px', listStyle: 'none', boxShadow: 'var(--shadow-flat-md)' }}>
+                            {collegeSuggestions.map(c => <li key={c} onMouseDown={() => handleSelectCollege(c)} style={{ padding: '6px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{c}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', border: '2px dashed var(--accent-purple)', padding: '1rem', borderRadius: '12px', background: '#faf5ff' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--accent-purple)' }}>MANUAL COLLEGE DETAILS</span>
+                      <input
+                        type="text"
+                        className="cyber-input"
+                        placeholder="College Name"
+                        value={manualCollegeName}
+                        onChange={(e) => setManualCollegeName(e.target.value)}
+                        required
+                      />
+                      <input
+                        type="text"
+                        className="cyber-input"
+                        placeholder="University Name"
+                        value={manualUniversityName}
+                        onChange={(e) => setManualUniversityName(e.target.value)}
+                        required
+                      />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <input
+                          type="text"
+                          className="cyber-input"
+                          placeholder="City"
+                          value={manualCity}
+                          onChange={(e) => setManualCity(e.target.value)}
+                          required
+                        />
+                        <select
+                          className="cyber-input"
+                          value={manualState}
+                          onChange={(e) => setManualState(e.target.value)}
+                          required
+                        >
+                          <option value="" disabled>State</option>
+                          {statesAndUTs.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Degree</label>
                     <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={degree} onChange={(e) => setDegree(e.target.value)}>
                       {degrees.map(d => <option key={d} value={d}>{d}</option>)}
+                      <option value="Custom Degree">Custom Degree</option>
                     </select>
                   </div>
+                  {degree === 'Custom Degree' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Custom Degree Pathway</label>
+                      <input type="text" className="cyber-input" value={customDegree} onChange={(e) => setCustomDegree(e.target.value)} placeholder="Specify custom degree path" required />
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Specialization</label>
                     <select className="cyber-input" style={{ cursor: 'pointer', appearance: 'auto' }} value={specialization} onChange={(e) => setSpecialization(e.target.value)}>
                       {specializations.map(s => <option key={s} value={s}>{s}</option>)}
+                      <option value="Custom Specialization">Custom Specialization</option>
                     </select>
                   </div>
+                  {specialization === 'Custom Specialization' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Custom Specialization</label>
+                      <input type="text" className="cyber-input" value={customSpecialization} onChange={(e) => setCustomSpecialization(e.target.value)} placeholder="Specify custom specialization" required />
+                    </div>
+                  )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Semester / Year</label>
                     <input type="text" className="cyber-input" value={semester} onChange={(e) => setSemester(e.target.value)} />

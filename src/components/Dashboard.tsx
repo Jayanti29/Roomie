@@ -60,6 +60,13 @@ interface DashboardProps {
   focusSessions: FocusSession[];
   onUpdateCourses: (updatedCourses: Course[]) => void;
   onNavigate: (tab: string) => void;
+  profile?: {
+    degree: string;
+    specialization: string;
+    semester: string;
+    college: string;
+    university: string;
+  };
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -74,7 +81,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   roadmaps,
   focusSessions,
   onUpdateCourses,
-  onNavigate
+  onNavigate,
+  profile
 }) => {
   // Course form state
   const [showAddCourse, setShowAddCourse] = useState(false);
@@ -294,6 +302,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Milestones Unlock:</span>
               <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{milestonesCount} Badges</span>
             </div>
+
+            {profile && (
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.5rem', marginTop: '0.2rem', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+                <div style={{ color: 'var(--accent-purple)', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.65rem', marginBottom: '2px' }}>Education Summary</div>
+                <div>{profile.degree} in {profile.specialization} ({profile.semester || 'N/A'})</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{profile.college}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{profile.university}</div>
+              </div>
+            )}
           </div>
         </div>
 
