@@ -720,25 +720,78 @@ export default function App() {
         setXp(0);
         setMaxXp(1000);
         setStudyPoints(120);
-        setProfile({
-          name: user.name,
-          email: user.email,
-          phone: '',
-          state: 'Karnataka',
-          city: 'Bangalore',
-          university: 'Christ University',
-          college: 'Christ University, Bangalore',
-          degree: 'BCA (Bachelor of Computer Applications)',
-          specialization: 'Computer Science',
-          semester: '1st Semester',
-          careerGoal: 'Software Engineer',
-          interests: ['Programming', 'UI Design'],
-          bio: 'Guest student workspace',
-          profilePhoto: null,
-          onboardingCompleted: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
+
+        const loadGuestData = async () => {
+          try {
+            let loadedProfile: any = null;
+            if (isFirebaseConfigured && db && currentUid) {
+              const snap = await get(ref(db, `users/${currentUid}`));
+              if (snap.exists()) {
+                const data = snap.val();
+                loadedProfile = data.profile;
+                if (data.level) setLevel(data.level);
+                if (data.xp) setXp(data.xp);
+              }
+            }
+
+            if (!loadedProfile) {
+              const savedMockProfile = localStorage.getItem('roomie_mock_profile');
+              if (savedMockProfile) {
+                loadedProfile = JSON.parse(savedMockProfile);
+              }
+            }
+
+            if (loadedProfile) {
+              setProfile({
+                name: loadedProfile.name || loadedProfile.fullName || user.name || '',
+                email: loadedProfile.email || user.email || '',
+                phone: loadedProfile.phone || '',
+                state: loadedProfile.state || 'Karnataka',
+                city: loadedProfile.city || 'Bangalore',
+                university: loadedProfile.university || 'Christ University',
+                college: loadedProfile.college || 'Christ University, Bangalore',
+                degree: loadedProfile.degree || 'BCA (Bachelor of Computer Applications)',
+                specialization: loadedProfile.specialization || 'Computer Science',
+                semester: loadedProfile.semester || '1st Semester',
+                careerGoal: loadedProfile.careerGoal || 'Software Engineer',
+                interests: loadedProfile.interests || ['Programming', 'UI Design'],
+                bio: loadedProfile.bio || 'Guest student workspace',
+                profilePhoto: loadedProfile.profilePhoto || null,
+                onboardingCompleted: loadedProfile.onboardingCompleted ?? false,
+                createdAt: loadedProfile.createdAt || Date.now(),
+                updatedAt: loadedProfile.updatedAt || Date.now()
+              });
+              if (loadedProfile.profilePhoto) {
+                setProfilePhoto(loadedProfile.profilePhoto);
+              }
+            } else {
+              setProfile({
+                name: user.name,
+                email: user.email,
+                phone: '',
+                state: 'Karnataka',
+                city: 'Bangalore',
+                university: 'Christ University',
+                college: 'Christ University, Bangalore',
+                degree: 'BCA (Bachelor of Computer Applications)',
+                specialization: 'Computer Science',
+                semester: '1st Semester',
+                careerGoal: 'Software Engineer',
+                interests: ['Programming', 'UI Design'],
+                bio: 'Guest student workspace',
+                profilePhoto: null,
+                onboardingCompleted: false,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              });
+            }
+          } catch (e) {
+            console.error('Failed to load guest profile:', e);
+          } finally {
+            setIsLoaded(true);
+          }
+        };
+
         setCourses([
           { id: 'c1', name: 'Programming in Java', progress: 60 },
           { id: 'c2', name: 'Database Management Systems', progress: 40 }
@@ -750,50 +803,49 @@ export default function App() {
           { id: 't_g1', title: 'Complete Java Assignment 1', deadline: '2026-06-25', priority: 'High', status: 'In Progress' },
           { id: 't_g2', title: 'Read Chapter 3 DBMS Normalization', deadline: '2026-06-28', priority: 'Medium', status: 'Not Started' }
         ]);
-        setIsLoaded(true);
-        return;
-      }
+        loadGuestData();
+      } else {
+        const loadData = async () => {
+          try {
+            const data = await databaseService.getUserData(user.email);
+            if (data) {
+              setLevel(data.level ?? 1);
+              setXp(data.xp ?? 0);
+              setMaxXp(data.maxXp ?? 1000);
+              setStudyPoints(data.studyPoints ?? data.xp ?? 0);
+              setStats(data.stats ?? { intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 });
+              setAchievements(data.achievements ?? []);
 
-      const loadData = async () => {
-        try {
-          const data = await databaseService.getUserData(user.email);
-          if (data) {
-            setLevel(data.level ?? 1);
-            setXp(data.xp ?? 0);
-            setMaxXp(data.maxXp ?? 1000);
-            setStudyPoints(data.studyPoints ?? data.xp ?? 0);
-            setStats(data.stats ?? { intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 });
-            setAchievements(data.achievements ?? []);
-
-            const loadedProfile = data.profile ?? {};
-            setProfile({
-              name: loadedProfile.fullName ?? loadedProfile.name ?? data.name ?? user.name ?? '',
-              email: loadedProfile.email ?? data.email ?? user.email ?? '',
-              phone: loadedProfile.phone ?? '',
-              state: loadedProfile.state ?? data.state ?? 'Karnataka',
-              city: loadedProfile.city ?? data.location ?? 'Bangalore',
-              university: loadedProfile.university ?? 'Christ University',
-              college: loadedProfile.college ?? data.college ?? 'Christ University, Bangalore',
-              degree: loadedProfile.degree ?? data.degree ?? 'BCA (Bachelor of Computer Applications)',
-              specialization: loadedProfile.specialization ?? data.course ?? 'Computer Science',
-              semester: loadedProfile.semester ?? '1st Semester',
-              careerGoal: loadedProfile.careerGoal ?? '',
-              interests: loadedProfile.interests ?? (loadedProfile.academicInterests ? loadedProfile.academicInterests.split(',').map((s: any) => s.trim()).filter(Boolean) : []),
-              bio: loadedProfile.bio ?? '',
-              profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null,
-              onboardingCompleted: loadedProfile.onboardingCompleted ?? false,
-              createdAt: loadedProfile.createdAt ?? data.createdAt ?? Date.now(),
-              updatedAt: loadedProfile.updatedAt ?? data.updatedAt ?? Date.now()
-            });
-            setProfilePhoto(loadedProfile.profilePhoto ?? data.profilePhoto ?? null);
+              const loadedProfile = data.profile ?? {};
+              setProfile({
+                name: loadedProfile.fullName ?? loadedProfile.name ?? data.name ?? user.name ?? '',
+                email: loadedProfile.email ?? data.email ?? user.email ?? '',
+                phone: loadedProfile.phone ?? '',
+                state: loadedProfile.state ?? data.state ?? 'Karnataka',
+                city: loadedProfile.city ?? data.location ?? 'Bangalore',
+                university: loadedProfile.university ?? 'Christ University',
+                college: loadedProfile.college ?? data.college ?? 'Christ University, Bangalore',
+                degree: loadedProfile.degree ?? data.degree ?? 'BCA (Bachelor of Computer Applications)',
+                specialization: loadedProfile.specialization ?? data.course ?? 'Computer Science',
+                semester: loadedProfile.semester ?? '1st Semester',
+                careerGoal: loadedProfile.careerGoal ?? '',
+                interests: loadedProfile.interests ?? (loadedProfile.academicInterests ? loadedProfile.academicInterests.split(',').map((s: any) => s.trim()).filter(Boolean) : []),
+                bio: loadedProfile.bio ?? '',
+                profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null,
+                onboardingCompleted: loadedProfile.onboardingCompleted ?? false,
+                createdAt: loadedProfile.createdAt || data.createdAt || Date.now(),
+                updatedAt: loadedProfile.updatedAt || data.updatedAt || Date.now()
+              });
+              setProfilePhoto(loadedProfile.profilePhoto ?? data.profilePhoto ?? null);
+            }
+          } catch (err) {
+            console.error('Failed to load user state:', err);
+          } finally {
+            setIsLoaded(true);
           }
-        } catch (err) {
-          console.error('Failed to load user state:', err);
-        } finally {
-          setIsLoaded(true);
-        }
-      };
-      loadData();
+        };
+        loadData();
+      }
 
       if (isFirebaseConfigured && db) {
         const tasksRef = ref(db, `users/${userKey}/tasks`);
@@ -801,6 +853,11 @@ export default function App() {
           if (snap.exists()) {
             const val = snap.val();
             setTasks(val ? Object.values(val) : []);
+          } else if (user.isGuest) {
+            setTasks([
+              { id: 't_g1', title: 'Complete Java Assignment 1', deadline: '2026-06-25', priority: 'High', status: 'In Progress' },
+              { id: 't_g2', title: 'Read Chapter 3 DBMS Normalization', deadline: '2026-06-28', priority: 'Medium', status: 'Not Started' }
+            ]);
           } else {
             setTasks([]);
           }
@@ -810,6 +867,11 @@ export default function App() {
         const unsubCourses = onValue(coursesRef, (snap) => {
           if (snap.exists()) {
             setCourses(snap.val() || []);
+          } else if (user.isGuest) {
+            setCourses([
+              { id: 'c1', name: 'Programming in Java', progress: 60 },
+              { id: 'c2', name: 'Database Management Systems', progress: 40 }
+            ]);
           } else {
             setCourses([]);
           }
@@ -819,6 +881,10 @@ export default function App() {
         const unsubTracks = onValue(tracksRef, (snap) => {
           if (snap.exists()) {
             setLearningTracks(snap.val() || []);
+          } else if (user.isGuest) {
+            setLearningTracks([
+              { id: 't1', name: 'Data Structures and Algorithms', goal: 'Master tree & graph questions', targetDate: '2026-07-31' }
+            ]);
           } else {
             setLearningTracks([]);
           }
@@ -1087,8 +1153,9 @@ export default function App() {
       };
       if (uid) {
         set(ref(db, `users/${uid}/profile`), finalProfile).catch(err => console.error('Failed to write users/uid/profile:', err));
+      } else {
+        set(ref(db, `users/${userKey}/profile`), finalProfile).catch(err => console.error('Failed to write users/userKey/profile:', err));
       }
-      set(ref(db, `users/${userKey}/profile`), finalProfile).catch(err => console.error('Failed to write users/userKey/profile:', err));
     }
   };
 
@@ -1178,6 +1245,35 @@ export default function App() {
     if (updatedProfile.profilePhoto) {
       setProfilePhoto(updatedProfile.profilePhoto);
     }
+    // Always save to localStorage for local/guest backups and verification tests
+    localStorage.setItem('roomie_mock_profile', JSON.stringify(updatedProfile));
+    const savedSession = localStorage.getItem('roomie_mock_session');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        const updatedSession = {
+          ...parsed,
+          name: updatedProfile.name,
+          course: updatedProfile.specialization,
+          degree: updatedProfile.degree,
+          college: updatedProfile.college,
+          location: `${updatedProfile.city}, ${updatedProfile.state}`,
+          state: updatedProfile.state,
+          city: updatedProfile.city,
+          university: updatedProfile.university,
+          specialization: updatedProfile.specialization,
+          semester: updatedProfile.semester,
+          careerGoal: updatedProfile.careerGoal,
+          interests: updatedProfile.interests,
+          profilePhoto: updatedProfile.profilePhoto || parsed.profilePhoto,
+          phone: updatedProfile.phone,
+          bio: updatedProfile.bio,
+          createdAt: updatedProfile.createdAt || parsed.createdAt
+        };
+        localStorage.setItem('roomie_mock_session', JSON.stringify(updatedSession));
+      } catch (e) {}
+    }
+
     if (loggedIn && user && isFirebaseConfigured && db) {
       const currentUid = auth?.currentUser?.uid;
       const userKey = user.email.replace(/\./g, '_');
@@ -1201,39 +1297,12 @@ export default function App() {
         const updates: any = {};
         if (currentUid) {
           updates[`users/${currentUid}`] = payload;
+        } else {
+          updates[`users/${userKey}`] = payload;
         }
-        updates[`users/${userKey}`] = payload;
         await update(ref(db), updates);
       } catch (err) {
         console.error('Failed to save profile updates:', err);
-      }
-    } else {
-      localStorage.setItem('roomie_mock_profile', JSON.stringify(updatedProfile));
-      const savedSession = localStorage.getItem('roomie_mock_session');
-      if (savedSession) {
-        try {
-          const parsed = JSON.parse(savedSession);
-          const updatedSession = {
-            ...parsed,
-            name: updatedProfile.name,
-            course: updatedProfile.specialization,
-            degree: updatedProfile.degree,
-            college: updatedProfile.college,
-            location: `${updatedProfile.city}, ${updatedProfile.state}`,
-            state: updatedProfile.state,
-            city: updatedProfile.city,
-            university: updatedProfile.university,
-            specialization: updatedProfile.specialization,
-            semester: updatedProfile.semester,
-            careerGoal: updatedProfile.careerGoal,
-            interests: updatedProfile.interests,
-            profilePhoto: updatedProfile.profilePhoto || parsed.profilePhoto,
-            phone: updatedProfile.phone,
-            bio: updatedProfile.bio,
-            createdAt: updatedProfile.createdAt || parsed.createdAt
-          };
-          localStorage.setItem('roomie_mock_session', JSON.stringify(updatedSession));
-        } catch (e) {}
       }
     }
   };
@@ -1892,6 +1961,8 @@ export default function App() {
               userName={profile.name || user.name}
               onRewardXp={handleRewardXp}
               isGuest={user.isGuest}
+              roadmaps={roadmaps}
+              onUpdateRoadmaps={setRoadmaps}
             />
           )}
 

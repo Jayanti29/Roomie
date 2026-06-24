@@ -54,7 +54,7 @@ export const downloadFileHelper = async (url: string, fileName: string) => {
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     triggerDownload(blobUrl, fileName);
-    URL.revokeObjectURL(blobUrl);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
     console.log('[DOWNLOAD SUCCESS]');
   } catch (err) {
     console.warn('[Download] Blob fetch failed, falling back to standard anchor download:', err);

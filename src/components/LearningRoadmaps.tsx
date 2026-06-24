@@ -27,17 +27,24 @@ interface LearningRoadmapsProps {
   userName: string;
   onRewardXp: (amount: number, reason: string) => void;
   isGuest?: boolean;
+  roadmaps?: Roadmap[];
+  onUpdateRoadmaps?: (roadmaps: Roadmap[]) => void;
 }
 
 export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
   userEmail,
   userName: _userName,
   onRewardXp,
-  isGuest
+  isGuest,
+  roadmaps: roadmapsProp,
+  onUpdateRoadmaps
 }) => {
   const currentUid = auth?.currentUser?.uid || userEmail.replace(/\./g, '_');
-  const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
+  const [localRoadmaps, setLocalRoadmaps] = useState<Roadmap[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const roadmaps = roadmapsProp !== undefined ? roadmapsProp : localRoadmaps;
+  const setRoadmaps = onUpdateRoadmaps !== undefined ? onUpdateRoadmaps : setLocalRoadmaps;
 
   // Form states
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
@@ -56,6 +63,10 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
 
   // Subscribe to roadmaps from RTDB
   useEffect(() => {
+    if (roadmapsProp !== undefined) {
+      setLoading(false);
+      return;
+    }
     if (isFirebaseConfigured && db) {
       const roadmapsRef = ref(db, `users/${currentUid}/roadmaps`);
       const unsub = onValue(roadmapsRef, (snap) => {
@@ -121,10 +132,6 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
 
   const handleCreateManualRoadmap = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isGuest) {
-      alert("Guest accounts cannot save roadmaps.");
-      return;
-    }
     if (!topic.trim()) return;
 
     const parsedCheckpoints: Checkpoint[] = manualCheckpoints
@@ -167,10 +174,6 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
 
   const handleCreateAiRoadmap = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isGuest) {
-      alert("Guest accounts cannot save roadmaps.");
-      return;
-    }
     if (!topic.trim()) return;
 
     setGenerating(true);

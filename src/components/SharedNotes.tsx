@@ -49,7 +49,7 @@ const DocxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
       borderRadius: '4px',
       maxHeight: '240px',
       overflowY: 'auto',
-      fontFamily: 'Georgia, serif',
+      fontFamily: 'var(--font-body)',
       color: '#334155',
       lineHeight: '1.6'
     }}>
@@ -288,10 +288,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
   const handleShareNoteSubmit = async () => {
     if (!noteToShare || !selectedClassmate) return;
-    if (isGuest) {
-      alert("Guest accounts cannot share notes.");
-      return;
-    }
 
     const shareId = `share_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const receiverKey = selectedClassmate.email.replace(/\./g, '_');
@@ -433,10 +429,6 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
 
   const handleCreateNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isGuest) {
-      alert("Guest accounts cannot publish shared notes.");
-      return;
-    }
     if (!title.trim() || !content.trim()) return;
 
     setIsSubmitting(true);

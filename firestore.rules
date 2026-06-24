@@ -8,17 +8,20 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // Community Users (Presence)
     match /community_users/{userEmailSlug} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.token.email.replace('\\.', '_') == userEmailSlug || request.auth.uid == userEmailSlug);
     }
 
     // Friends lists
     match /friends_lists/{userEmailSlug} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.token.email.replace('\\.', '_') == userEmailSlug || request.auth.uid == userEmailSlug);
     }
 
     // Study Rooms
@@ -33,7 +36,8 @@ service cloud.firestore {
 
     // Global Notes Board
     match /notes/{noteId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (resource == null || resource.data.authorUid == request.auth.uid || request.resource.data.authorUid == request.auth.uid);
     }
 
     // Channels

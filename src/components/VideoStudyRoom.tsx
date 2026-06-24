@@ -88,7 +88,7 @@ const AudioUnlockOverlay: React.FC<{ remoteStreams: Record<string, MediaStream> 
 
   useEffect(() => {
     if (unlocked || Object.keys(remoteStreams).length === 0) return;
-    // Check if any video element has audio blocked
+    // Check if any video element has audio blocked (paused or muted)
     const videos = Array.from(
       document.querySelectorAll<HTMLVideoElement>('video[data-remote="true"]')
     );
@@ -98,7 +98,7 @@ const AudioUnlockOverlay: React.FC<{ remoteStreams: Record<string, MediaStream> 
       return () => clearTimeout(t);
     }
     for (const v of videos) {
-      if (v.paused) { setNeedsUnlock(true); break; }
+      if (v.paused || v.muted) { setNeedsUnlock(true); break; }
     }
   }, [remoteStreams, unlocked]);
 
@@ -107,9 +107,11 @@ const AudioUnlockOverlay: React.FC<{ remoteStreams: Record<string, MediaStream> 
   const handleUnlock = () => {
     Array.from(document.querySelectorAll<HTMLVideoElement>('video'))
       .forEach(v => {
-        if (v.srcObject && v.paused) {
+        if (v.srcObject) {
           v.muted = false;
-          v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+          if (v.paused) {
+            v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+          }
         }
       });
     setUnlocked(true);

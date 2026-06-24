@@ -7,7 +7,12 @@
     "users": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
-        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        "friends": {
+          "$friendId": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $friendId || auth.token.admin === true)"
+          }
+        }
       }
     },
     "private_chats": {
@@ -18,8 +23,8 @@
     },
     "bookmarks": {
       "$userKey": {
-        ".read": "auth != null",
-        ".write": "auth != null"
+        ".read": "auth != null && (auth.uid === $userKey || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $userKey || auth.token.admin === true)"
       }
     },
     "shared_notes": {
@@ -30,7 +35,7 @@
     },
     "note_shares": {
       "$userKey": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $userKey || auth.token.admin === true)",
         "$shareId": {
           ".write": "auth != null"
         }
@@ -69,7 +74,7 @@
     "community_users": {
       ".read": "auth != null",
       "$userKey": {
-        ".write": "auth != null"
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey) || auth.token.admin === true)"
       }
     },
     "community_channels": {
@@ -128,19 +133,21 @@
         ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('hostEmail').val() === auth.token.email || data.child('hostPeerId').val() === auth.uid)",
         "participants": {
           "$peerId": {
-            ".write": "auth != null"
+            ".write": "auth != null && (!data.exists() || $peerId === auth.uid || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
           }
         },
         "joinRequests": {
           "$peerId": {
-            ".write": "auth != null"
+            ".write": "auth != null && (!data.exists() || $peerId === auth.uid || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
           }
         },
         "messages": {
           ".write": "auth != null"
         },
         "calls": {
-          ".write": "auth != null"
+          "$callId": {
+            ".write": "auth != null && ($callId.contains(auth.uid) || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
+          }
         },
         "notes": {
           ".write": "auth != null"

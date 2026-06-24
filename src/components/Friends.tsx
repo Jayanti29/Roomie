@@ -97,7 +97,7 @@ const DocxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
       borderRadius: '4px',
       maxHeight: '200px',
       overflowY: 'auto',
-      fontFamily: 'Georgia, serif',
+      fontFamily: 'var(--font-body)',
       color: '#334155',
       lineHeight: '1.6'
     }}>
