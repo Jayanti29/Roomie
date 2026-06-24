@@ -152,16 +152,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     setErrorMessage('');
     setLoading(true);
     try {
-      const guestId = Math.floor(1000 + Math.random() * 9000);
-      const guestEmail = `guest_${guestId}@roomie.io`;
-      const guestName = `Guest_${guestId}`;
+      let guestUid = Math.floor(1000 + Math.random() * 9000).toString();
       if (authService.isFirebase) {
         try {
-          await authService.signInAnonymously();
+          const res = await authService.signInAnonymously();
+          guestUid = res.uid;
         } catch (authErr) {
           console.warn("[Auth] Firebase anonymous sign-in failed, proceeding with local guest session:", authErr);
         }
       }
+      const guestEmail = `guest_${guestUid}@roomie.io`;
+      const guestName = `Guest_${guestUid.substring(0, 5)}`;
       if (guestEmail.includes('testuser') || window.location.search.includes('debug=true')) {
         onLoginSuccess(
           guestEmail,

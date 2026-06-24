@@ -23,8 +23,8 @@
     },
     "bookmarks": {
       "$userKey": {
-        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)",
-        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)"
+        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || $userKey === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || $userKey === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)"
       }
     },
     "shared_notes": {
@@ -35,7 +35,7 @@
     },
     "note_shares": {
       "$userKey": {
-        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)",
+        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || $userKey === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)",
         "$shareId": {
           ".write": "auth != null"
         }
@@ -49,7 +49,7 @@
     },
     "notifications": {
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".read": "auth != null && (auth.uid === $uid || $uid === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)",
         ".write": "auth != null"
       }
     },
@@ -74,7 +74,7 @@
     "community_users": {
       ".read": "auth != null",
       "$userKey": {
-        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)"
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || $userKey === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)"
       }
     },
     "community_channels": {
@@ -160,6 +160,12 @@
     "latency_test": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "leaderboard": {
+      ".read": "auth != null",
+      "$userKey": {
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || $userKey === 'guest_' + auth.uid + '@roomie_io' || auth.token.admin === true)"
+      }
     }
   }
 }

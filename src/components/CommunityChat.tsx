@@ -149,6 +149,8 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
             await set(ref(db, 'community_channels/' + chan.id), chan);
           }
         }
+      }).catch(err => {
+        console.warn('Failed to ensure default channels exist:', err);
       });
 
       const unsub = onChildAdded(channelsRef, (snap) => {
@@ -213,6 +215,8 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
             if (snap.exists()) {
               setPreviewDataUrl(snap.val());
             }
+          }).catch(err => {
+            console.error('Failed to load mock file content:', err);
           });
         }
       } else {
@@ -398,56 +402,62 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
     }
 
     setIsUploading(true);
-    let attachmentObj = undefined;
+    try {
+      let attachmentObj = undefined;
 
-    if (attachedFile) {
-      try {
-        const url = await uploadFile(attachedFile, attachedFile.name, userEmail);
-        attachmentObj = {
-          name: attachedFile.name,
-          size: attachedFile.size > 1024 * 1024 
-            ? (attachedFile.size / (1024 * 1024)).toFixed(1) + ' MB' 
-            : (attachedFile.size / 1024).toFixed(1) + ' KB',
-          url
-        };
-      } catch (err) {
-        console.error('File upload failed:', err);
-        setUploadError('Failed to upload attachment.');
-        setIsUploading(false);
-        return;
+      if (attachedFile) {
+        try {
+          const url = await uploadFile(attachedFile, attachedFile.name, userEmail);
+          attachmentObj = {
+            name: attachedFile.name,
+            size: attachedFile.size > 1024 * 1024 
+              ? (attachedFile.size / (1024 * 1024)).toFixed(1) + ' MB' 
+              : (attachedFile.size / 1024).toFixed(1) + ' KB',
+            url
+          };
+        } catch (err) {
+          console.error('File upload failed:', err);
+          setUploadError('Failed to upload attachment.');
+          setIsUploading(false);
+          return;
+        }
       }
+
+      const newMsg: ChatMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        sender: userName,
+        senderEmail: userEmail,
+        text: inputText,
+        timestamp: Date.now(),
+        attachment: attachmentObj,
+        // @ts-ignore
+        noteReference: attachedNote ? {
+          id: attachedNote.id,
+          title: attachedNote.title,
+          author: attachedNote.author,
+          content: attachedNote.content,
+          course: attachedNote.course,
+          pdfAttachment: attachedNote.pdfAttachment || null
+        } : undefined
+      };
+
+      if (isFirebaseConfigured && db) {
+        const msgsPath = activeCommunityId === 'global'
+          ? `community_channels/${activeChannelId}/messages`
+          : `custom_communities/${activeCommunityId}/channels/${activeChannelId}/messages`;
+        await push(ref(db, msgsPath), newMsg);
+      }
+
+      setInputText('');
+      setAttachedFile(null);
+      setAttachedNote(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      alert('Failed to send message. Please check your network or credentials.');
+    } finally {
+      setIsUploading(false);
     }
-
-    const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      sender: userName,
-      senderEmail: userEmail,
-      text: inputText,
-      timestamp: Date.now(),
-      attachment: attachmentObj,
-      // @ts-ignore
-      noteReference: attachedNote ? {
-        id: attachedNote.id,
-        title: attachedNote.title,
-        author: attachedNote.author,
-        content: attachedNote.content,
-        course: attachedNote.course,
-        pdfAttachment: attachedNote.pdfAttachment || null
-      } : undefined
-    };
-
-    if (isFirebaseConfigured && db) {
-      const msgsPath = activeCommunityId === 'global'
-        ? `community_channels/${activeChannelId}/messages`
-        : `custom_communities/${activeCommunityId}/channels/${activeChannelId}/messages`;
-      await push(ref(db, msgsPath), newMsg);
-    }
-
-    setInputText('');
-    setAttachedFile(null);
-    setAttachedNote(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setIsUploading(false);
   };
 
   // Create Channel

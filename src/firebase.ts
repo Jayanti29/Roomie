@@ -403,7 +403,7 @@ export const databaseService = {
     }
     if (isFirebaseConfigured && db && auth && auth.currentUser) {
       const start = Date.now();
-      await set(ref(db, 'users/' + auth.currentUser.uid), data);
+      await update(ref(db, 'users/' + auth.currentUser.uid), data);
       const duration = Date.now() - start;
       if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
         console.debug('[Firebase] saveUserData completed', { email: _email }, `took ${duration}ms`);

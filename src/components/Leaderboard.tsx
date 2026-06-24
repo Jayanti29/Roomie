@@ -40,30 +40,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
 
       if (isFirebaseConfigured && db) {
         try {
-          const snap = await get(ref(db, 'users'));
+          const snap = await get(ref(db, 'leaderboard'));
           if (snap.exists()) {
             const val = snap.val();
             Object.values(val).forEach((u: any) => {
-              // Calculate completion percentage or tasks completed
-              let tasksDone = 0;
-              if (u.tasks) {
-                tasksDone = Object.values(u.tasks).filter((t: any) => t.status === 'Completed').length;
-              }
-              let progressVal = 0;
-              if (u.courses && u.courses.length > 0) {
-                const total = u.courses.reduce((sum: number, c: any) => sum + (c.progress || 0), 0);
-                progressVal = Math.round(total / u.courses.length);
-              }
-
               list.push({
-                name: u.name || u.profile?.name || 'Anonymous Student',
+                name: u.name || 'Anonymous Student',
                 email: u.email || '',
-                college: u.college || u.profile?.college || 'Other',
-                degree: u.degree || u.profile?.degree || 'General',
-                studyPoints: u.studyPoints ?? u.xp ?? 0,
-                tasksCompleted: tasksDone,
-                learningProgress: progressVal,
-                studyHours: Math.round((u.studyPoints ?? u.xp ?? 0) / 25) || 2 // approximate hours based on points
+                college: u.college || 'Other',
+                degree: u.degree || 'General',
+                studyPoints: u.studyPoints ?? 0,
+                tasksCompleted: u.tasksCompleted ?? 0,
+                learningProgress: u.learningProgress ?? 0,
+                studyHours: u.studyHours ?? 2
               });
             });
           }

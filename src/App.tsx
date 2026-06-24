@@ -140,6 +140,7 @@ export default function App() {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  const lastSavedStateRef = useRef<string>('');
 
   const [profile, setProfile] = useState({
     name: '',
@@ -980,9 +981,7 @@ export default function App() {
   const saveState = async () => {
     if (!isLoaded) return;
     if (loggedIn && user) {
-      const data = {
-        email: user.email,
-        name: profile.name,
+      const stateObj = {
         level,
         xp,
         maxXp,
@@ -1004,7 +1003,22 @@ export default function App() {
           careerGoal: profile.careerGoal,
           academicInterests: profile.interests.join(', '),
           profilePhoto: profilePhoto,
-          onboardingCompleted: profile.onboardingCompleted,
+          onboardingCompleted: profile.onboardingCompleted
+        }
+      };
+
+      const stateStr = JSON.stringify(stateObj);
+      if (stateStr === lastSavedStateRef.current) {
+        return; // Skip redundant save
+      }
+      lastSavedStateRef.current = stateStr;
+
+      const data = {
+        ...stateObj,
+        email: user.email,
+        name: profile.name,
+        profile: {
+          ...stateObj.profile,
           updatedAt: Date.now()
         },
         course: profile.specialization,
@@ -1013,8 +1027,34 @@ export default function App() {
         location: `${profile.city}, ${profile.state}`,
         profilePhoto: profilePhoto
       };
+
       try {
         await databaseService.saveUserData(user.email, data);
+        
+        // Write public user statistics to dedicated leaderboard node
+        if (isFirebaseConfigured && db) {
+          const currentUid = auth?.currentUser?.uid;
+          const userKey = currentUid || user.email.replace(/\./g, '_');
+          const completedTasksCount = tasks.filter((t: any) => t.status === 'Completed').length;
+          const progressVal = courses.length > 0 
+            ? Math.round(courses.reduce((sum: number, c: any) => sum + (c.progress || 0), 0) / courses.length) 
+            : 0;
+          
+          const leaderboardEntry = {
+            name: profile.name || user.name || 'Anonymous Student',
+            email: user.email,
+            college: profile.college || 'Other',
+            degree: profile.degree || 'General',
+            studyPoints: studyPoints,
+            tasksCompleted: completedTasksCount,
+            learningProgress: progressVal,
+            studyHours: Math.round(studyPoints / 25) || 2,
+            updatedAt: Date.now()
+          };
+          await set(ref(db, `leaderboard/${userKey}`), leaderboardEntry).catch(e => {
+            console.warn('Failed to write to leaderboard node:', e);
+          });
+        }
       } catch (err) {
         console.error('Auto-save profile state failure:', err);
       }

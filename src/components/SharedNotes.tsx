@@ -231,6 +231,8 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
             if (snap.exists()) {
               setPreviewDataUrl(snap.val());
             }
+          }).catch(err => {
+            console.error('Failed to load pdf content preview:', err);
           });
         }
       } else {
@@ -380,12 +382,13 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
       }
     });
 
-    // Fetch Bookmarks
     const userKey = userEmail.replace(/\./g, '_');
     get(ref(db, 'bookmarks/' + userKey)).then((snap) => {
       if (snap.exists()) {
         setBookmarks(snap.val() || []);
       }
+    }).catch(err => {
+      console.warn('Failed to load bookmarks from database:', err);
     });
 
     return () => {
@@ -437,8 +440,9 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
     // Simulate upload progress interval
     const progressInterval = setInterval(() => {
       setUploadProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + Math.floor(Math.random() * 15) + 5;
+        if (prev >= 90) return 90;
+        const next = prev + Math.floor(Math.random() * 15) + 5;
+        return next > 90 ? 90 : next;
       });
     }, 150);
 

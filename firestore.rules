@@ -15,13 +15,21 @@ service cloud.firestore {
     // Community Users (Presence)
     match /community_users/{userEmailSlug} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.token.email.split('@')[0] == userEmailSlug.split('_')[0] || request.auth.uid == userEmailSlug);
+      allow write: if isAuthenticated() && (
+        ('email' in request.auth.token && request.auth.token.email.split('@')[0] == userEmailSlug.split('_')[0])
+        || request.auth.uid == userEmailSlug
+        || userEmailSlug == 'guest_' + request.auth.uid + '@roomie_io'
+      );
     }
 
     // Friends lists
     match /friends_lists/{userEmailSlug} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.token.email.split('@')[0] == userEmailSlug.split('_')[0] || request.auth.uid == userEmailSlug);
+      allow write: if isAuthenticated() && (
+        ('email' in request.auth.token && request.auth.token.email.split('@')[0] == userEmailSlug.split('_')[0])
+        || request.auth.uid == userEmailSlug
+        || userEmailSlug == 'guest_' + request.auth.uid + '@roomie_io'
+      );
     }
 
     // Study Rooms
