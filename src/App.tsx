@@ -559,7 +559,7 @@ export default function App() {
       completedAt: completedVal
     };
 
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       try {
         const currentUid = auth?.currentUser?.uid;
         const userKey = currentUid || user.email.replace(/\./g, '_');
@@ -979,7 +979,7 @@ export default function App() {
   // Auto-Save User Profile & Stats to Database whenever State updates
   const saveState = async () => {
     if (!isLoaded) return;
-    if (loggedIn && user && !user.isGuest) {
+    if (loggedIn && user) {
       const data = {
         email: user.email,
         name: profile.name,
@@ -1207,7 +1207,7 @@ export default function App() {
       priority,
       status: 'Not Started'
     };
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/tasks/${taskId}`), newTask);
     } else {
       setTasks(prev => [...prev, newTask]);
@@ -1217,7 +1217,7 @@ export default function App() {
   const handleUpdateTaskStatus = async (id: string, nextStatus: string) => {
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       await update(ref(db, `users/${userKey}/tasks/${id}`), { status: nextStatus });
     } else {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: nextStatus } : t));
@@ -1227,7 +1227,7 @@ export default function App() {
   const handleDeleteTask = async (id: string) => {
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/tasks/${id}`), null);
     } else {
       setTasks(prev => prev.filter(t => t.id !== id));
@@ -1305,7 +1305,7 @@ export default function App() {
     setCourses(updatedCourses);
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/courses`), updatedCourses);
     }
   };
@@ -1314,7 +1314,7 @@ export default function App() {
     setLearningTracks(updatedTracks);
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       await set(ref(db, `users/${userKey}/learningTracks`), updatedTracks);
     }
   };

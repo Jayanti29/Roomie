@@ -23,8 +23,8 @@
     },
     "bookmarks": {
       "$userKey": {
-        ".read": "auth != null && (auth.uid === $userKey || auth.token.admin === true)",
-        ".write": "auth != null && (auth.uid === $userKey || auth.token.admin === true)"
+        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)"
       }
     },
     "shared_notes": {
@@ -35,7 +35,7 @@
     },
     "note_shares": {
       "$userKey": {
-        ".read": "auth != null && (auth.uid === $userKey || auth.token.admin === true)",
+        ".read": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)",
         "$shareId": {
           ".write": "auth != null"
         }
@@ -74,7 +74,7 @@
     "community_users": {
       ".read": "auth != null",
       "$userKey": {
-        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey) || auth.token.admin === true)"
+        ".write": "auth != null && (auth.uid === $userKey || (auth.token.email != null && auth.token.email.split('@')[0] === $userKey.split('_')[0]) || auth.token.admin === true)"
       }
     },
     "community_channels": {
@@ -133,12 +133,12 @@
         ".write": "auth != null && (auth.token.admin === true || !data.exists() || data.child('hostEmail').val() === auth.token.email || data.child('hostPeerId').val() === auth.uid)",
         "participants": {
           "$peerId": {
-            ".write": "auth != null && (!data.exists() || $peerId === auth.uid || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
+            ".write": "auth != null && (newData.child('uid').val() === auth.uid || data.child('uid').val() === auth.uid || newData.child('email').val() === auth.token.email || data.child('email').val() === auth.token.email || data.parent().parent().child('hostEmail').val() === auth.token.email || auth.token.admin === true)"
           }
         },
         "joinRequests": {
           "$peerId": {
-            ".write": "auth != null && (!data.exists() || $peerId === auth.uid || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
+            ".write": "auth != null && (newData.child('uid').val() === auth.uid || data.child('uid').val() === auth.uid || newData.child('email').val() === auth.token.email || data.child('email').val() === auth.token.email || data.parent().parent().child('hostEmail').val() === auth.token.email || auth.token.admin === true)"
           }
         },
         "messages": {
@@ -146,7 +146,7 @@
         },
         "calls": {
           "$callId": {
-            ".write": "auth != null && ($callId.contains(auth.uid) || data.parent().parent().child('hostPeerId').val() === auth.uid || data.parent().parent().child('hostEmail').val() === auth.token.email)"
+            ".write": "auth != null"
           }
         },
         "notes": {

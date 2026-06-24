@@ -450,17 +450,17 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
     throw new Error('File size exceeds 100MB limit.');
   }
 
-  if (useMockDb) {
+  const uploadToRtdb = (): Promise<string> => {
     const mockId = 'file_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
           await set(ref(db, 'pdf_contents/' + mockId), reader.result as string);
-          console.log('[UPLOAD SUCCESS]');
+          console.log('[UPLOAD SUCCESS (RTDB Fallback)]');
           resolve(`mock-file-url:${mockId}`);
         } catch (e) {
-          console.error('[UPLOAD FAILED]', e);
+          console.error('[UPLOAD FAILED (RTDB Fallback)]', e);
           reject(e);
         }
       };
@@ -470,12 +470,15 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  if (useMockDb) {
+    return uploadToRtdb();
   } else {
-    if (!storage) {
-      console.error('[UPLOAD FAILED] Firebase Storage is not initialized');
-      throw new Error('Firebase Storage is not initialized');
-    }
     try {
+      if (!storage) {
+        throw new Error('Firebase Storage is not initialized');
+      }
       const uid = auth?.currentUser?.uid || 'guest';
       const path = `notes/${uid}/${fileName}`;
       const storageRefInstance = sRef(storage, path);
@@ -485,11 +488,11 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
       };
       await uploadBytes(storageRefInstance, file, metadata);
       const downloadUrl = await getDownloadURL(storageRefInstance);
-      console.log('[UPLOAD SUCCESS]');
+      console.log('[UPLOAD SUCCESS (Firebase Storage)]');
       return downloadUrl;
     } catch (err) {
-      console.error('[UPLOAD FAILED]', err);
-      throw err;
+      console.warn('[Firebase Storage Upload Failed] Falling back to RTDB storage:', err);
+      return uploadToRtdb();
     }
   }
 }
