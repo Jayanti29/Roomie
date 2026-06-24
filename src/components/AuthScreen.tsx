@@ -20,7 +20,9 @@ interface AuthScreenProps {
     interests?: string[],
     profilePhoto?: string | null,
     phone?: string,
-    bio?: string
+    bio?: string,
+    onboardingCompleted?: boolean,
+    createdAt?: number
   ) => void;
 }
 
@@ -154,7 +156,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       const guestEmail = `guest_${guestId}@roomie.io`;
       const guestName = `Guest_${guestId}`;
       if (authService.isFirebase) {
-        await authService.signInAnonymously();
+        try {
+          await authService.signInAnonymously();
+        } catch (authErr) {
+          console.warn("[Auth] Firebase anonymous sign-in failed, proceeding with local guest session:", authErr);
+        }
       }
       if (guestEmail.includes('testuser') || window.location.search.includes('debug=true')) {
         onLoginSuccess(
@@ -174,7 +180,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           ['Coding'],
           null,
           '',
-          ''
+          '',
+          true,
+          Date.now()
         );
       } else {
         setOnboardingUser({ email: guestEmail, name: guestName });
@@ -205,7 +213,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       profileData.interests,
       profileData.profilePhoto,
       '', 
-      ''  
+      '',
+      true,
+      Date.now()
     );
     setOnboardingUser(null);
   };

@@ -33,6 +33,7 @@ interface ProfilePageProps {
     interests: string[];
     bio: string;
     profilePhoto: string | null;
+    createdAt?: number;
   };
   courses: Course[];
   learningTracks: LearningTrack[];
@@ -109,6 +110,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   // Photo upload
   const [profilePhoto, setProfilePhoto] = useState<string | null>(profile.profilePhoto);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setName(profile.name);
+    setPhone(profile.phone || '');
+    setBio(profile.bio || '');
+    setState(profile.state || '');
+    setCity(profile.city || '');
+    setUniversity(profile.university || '');
+    setCollege(profile.college || '');
+    
+    const isDegreeListed = degrees.includes(profile.degree);
+    setDegree(isDegreeListed ? profile.degree : 'Custom Degree');
+    setCustomDegree(isDegreeListed ? '' : profile.degree || '');
+    
+    const isSpecializationListed = specializations.includes(profile.specialization);
+    setSpecialization(isSpecializationListed ? profile.specialization : 'Custom Specialization');
+    setCustomSpecialization(isSpecializationListed ? '' : profile.specialization || '');
+    
+    const isCollegeListed = popularColleges.includes(profile.college) && popularUniversities.includes(profile.university);
+    setIsCollegeNotListed(!isCollegeListed && !!profile.college);
+    setManualCollegeName(isCollegeListed ? '' : profile.college || '');
+    setManualUniversityName(isCollegeListed ? '' : profile.university || '');
+    setManualCity(isCollegeListed ? '' : profile.city || '');
+    setManualState(isCollegeListed ? '' : profile.state || '');
+    
+    setSemester(profile.semester || '1st Semester');
+    setCareerGoal(profile.careerGoal || '');
+    setInterestsText(profile.interests ? profile.interests.join(', ') : '');
+    setProfilePhoto(profile.profilePhoto);
+  }, [profile]);
 
   // Manual course add
   const [showAddCourse, setShowAddCourse] = useState(false);
@@ -224,6 +255,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       interests: parsedInterests,
       academicInterests: interestsText,
       profilePhoto,
+      createdAt: profile.createdAt || Date.now(),
       updatedAt: Date.now()
     });
     setIsEditingInfo(false);

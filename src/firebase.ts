@@ -273,15 +273,20 @@ export const authService = {
   signInAnonymously: async (): Promise<{ uid: string }> => {
     authService._log('signInAnonymously called');
     if (isFirebaseConfigured && auth) {
-      const start = Date.now();
-      const creds = await signInAnonymously(auth);
-      const duration = Date.now() - start;
-      if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
-        console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
+      try {
+        const start = Date.now();
+        const creds = await signInAnonymously(auth);
+        const duration = Date.now() - start;
+        if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
+          console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
+        }
+        return { uid: creds.user.uid };
+      } catch (err: any) {
+        console.warn('[Firebase] signInAnonymously failed, falling back to local guest:', err);
+        return { uid: 'mock_guest_' + Math.floor(1000 + Math.random() * 9000) };
       }
-      return { uid: creds.user.uid };
     }
-    throw new Error('Realtime service unavailable (Firebase Authentication not configured).');
+    return { uid: 'mock_guest_' + Math.floor(1000 + Math.random() * 9000) };
   },
 
   signUp: async (

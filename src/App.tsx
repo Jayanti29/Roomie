@@ -162,7 +162,9 @@ export default function App() {
     interests: [] as string[],
     bio: '',
     profilePhoto: null as string | null,
-    onboardingCompleted: false
+    onboardingCompleted: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   });
 
   useEffect(() => {
@@ -202,6 +204,7 @@ export default function App() {
               let phoneVal = '';
               let bioVal = '';
               let onboardingCompletedVal = false;
+              let createdAtVal = Date.now();
  
               try {
                 const data = await databaseService.getUserData(email);
@@ -223,11 +226,12 @@ export default function App() {
                   phoneVal = prof.phone || data.phone || '';
                   bioVal = prof.bio || data.bio || '';
                   onboardingCompletedVal = prof.onboardingCompleted ?? data.profile?.onboardingCompleted ?? false;
+                  createdAtVal = prof.createdAt || data.createdAt || Date.now();
                 }
               } catch (e) {
                 console.warn("Could not load user details on restore:", e);
               }
-
+ 
               handleLoginSuccess(
                 email, 
                 name, 
@@ -246,7 +250,8 @@ export default function App() {
                 profilePhotoVal,
                 phoneVal,
                 bioVal,
-                onboardingCompletedVal
+                onboardingCompletedVal,
+                createdAtVal
               );
             } else {
               const savedSession = localStorage.getItem('roomie_mock_session');
@@ -271,7 +276,8 @@ export default function App() {
                     parsed.profilePhoto,
                     parsed.phone,
                     parsed.bio,
-                    parsed.onboardingCompleted
+                    parsed.onboardingCompleted,
+                    parsed.createdAt
                   );
                 } catch (e) {}
               } else {
@@ -729,7 +735,9 @@ export default function App() {
           interests: ['Programming', 'UI Design'],
           bio: 'Guest student workspace',
           profilePhoto: null,
-          onboardingCompleted: false
+          onboardingCompleted: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         });
         setCourses([
           { id: 'c1', name: 'Programming in Java', progress: 60 },
@@ -773,7 +781,9 @@ export default function App() {
               interests: loadedProfile.interests ?? (loadedProfile.academicInterests ? loadedProfile.academicInterests.split(',').map((s: any) => s.trim()).filter(Boolean) : []),
               bio: loadedProfile.bio ?? '',
               profilePhoto: loadedProfile.profilePhoto ?? data.profilePhoto ?? null,
-              onboardingCompleted: loadedProfile.onboardingCompleted ?? false
+              onboardingCompleted: loadedProfile.onboardingCompleted ?? false,
+              createdAt: loadedProfile.createdAt ?? data.createdAt ?? Date.now(),
+              updatedAt: loadedProfile.updatedAt ?? data.updatedAt ?? Date.now()
             });
             setProfilePhoto(loadedProfile.profilePhoto ?? data.profilePhoto ?? null);
           }
@@ -1018,12 +1028,14 @@ export default function App() {
     photoUrl?: string | null,
     phone?: string,
     bio?: string,
-    onboardingCompleted?: boolean
+    onboardingCompleted?: boolean,
+    createdAt?: number
   ) => {
     const sessionData = {
       email, name, course, degree, college, location, isGuest,
       state, city, university, specialization, semester, careerGoal,
-      interests, profilePhoto: photoUrl, phone, bio, onboardingCompleted
+      interests, profilePhoto: photoUrl, phone, bio, onboardingCompleted,
+      createdAt
     };
     if (useMockDb) {
       localStorage.setItem('roomie_mock_session', JSON.stringify(sessionData));
@@ -1044,12 +1056,14 @@ export default function App() {
       interests: interests ?? [],
       bio: bio ?? '',
       profilePhoto: photoUrl ?? null,
-      onboardingCompleted: onboardingCompleted ?? false
+      onboardingCompleted: onboardingCompleted ?? false,
+      createdAt: createdAt ?? Date.now(),
+      updatedAt: Date.now()
     });
     setProfilePhoto(photoUrl ?? null);
     setLoggedIn(true);
 
-    if (isFirebaseConfigured && db && !isGuest) {
+    if (isFirebaseConfigured && db) {
       const uid = auth?.currentUser?.uid;
       const userKey = uid || email.replace(/\./g, '_');
       const finalProfile = {
@@ -1068,7 +1082,7 @@ export default function App() {
         profilePhoto: photoUrl ?? null,
         bio: bio ?? '',
         onboardingCompleted: onboardingCompleted ?? false,
-        createdAt: Date.now(),
+        createdAt: createdAt ?? Date.now(),
         updatedAt: Date.now()
       };
       if (uid) {
@@ -1164,7 +1178,7 @@ export default function App() {
     if (updatedProfile.profilePhoto) {
       setProfilePhoto(updatedProfile.profilePhoto);
     }
-    if (loggedIn && user && !user.isGuest && isFirebaseConfigured && db) {
+    if (loggedIn && user && isFirebaseConfigured && db) {
       const currentUid = auth?.currentUser?.uid;
       const userKey = user.email.replace(/\./g, '_');
       const payload = {
@@ -1195,6 +1209,32 @@ export default function App() {
       }
     } else {
       localStorage.setItem('roomie_mock_profile', JSON.stringify(updatedProfile));
+      const savedSession = localStorage.getItem('roomie_mock_session');
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession);
+          const updatedSession = {
+            ...parsed,
+            name: updatedProfile.name,
+            course: updatedProfile.specialization,
+            degree: updatedProfile.degree,
+            college: updatedProfile.college,
+            location: `${updatedProfile.city}, ${updatedProfile.state}`,
+            state: updatedProfile.state,
+            city: updatedProfile.city,
+            university: updatedProfile.university,
+            specialization: updatedProfile.specialization,
+            semester: updatedProfile.semester,
+            careerGoal: updatedProfile.careerGoal,
+            interests: updatedProfile.interests,
+            profilePhoto: updatedProfile.profilePhoto || parsed.profilePhoto,
+            phone: updatedProfile.phone,
+            bio: updatedProfile.bio,
+            createdAt: updatedProfile.createdAt || parsed.createdAt
+          };
+          localStorage.setItem('roomie_mock_session', JSON.stringify(updatedSession));
+        } catch (e) {}
+      }
     }
   };
 
