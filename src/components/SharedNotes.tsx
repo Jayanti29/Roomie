@@ -185,7 +185,7 @@ export const SharedNotes: React.FC<SharedNotesProps> = ({
   userEmail,
   userCourse,
   onRewardXp,
-  isGuest,
+  isGuest: _isGuest,
   isAdmin
 }) => {
   const [notes, setNotes] = useState<StudyNote[]>([]);

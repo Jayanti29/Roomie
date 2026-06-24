@@ -14,7 +14,8 @@ import { Onboarding } from './components/Onboarding';
 import { Friends } from './components/Friends';
 import { FocusClock } from './components/FocusClock';
 import { LearningRoadmaps } from './components/LearningRoadmaps';
-import { databaseService, authService, auth, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue } from './firebase';
+import type { Roadmap } from './components/LearningRoadmaps';
+import { databaseService, authService, auth, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue, get } from './firebase';
 import {
   LayoutDashboard,
   Users,
@@ -72,14 +73,7 @@ interface Task {
   status: string;
 }
 
-interface Roadmap {
-  id: string;
-  name: string;
-  goal: string;
-  targetDate: string;
-  progress: number;
-  type: 'ai' | 'manual';
-}
+
 
 interface FocusSession {
   id?: string;

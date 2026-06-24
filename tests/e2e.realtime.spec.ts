@@ -50,7 +50,7 @@ async function login(page: Page, { email, password }: TestUser): Promise<void> {
     await page.fill('[data-testid="name"]', email.split('@')[0]);
     await page.fill('[data-testid="email"]', email);
     await page.fill('[data-testid="password"]', password);
-    await page.locator('input[placeholder="••••••••"]').nth(1).fill(password);
+    await page.fill('input[placeholder="Confirm Password"]', password);
     // Click register button
     await page.click('[data-testid="login-button"]', { force: true });
     // Wait for app main UI indicator

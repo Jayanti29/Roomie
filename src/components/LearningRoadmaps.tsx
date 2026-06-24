@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, isFirebaseConfigured, ref, set, onValue, auth } from '../firebase';
 import { Plus, Compass, Trash2, CheckCircle, Sparkles, X } from 'lucide-react';
 
-interface Checkpoint {
+export interface Checkpoint {
   id: string;
   title: string;
   completed: boolean;
@@ -11,7 +11,7 @@ interface Checkpoint {
   week?: number;
 }
 
-interface Roadmap {
+export interface Roadmap {
   id: string;
   name: string;
   goal: string;
@@ -35,7 +35,7 @@ export const LearningRoadmaps: React.FC<LearningRoadmapsProps> = ({
   userEmail,
   userName: _userName,
   onRewardXp,
-  isGuest,
+  isGuest: _isGuest,
   roadmaps: roadmapsProp,
   onUpdateRoadmaps
 }) => {
