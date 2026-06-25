@@ -35,10 +35,18 @@ function normalizeMessages(messages: unknown): AiMessage[] {
 
   return messages
     .filter((message): message is Partial<AiMessage> => Boolean(message) && typeof message === 'object')
-    .map((message) => ({
-      role: message.role === 'system' || message.role === 'assistant' ? message.role : 'user',
-      content: typeof message.content === 'string' ? message.content : ''
-    }))
+    .map((message): AiMessage => {
+      let role: AiMessage['role'] = 'user';
+      if (message.role === 'system') {
+        role = 'system';
+      } else if (message.role === 'assistant') {
+        role = 'assistant';
+      }
+      return {
+        role,
+        content: typeof message.content === 'string' ? message.content : ''
+      };
+    })
     .filter((message) => message.content.trim().length > 0);
 }
 
