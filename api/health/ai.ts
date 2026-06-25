@@ -1,4 +1,4 @@
-import { getAiHealth } from '../_shared/aiService';
+import { getAiHealth } from '../_shared/aiService.js';
 
 declare const process: {
   env: {

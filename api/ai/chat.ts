@@ -1,4 +1,4 @@
-import { generateAiReply } from '../_shared/aiService';
+import { generateAiReply } from '../_shared/aiService.js';
 
 declare const process: {
   env: {
