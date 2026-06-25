@@ -273,20 +273,20 @@ export const authService = {
   signInAnonymously: async (): Promise<{ uid: string }> => {
     authService._log('signInAnonymously called');
     if (isFirebaseConfigured && auth) {
-      try {
-        const start = Date.now();
-        const creds = await signInAnonymously(auth);
-        const duration = Date.now() - start;
-        if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
-          console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
-        }
-        return { uid: creds.user.uid };
-      } catch (err: any) {
-        console.warn('[Firebase] signInAnonymously failed, falling back to local guest:', err);
-        return { uid: 'mock_guest_' + Math.floor(1000 + Math.random() * 9000) };
+      const start = Date.now();
+      const creds = await signInAnonymously(auth);
+      const duration = Date.now() - start;
+      if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
+        console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
       }
+      return { uid: creds.user.uid };
     }
-    return { uid: 'mock_guest_' + Math.floor(1000 + Math.random() * 9000) };
+
+    if (useMockDb) {
+      return { uid: 'local_guest_' + Math.floor(1000 + Math.random() * 9000) };
+    }
+
+    throw new Error('Guest login is unavailable because Firebase Authentication is not configured.');
   },
 
   signUp: async (
@@ -450,17 +450,17 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
     throw new Error('File size exceeds 100MB limit.');
   }
 
-  const uploadToRtdb = (): Promise<string> => {
+  const uploadToLocalMockDb = (): Promise<string> => {
     const mockId = 'file_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
           await set(ref(db, 'pdf_contents/' + mockId), reader.result as string);
-          console.log('[UPLOAD SUCCESS (RTDB Fallback)]');
+          console.log('[UPLOAD SUCCESS (Local Mock DB)]');
           resolve(`mock-file-url:${mockId}`);
         } catch (e) {
-          console.error('[UPLOAD FAILED (RTDB Fallback)]', e);
+          console.error('[UPLOAD FAILED (Local Mock DB)]', e);
           reject(e);
         }
       };
@@ -473,27 +473,34 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
   };
 
   if (useMockDb) {
-    return uploadToRtdb();
-  } else {
-    try {
-      if (!storage) {
-        throw new Error('Firebase Storage is not initialized');
-      }
-      const uid = auth?.currentUser?.uid || 'guest';
-      const path = `notes/${uid}/${fileName}`;
-      const storageRefInstance = sRef(storage, path);
-      const metadata = {
-        contentDisposition: `attachment; filename="${fileName}"`,
-        contentType: file.type || 'application/octet-stream'
-      };
-      await uploadBytes(storageRefInstance, file, metadata);
-      const downloadUrl = await getDownloadURL(storageRefInstance);
-      console.log('[UPLOAD SUCCESS (Firebase Storage)]');
-      return downloadUrl;
-    } catch (err) {
-      console.warn('[Firebase Storage Upload Failed] Falling back to RTDB storage:', err);
-      return uploadToRtdb();
+    return uploadToLocalMockDb();
+  }
+
+  if (!storage) {
+    throw new Error('Firebase Storage is not initialized.');
+  }
+
+  if (!auth?.currentUser?.uid) {
+    throw new Error('You must be signed in before uploading files.');
+  }
+
+  try {
+    const uid = auth.currentUser.uid;
+    const path = `notes/${uid}/${fileName}`;
+    const storageRefInstance = sRef(storage, path);
+    const metadata = {
+      contentDisposition: `attachment; filename="${fileName}"`,
+      contentType: file.type || 'application/octet-stream'
+    };
+    await uploadBytes(storageRefInstance, file, metadata);
+    const downloadUrl = await getDownloadURL(storageRefInstance);
+    console.log('[UPLOAD SUCCESS (Firebase Storage)]');
+    return downloadUrl;
+  } catch (err) {
+    if (err instanceof Error) {
+      throw new Error(`Firebase Storage upload failed: ${err.message}`);
     }
+    throw new Error('Firebase Storage upload failed.');
   }
 }
 

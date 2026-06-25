@@ -1,32 +1,30 @@
-declare const process: any;
+import { getAiHealth } from '../_shared/aiService';
 
-export default async function handler(req: any, res: any) {
+declare const process: {
+  env: {
+    GEMINI_API_KEY?: string;
+    OPENAI_API_KEY?: string;
+  };
+};
+
+interface ApiRequest {
+  method?: string;
+}
+
+interface ApiResponse {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => {
+    end: (body?: string) => void;
+    json: (body: unknown) => void;
+  };
+}
+
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     res.status(405).end('Method Not Allowed');
     return;
   }
 
-  const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
-  const openaiApiKey = (process.env.OPENAI_API_KEY || '').trim();
-
-  let provider = 'None';
-  let status = 'unconfigured';
-  let model = 'none';
-
-  if (geminiApiKey) {
-    provider = 'Gemini';
-    status = 'healthy';
-    model = 'gemini-2.5-flash';
-  } else if (openaiApiKey) {
-    provider = 'OpenAI';
-    status = 'healthy';
-    model = 'gpt-4o-mini';
-  }
-
-  res.status(200).json({
-    provider,
-    status,
-    model
-  });
+  res.status(200).json(getAiHealth(process.env));
 }

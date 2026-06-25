@@ -196,7 +196,11 @@ test.describe('Real‑time verification suite', () => {
     await login(page, TEST_USERS[0]);
     const latency = await measureLatency(page);
     console.log('Measured RTDB latency:', latency);
-    expect(latency).not.toBeNull();
+    if (latency === null) {
+      throw new Error('RTDB latency was not measured.');
+    }
+    expect(Number.isFinite(latency), 'RTDB latency must be finite').toBe(true);
+    expect(latency).toBeGreaterThanOrEqual(0);
     // Store latency for report (write to file via node later)
     await page.evaluate((val) => {
       (window as unknown as Record<string, unknown>).__rtdb_latency = val;

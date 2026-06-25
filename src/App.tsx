@@ -158,8 +158,8 @@ export default function App() {
     bio: '',
     profilePhoto: null as string | null,
     onboardingCompleted: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+    createdAt: 0,
+    updatedAt: 0
   });
 
   useEffect(() => {
@@ -515,6 +515,7 @@ export default function App() {
     mode: false,
     cycle: 'focus' as 'focus' | 'break'
   });
+  const handleCompleteGlobalTimerRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     focusTimerStateRef.current = {
@@ -626,6 +627,10 @@ export default function App() {
     setFocusTimerPaused(false);
   };
 
+  useEffect(() => {
+    handleCompleteGlobalTimerRef.current = handleCompleteGlobalTimer;
+  });
+
   // Restore Focus Timer state from localStorage on load
   useEffect(() => {
     try {
@@ -647,7 +652,7 @@ export default function App() {
           if (remaining <= 0) {
             setFocusTimerTimeLeft(0);
             setTimeout(() => {
-              handleCompleteGlobalTimer();
+              handleCompleteGlobalTimerRef.current();
             }, 0);
           } else {
             setFocusTimerTimeLeft(remaining);
@@ -688,7 +693,7 @@ export default function App() {
           if (prev <= 1) {
             clearInterval(intervalId);
             setTimeout(() => {
-              handleCompleteGlobalTimer();
+              handleCompleteGlobalTimerRef.current();
             }, 0);
             return 0;
           }
@@ -1110,7 +1115,7 @@ export default function App() {
     }
   }, [loggedIn, user, profile.name, profilePhoto, isLoaded]);
 
-  const handleLoginSuccess = (
+  function handleLoginSuccess(
     email: string,
     name: string,
     course?: string,
@@ -1130,7 +1135,7 @@ export default function App() {
     bio?: string,
     onboardingCompleted?: boolean,
     createdAt?: number
-  ) => {
+  ) {
     const sessionData = {
       email, name, course, degree, college, location, isGuest,
       state, city, university, specialization, semester, careerGoal,
@@ -1191,7 +1196,7 @@ export default function App() {
         set(ref(db, `users/${userKey}/profile`), finalProfile).catch(err => console.error('Failed to write users/userKey/profile:', err));
       }
     }
-  };
+  }
 
   const handleLogOut = async () => {
     localStorage.removeItem('roomie_mock_session');
@@ -1200,7 +1205,7 @@ export default function App() {
     setUser(null);
   };
 
-  const handleRewardXp = (amount: number, reason: string) => {
+  function handleRewardXp(amount: number, reason: string) {
     const newId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     setNotifications(prev => [
       {
@@ -1233,7 +1238,7 @@ export default function App() {
         return newXp;
       }
     });
-  };
+  }
 
   // Planner handlers
   const handleAddTask = async (title: string, deadline: string, priority: string) => {

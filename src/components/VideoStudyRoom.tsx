@@ -1236,27 +1236,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       { urls: 'stun:stun2.l.google.com:19302' },
     ];
 
-    // Free OpenRelay TURN server (public, no credentials needed)
-    // Provides TURN relay for cross-network calls (mobile ↔ desktop)
-    const openRelayTurn: RTCIceServer[] = [
-      { urls: 'turn:openrelay.metered.ca:80',       username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443',      username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    ];
-    iceServers = [...iceServers, ...openRelayTurn];
-
-    // Override with custom TURN if provided via env
-    if (turnUrl && turnUsername && turnPassword) {
-      console.log('[WebRTC] Using custom TURN server:', turnUrl);
-      iceServers.push({
-        urls: turnUrl,
-        username: turnUsername,
-        credential: turnPassword
-      });
-    } else {
-      console.log('[WebRTC] Using OpenRelay public TURN (no VITE_TURN_URL configured)');
-    }
-
     if (iceServersEnv) {
       try {
         iceServers = JSON.parse(iceServersEnv);
@@ -1264,6 +1243,17 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       } catch (err) {
         console.error('[WebRTC] Failed to parse VITE_ICE_SERVERS:', err);
       }
+    } else if (turnUrl && turnUsername && turnPassword) {
+      console.log('[WebRTC] Using configured TURN server:', turnUrl);
+      iceServers.push({
+        urls: turnUrl,
+        username: turnUsername,
+        credential: turnPassword
+      });
+    } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.warn('[WebRTC] TURN is not configured. Local development will use STUN-only connectivity.');
+    } else {
+      console.error('[WebRTC] TURN is not configured. Cross-network production calls may fail until VITE_TURN_URL, VITE_TURN_USERNAME, and VITE_TURN_PASSWORD are set.');
     }
 
     const configuration: RTCConfiguration = {

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { generateAiReply } from './api/_shared/aiService'
 
 // Simple in-memory mock database state for local dev and E2E tests
 const dbState: Record<string, any> = {};
@@ -70,65 +71,6 @@ function readBody(req: any): Promise<any> {
   });
 }
 
-async function callGemini(messages: any[], apiKey: string): Promise<string> {
-  const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
-  const contents = messages
-    .filter(m => m.role !== 'system')
-    .map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-
-  const body: any = { contents };
-  if (systemPrompt) {
-    body.systemInstruction = {
-      parts: [{ text: systemPrompt }]
-    };
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API returned status ${response.status}: ${errorText}`);
-  }
-
-  const data = (await response.json()) as any;
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-}
-
-async function callOpenAI(messages: any[], apiKey: string): Promise<string> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: messages || [],
-      temperature: 0.7
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API returned status ${response.status}: ${errorText}`);
-  }
-
-  const data = (await response.json()) as any;
-  return data.choices?.[0]?.message?.content || '';
-}
-
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -188,35 +130,18 @@ export default defineConfig({
           if (req.url && req.url.startsWith('/api/ai/chat')) {
             res.setHeader('Content-Type', 'application/json');
             const { messages } = await readBody(req);
-            const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
-            const openaiApiKey = (process.env.OPENAI_API_KEY || '').trim();
-
-            if (!geminiApiKey && !openaiApiKey) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({
-                error: "Configuration Error: Both GEMINI_API_KEY and OPENAI_API_KEY environment variables are missing."
-              }));
-              return;
-            }
 
             try {
-              if (geminiApiKey) {
-                const reply = await callGemini(messages || [], geminiApiKey);
-                res.end(JSON.stringify({
-                  choices: [{ message: { role: 'assistant', content: reply } }]
-                }));
-              } else {
-                const reply = await callOpenAI(messages || [], openaiApiKey);
-                res.end(JSON.stringify({
-                  choices: [{ message: { role: 'assistant', content: reply } }]
-                }));
-              }
-            } catch (err: any) {
-              console.error('[API Proxy Error]', err);
-              res.statusCode = 502;
+              const reply = await generateAiReply(messages, process.env);
               res.end(JSON.stringify({
-                error: `Bad Gateway: Upstream AI failed: ${err.message}`
+                choices: [{ message: { role: 'assistant', content: reply.content } }],
+                provider: reply.provider
               }));
+            } catch (err: any) {
+              const message = err instanceof Error ? err.message : 'AI request failed.';
+              console.error('[API Proxy Error]', message);
+              res.statusCode = message.startsWith('Please send') ? 400 : 503;
+              res.end(JSON.stringify({ error: message }));
             }
             return;
           }
