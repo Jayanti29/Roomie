@@ -31,8 +31,10 @@ import {
   Map,
   GraduationCap,
   LogOut,
-  User
+  User,
+  ShieldAlert
 } from 'lucide-react';
+import { AdminPanel } from './components/AdminPanel';
 
 
 interface ToastItem {
@@ -84,7 +86,7 @@ interface FocusSession {
   completedAt: string;
 }
 
-type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock' | 'learning_roadmaps';
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock' | 'learning_roadmaps' | 'admin_panel';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -171,7 +173,7 @@ export default function App() {
   // Auth Restorer / Listener
   useEffect(() => {
     const checkAuth = async () => {
-      if (isFirebaseConfigured) {
+      if (isFirebaseConfigured || useMockDb) {
         try {
           const { auth } = await import('./firebase');
           if (!auth) {
@@ -249,36 +251,8 @@ export default function App() {
                 createdAtVal
               );
             } else {
-              const savedSession = localStorage.getItem('roomie_mock_session');
-              if (savedSession) {
-                try {
-                  const parsed = JSON.parse(savedSession);
-                  handleLoginSuccess(
-                    parsed.email,
-                    parsed.name,
-                    parsed.course,
-                    parsed.degree,
-                    parsed.college,
-                    parsed.location,
-                    parsed.isGuest,
-                    parsed.state,
-                    parsed.city,
-                    parsed.university,
-                    parsed.specialization,
-                    parsed.semester,
-                    parsed.careerGoal,
-                    parsed.interests,
-                    parsed.profilePhoto,
-                    parsed.phone,
-                    parsed.bio,
-                    parsed.onboardingCompleted,
-                    parsed.createdAt
-                  );
-                } catch (e) {}
-              } else {
-                setLoggedIn(false);
-                setUser(null);
-              }
+              setLoggedIn(false);
+              setUser(null);
             }
             setIsLoaded(true);
           });
@@ -336,7 +310,7 @@ export default function App() {
   // E2E latency test target
   useEffect(() => {
     const handleLatencyTest = async () => {
-      if (isFirebaseConfigured && db) {
+      if (db) {
         const start = Date.now();
         const latencyRef = ref(db, 'latency_test');
         try {
@@ -394,7 +368,7 @@ export default function App() {
   // Real-time notifications subscription from Firebase Realtime Database
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
-    if (loggedIn && user && isFirebaseConfigured && db) {
+    if (loggedIn && user && db) {
       import('./firebase').then(({ auth }) => {
         if (!auth) return;
         const listenToNotifs = () => {
@@ -449,7 +423,7 @@ export default function App() {
   const handleMarkNotificationRead = async (id: string) => {
     if (id.startsWith('notif_db_')) {
       const dbId = id.substring(9);
-      if (isFirebaseConfigured && db && loggedIn && user) {
+      if (db && loggedIn && user) {
         import('./firebase').then(({ auth }) => {
           const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
           update(ref(db, `notifications/${uid}/${dbId}`), { read: true }).catch(console.error);
@@ -462,7 +436,7 @@ export default function App() {
 
   const handleMarkAllNotificationsRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    if (isFirebaseConfigured && db && loggedIn && user) {
+    if (db && loggedIn && user) {
       import('./firebase').then(({ auth }) => {
         const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
         const updates: any = {};
@@ -481,7 +455,7 @@ export default function App() {
 
   const handleClearNotifications = async () => {
     setNotifications([]);
-    if (isFirebaseConfigured && db && loggedIn && user) {
+    if (db && loggedIn && user) {
       import('./firebase').then(({ auth }) => {
         const uid = auth?.currentUser?.uid || user.email.replace(/\./g, '_');
         set(ref(db, `notifications/${uid}`), null).catch(console.error);
@@ -561,7 +535,7 @@ export default function App() {
       completedAt: completedVal
     };
 
-    if (loggedIn && user && isFirebaseConfigured && db) {
+    if (loggedIn && user && db) {
       try {
         const currentUid = auth?.currentUser?.uid;
         const userKey = currentUid || user.email.replace(/\./g, '_');
@@ -724,20 +698,13 @@ export default function App() {
         const loadGuestData = async () => {
           try {
             let loadedProfile: any = null;
-            if (isFirebaseConfigured && db && currentUid) {
+            if (db && currentUid) {
               const snap = await get(ref(db, `users/${currentUid}`));
               if (snap.exists()) {
                 const data = snap.val();
                 loadedProfile = data.profile;
                 if (data.level) setLevel(data.level);
                 if (data.xp) setXp(data.xp);
-              }
-            }
-
-            if (!loadedProfile) {
-              const savedMockProfile = localStorage.getItem('roomie_mock_profile');
-              if (savedMockProfile) {
-                loadedProfile = JSON.parse(savedMockProfile);
               }
             }
 
@@ -847,7 +814,7 @@ export default function App() {
         loadData();
       }
 
-      if (isFirebaseConfigured && db) {
+      if (db) {
         const tasksRef = ref(db, `users/${userKey}/tasks`);
         const unsubTasks = onValue(tasksRef, (snap) => {
           if (snap.exists()) {
@@ -942,23 +909,13 @@ export default function App() {
           unsubRoadmaps();
           unsubFocus();
         };
-      } else {
-        // Localstorage mock fallback for local testing
-        try {
-          const list = JSON.parse(localStorage.getItem('roomie_mock_roadmaps') || '[]');
-          setRoadmaps(list);
-        } catch (e) {}
-        try {
-          const list = JSON.parse(localStorage.getItem('roomie_mock_focus_sessions') || '[]');
-          setFocusSessions(list);
-        } catch (e) {}
       }
     }
   }, [loggedIn, user]);
 
   // Sync shared notes for dashboard preview
   useEffect(() => {
-    if (isFirebaseConfigured && db) {
+    if (db) {
       const notesRef = ref(db, 'shared_notes');
       const unsub = onValue(notesRef, (snap) => {
         if (snap.exists()) {
@@ -1037,7 +994,7 @@ export default function App() {
         await databaseService.saveUserData(user.email, data);
         
         // Write public user statistics to dedicated leaderboard node
-        if (isFirebaseConfigured && db) {
+        if (db) {
           const currentUid = auth?.currentUser?.uid;
           const userKey = currentUid || user.email.replace(/\./g, '_');
           const completedTasksCount = tasks.filter((t: any) => t.status === 'Completed').length;
@@ -1085,7 +1042,7 @@ export default function App() {
       };
 
       const setOnline = async () => {
-        if (isFirebaseConfigured && db) {
+        if (db) {
           try {
             await update(ref(db, 'community_users/' + userKey), presenceData);
           } catch (e) {
@@ -1099,7 +1056,7 @@ export default function App() {
 
       const setOffline = () => {
         const offlineData = { online: false, lastActive: Date.now() };
-        if (isFirebaseConfigured && db) {
+        if (db) {
           update(ref(db, 'community_users/' + userKey), offlineData).catch(() => {});
         }
       };
@@ -1136,15 +1093,6 @@ export default function App() {
     onboardingCompleted?: boolean,
     createdAt?: number
   ) {
-    const sessionData = {
-      email, name, course, degree, college, location, isGuest,
-      state, city, university, specialization, semester, careerGoal,
-      interests, profilePhoto: photoUrl, phone, bio, onboardingCompleted,
-      createdAt
-    };
-    if (useMockDb) {
-      localStorage.setItem('roomie_mock_session', JSON.stringify(sessionData));
-    }
     setUser({ email, name, isGuest });
     setProfile({
       name: name,
@@ -1168,7 +1116,7 @@ export default function App() {
     setProfilePhoto(photoUrl ?? null);
     setLoggedIn(true);
 
-    if (isFirebaseConfigured && db) {
+    if (db) {
       const uid = auth?.currentUser?.uid;
       const userKey = uid || email.replace(/\./g, '_');
       const finalProfile = {
@@ -1199,7 +1147,6 @@ export default function App() {
   }
 
   const handleLogOut = async () => {
-    localStorage.removeItem('roomie_mock_session');
     await authService.signOut();
     setLoggedIn(false);
     setUser(null);
@@ -1284,36 +1231,8 @@ export default function App() {
     if (updatedProfile.profilePhoto) {
       setProfilePhoto(updatedProfile.profilePhoto);
     }
-    // Always save to localStorage for local/guest backups and verification tests
-    localStorage.setItem('roomie_mock_profile', JSON.stringify(updatedProfile));
-    const savedSession = localStorage.getItem('roomie_mock_session');
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession);
-        const updatedSession = {
-          ...parsed,
-          name: updatedProfile.name,
-          course: updatedProfile.specialization,
-          degree: updatedProfile.degree,
-          college: updatedProfile.college,
-          location: `${updatedProfile.city}, ${updatedProfile.state}`,
-          state: updatedProfile.state,
-          city: updatedProfile.city,
-          university: updatedProfile.university,
-          specialization: updatedProfile.specialization,
-          semester: updatedProfile.semester,
-          careerGoal: updatedProfile.careerGoal,
-          interests: updatedProfile.interests,
-          profilePhoto: updatedProfile.profilePhoto || parsed.profilePhoto,
-          phone: updatedProfile.phone,
-          bio: updatedProfile.bio,
-          createdAt: updatedProfile.createdAt || parsed.createdAt
-        };
-        localStorage.setItem('roomie_mock_session', JSON.stringify(updatedSession));
-      } catch (e) {}
-    }
 
-    if (loggedIn && user && isFirebaseConfigured && db) {
+    if (loggedIn && user && db) {
       const currentUid = auth?.currentUser?.uid;
       const userKey = user.email.replace(/\./g, '_');
       const payload = {
@@ -1350,7 +1269,7 @@ export default function App() {
     setCourses(updatedCourses);
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && isFirebaseConfigured && db) {
+    if (loggedIn && user && db) {
       await set(ref(db, `users/${userKey}/courses`), updatedCourses);
     }
   };
@@ -1359,7 +1278,7 @@ export default function App() {
     setLearningTracks(updatedTracks);
     const currentUid = auth?.currentUser?.uid;
     const userKey = currentUid || user?.email.replace(/\./g, '_');
-    if (loggedIn && user && isFirebaseConfigured && db) {
+    if (loggedIn && user && db) {
       await set(ref(db, `users/${userKey}/learningTracks`), updatedTracks);
     }
   };
@@ -1384,7 +1303,7 @@ export default function App() {
     }
   };
 
-  if (!isFirebaseConfigured) {
+  if (!isFirebaseConfigured && !useMockDb) {
     return (
       <div style={{
         minHeight: '100vh',
@@ -1540,7 +1459,8 @@ export default function App() {
               { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
               { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
               { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
-              { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> }
+              { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> },
+              ...(isAdmin ? [{ id: 'admin_panel' as const, label: 'Admin Panel', icon: <ShieldAlert size={18} /> }] : [])
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1632,7 +1552,8 @@ export default function App() {
                 { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
                 { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
                 { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
-                { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> }
+                { id: 'profile' as const, label: 'Settings', icon: <Settings size={18} /> },
+                ...(isAdmin ? [{ id: 'admin_panel' as const, label: 'Admin Panel', icon: <ShieldAlert size={18} /> }] : [])
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -2136,6 +2057,14 @@ export default function App() {
               onLogOut={handleLogOut}
               isGuest={user.isGuest}
               activeSubTab={profileSubTab}
+            />
+          )}
+
+          {/* Admin Panel Tab */}
+          {activeMainTab === 'admin_panel' && (
+            <AdminPanel 
+              userEmail={user.email}
+              userName={user.name}
             />
           )}
 
