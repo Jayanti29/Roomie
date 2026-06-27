@@ -519,7 +519,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
+      Object.entries(peerConnections.current).forEach(([_peerId, pc]) => {
         const senders = pc.getSenders();
         
         const audioSender = senders.find(s => s.track?.kind === 'audio');
