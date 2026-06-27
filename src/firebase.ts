@@ -13,7 +13,49 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-export const isFirebaseConfigured = !!firebaseConfig.apiKey;
+// --- Mock Database Implementation for Local E2E Tests ---
+export const useMockDb = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+export const isFirebaseConfigured = !!firebaseConfig.apiKey || useMockDb;
+
+class MockAuth {
+  currentUser: any = null;
+  listeners: ((user: any) => void)[] = [];
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('roomie_mock_auth_user');
+      if (savedUser) {
+        try {
+          this.currentUser = JSON.parse(savedUser);
+        } catch (e) {}
+      }
+    }
+  }
+
+  onAuthStateChanged(callback: (user: any) => void) {
+    this.listeners.push(callback);
+    // Fire callback with the current user asynchronously to mimic Firebase behavior
+    const currentUser = this.currentUser;
+    setTimeout(() => callback(currentUser), 0);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  }
+
+  setCurrentUser(user: any) {
+    this.currentUser = user;
+    if (typeof window !== 'undefined') {
+      if (user) {
+        localStorage.setItem('roomie_mock_auth_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('roomie_mock_auth_user');
+      }
+    }
+    this.listeners.forEach(l => l(user));
+  }
+}
 
 let app;
 export let auth: any = null;
@@ -38,9 +80,15 @@ if (isFirebaseConfigured) {
   console.log('[Firebase] Running in Offline Mock Database mode.');
 }
 
-// --- Mock Database Implementation for Local E2E Tests ---
-export const useMockDb = typeof window !== 'undefined' && 
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+if (useMockDb) {
+  if (!auth) {
+    auth = new MockAuth();
+  }
+  if (!db) {
+    db = {};
+  }
+}
+
 
 class MockDatabaseRef {
   path: string;
@@ -258,6 +306,24 @@ export const authService = {
 
   signIn: async (email: string, pass: string): Promise<{ email: string; name: string }> => {
     authService._log('signIn called', { email });
+    if (useMockDb && auth && typeof auth.setCurrentUser === 'function') {
+      const uid = email.replace(/[^a-zA-Z0-9]/g, '_');
+      const mockUserData = await mockGet(new MockDatabaseRef('users/' + uid));
+      let displayName = email.split('@')[0];
+      if (mockUserData.exists()) {
+        const val = mockUserData.val();
+        displayName = val.name || val.profile?.fullName || displayName;
+      }
+      const userObj = {
+        uid,
+        email,
+        displayName,
+        isAnonymous: false,
+        getIdTokenResult: async () => ({ claims: { admin: email === 'admin@roomie.io' || (mockUserData.exists() && !!mockUserData.val().isAdmin) } })
+      };
+      auth.setCurrentUser(userObj);
+      return { email, name: displayName };
+    }
     if (isFirebaseConfigured && auth) {
       const start = Date.now();
       const creds = await signInWithEmailAndPassword(auth, email, pass);
@@ -272,6 +338,32 @@ export const authService = {
 
   signInAnonymously: async (): Promise<{ uid: string }> => {
     authService._log('signInAnonymously called');
+    if (useMockDb && auth && typeof auth.setCurrentUser === 'function') {
+      const uid = 'local_guest_' + Math.floor(1000 + Math.random() * 9000);
+      const email = `guest_${uid}@roomie.io`;
+      const name = `Guest_${uid.substring(0, 5)}`;
+      const userObj = {
+        uid,
+        email,
+        displayName: name,
+        isAnonymous: true,
+        getIdTokenResult: async () => ({ claims: { admin: false } })
+      };
+      // Pre-populate guest profile so onboarding flows cleanly
+      await mockSet(new MockDatabaseRef('users/' + uid), {
+        email,
+        name,
+        profile: {
+          fullName: name,
+          email,
+          onboardingCompleted: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      });
+      auth.setCurrentUser(userObj);
+      return { uid };
+    }
     if (isFirebaseConfigured && auth) {
       const start = Date.now();
       const creds = await signInAnonymously(auth);
@@ -279,11 +371,25 @@ export const authService = {
       if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
         console.debug('[Firebase] signInAnonymously success', { uid: creds.user.uid }, `took ${duration}ms`);
       }
+      // Ensure guest user exists in the Realtime Database
+      const email = `guest_${creds.user.uid}@roomie.io`;
+      const name = `Guest_${creds.user.uid.substring(0, 5)}`;
+      const userRef = ref(db, 'users/' + creds.user.uid);
+      const snap = await get(userRef);
+      if (!snap.exists()) {
+        await set(userRef, {
+          email,
+          name,
+          profile: {
+            fullName: name,
+            email,
+            onboardingCompleted: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        });
+      }
       return { uid: creds.user.uid };
-    }
-
-    if (useMockDb) {
-      return { uid: 'local_guest_' + Math.floor(1000 + Math.random() * 9000) };
     }
 
     throw new Error('Guest login is unavailable because Firebase Authentication is not configured.');
@@ -301,6 +407,79 @@ export const authService = {
     if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
       console.debug('[Firebase] signUp called', { email, name });
     }
+    const uid = email.replace(/[^a-zA-Z0-9]/g, '_');
+    const profileData = {
+      email,
+      name,
+      level: 1,
+      xp: 0,
+      maxXp: 1000,
+      stats: { intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 },
+      unlockedSkills: [],
+      quests: [
+        { id: 'q1', title: 'Complete Python Challenge', category: 'Study', difficulty: 'Medium', xpReward: 100, statReward: { intelligence: 10 }, completed: false },
+        { id: 'q2', title: 'Read 20 Pages', category: 'Productivity', difficulty: 'Easy', xpReward: 50, statReward: { discipline: 5 }, completed: false }
+      ],
+      achievements: [
+        { id: 'first_proj', title: 'First Project Done', icon: 'PRJ', desc: 'Finish your first developer deployment', unlocked: false, rarity: 'Common' },
+        { id: 'streak_30', title: '30-Day Streak', icon: 'STK', desc: 'Keep consistency alive for 30 cycles', unlocked: false, rarity: 'Rare' },
+        { id: 'lvl_20', title: 'Level 20 Reached', icon: 'LVL', desc: 'Achieve Academic Level 20', unlocked: false, rarity: 'Epic' },
+        { id: 'ml_master', title: 'ML Master', icon: 'MST', desc: 'Successfully complete the Machine Learning Milestone Assessment', unlocked: false, rarity: 'Legendary' }
+      ],
+      customization: {
+        avatarTier: 1,
+        showVisor: false,
+        showDrone: false,
+        showHalo: false,
+        showMatrix: false,
+        accentHue: 195,
+        saturation: 100,
+        brightness: 100,
+        autoSync: true,
+        hasScanned: false,
+        faceCut: 'round',
+        hairStyle: 'curly',
+        eyeColor: 'green',
+        hairAccessory: 'none'
+      },
+      course: course || 'Computer Science',
+      degree: degree || 'Bachelor of Science',
+      college: college || 'State University',
+      location: location || 'San Francisco, CA',
+      profile: {
+        fullName: name,
+        email: email,
+        phone: '',
+        bio: '',
+        degree: degree || 'Bachelor of Science',
+        specialization: course || 'Computer Science',
+        semester: 'Semester 1',
+        college: college || 'State University',
+        university: 'State University System',
+        state: location ? location.split(',')[1]?.trim() || '' : 'CA',
+        city: location ? location.split(',')[0]?.trim() || '' : 'San Francisco',
+        careerGoal: 'Software Engineer',
+        academicInterests: 'Computer Science, Software Engineering',
+        profilePhoto: null,
+        onboardingCompleted: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    };
+
+    if (useMockDb && auth && typeof auth.setCurrentUser === 'function') {
+      await mockSet(new MockDatabaseRef('users/' + uid), profileData);
+      const userObj = {
+        uid,
+        email,
+        displayName: name,
+        isAnonymous: false,
+        getIdTokenResult: async () => ({ claims: { admin: email === 'admin@roomie.io' } })
+      };
+      auth.setCurrentUser(userObj);
+      return { email, name, course, degree, college, location };
+    }
+
     if (isFirebaseConfigured && auth && db) {
       const start = Date.now();
       const creds = await createUserWithEmailAndPassword(auth, email, pass);
@@ -308,69 +487,17 @@ export const authService = {
       if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
         console.debug('[Firebase] signUp success', { email, uid: creds.user.uid }, `took ${duration}ms`);
       }
-      await set(ref(db, 'users/' + creds.user.uid), {
-        email,
-        name,
-        level: 1,
-        xp: 0,
-        maxXp: 1000,
-        stats: { intelligence: 5, strength: 5, discipline: 5, creativity: 5, communication: 5, career: 5 },
-        unlockedSkills: [],
-        quests: [
-          { id: 'q1', title: 'Complete Python Challenge', category: 'Study', difficulty: 'Medium', xpReward: 100, statReward: { intelligence: 10 }, completed: false },
-          { id: 'q2', title: 'Read 20 Pages', category: 'Productivity', difficulty: 'Easy', xpReward: 50, statReward: { discipline: 5 }, completed: false }
-        ],
-        achievements: [
-          { id: 'first_proj', title: 'First Project Done', icon: 'PRJ', desc: 'Finish your first developer deployment', unlocked: false, rarity: 'Common' },
-          { id: 'streak_30', title: '30-Day Streak', icon: 'STK', desc: 'Keep consistency alive for 30 cycles', unlocked: false, rarity: 'Rare' },
-          { id: 'lvl_20', title: 'Level 20 Reached', icon: 'LVL', desc: 'Achieve Academic Level 20', unlocked: false, rarity: 'Epic' },
-          { id: 'ml_master', title: 'ML Master', icon: 'MST', desc: 'Successfully complete the Machine Learning Milestone Assessment', unlocked: false, rarity: 'Legendary' }
-        ],
-        customization: {
-          avatarTier: 1,
-          showVisor: false,
-          showDrone: false,
-          showHalo: false,
-          showMatrix: false,
-          accentHue: 195,
-          saturation: 100,
-          brightness: 100,
-          autoSync: true,
-          hasScanned: false,
-          faceCut: 'round',
-          hairStyle: 'curly',
-          eyeColor: 'green',
-          hairAccessory: 'none'
-        },
-        course: course || 'Computer Science',
-        degree: degree || 'Bachelor of Science',
-        college: college || 'State University',
-        location: location || 'San Francisco, CA',
-        profile: {
-          fullName: name,
-          email: email,
-          phone: '',
-          bio: '',
-          degree: degree || 'Bachelor of Science',
-          specialization: course || 'Computer Science',
-          semester: 'Semester 1',
-          college: college || 'State University',
-          university: 'State University System',
-          state: location ? location.split(',')[1]?.trim() || '' : 'CA',
-          city: location ? location.split(',')[0]?.trim() || '' : 'San Francisco',
-          careerGoal: 'Software Engineer',
-          academicInterests: 'Computer Science, Software Engineering',
-          profilePhoto: null,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-      });
+      await set(ref(db, 'users/' + creds.user.uid), profileData);
       return { email, name, course, degree, college, location };
     }
     throw new Error('Realtime service unavailable (Firebase Database/Auth not configured).');
   },
 
   signOut: async () => {
+    if (useMockDb && auth && typeof auth.setCurrentUser === 'function') {
+      auth.setCurrentUser(null);
+      return;
+    }
     if (isFirebaseConfigured && auth) {
       await signOut(auth);
     }
@@ -382,7 +509,7 @@ export const databaseService = {
     if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
       console.debug('[Firebase] getUserData called', { email: _email });
     }
-    if (isFirebaseConfigured && db && auth && auth.currentUser) {
+    if (db && auth && auth.currentUser) {
       const start = Date.now();
       const snap = await get(ref(db, 'users/' + auth.currentUser.uid));
       const duration = Date.now() - start;
@@ -401,7 +528,7 @@ export const databaseService = {
     if (import.meta.env.VITE_LOG_LEVEL === 'debug') {
       console.debug('[Firebase] saveUserData called', { email: _email, data });
     }
-    if (isFirebaseConfigured && db && auth && auth.currentUser) {
+    if (db && auth && auth.currentUser) {
       const start = Date.now();
       await update(ref(db, 'users/' + auth.currentUser.uid), data);
       const duration = Date.now() - start;
@@ -430,7 +557,14 @@ if (typeof window !== 'undefined') {
                 const roomId = 'room_' + roomTitle.toLowerCase().replace(/\s+/g, '-');
                 targetPath = 'study_rooms/' + roomId;
               }
-              const snap = await get(ref(db, targetPath));
+              let snap = await get(ref(db, targetPath));
+              if (useMockDb && !snap.exists()) {
+                for (let i = 0; i < 8; i++) {
+                  await new Promise(r => setTimeout(r, 200));
+                  snap = await get(ref(db, targetPath));
+                  if (snap.exists()) break;
+                }
+              }
               return {
                 val: () => snap.val()
               };
@@ -504,8 +638,4 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
   }
 }
 
-export async function uploadPdf(fileName: string, fileDataUrl: string, ownerEmail: string): Promise<string> {
-  const response = await fetch(fileDataUrl);
-  const blob = await response.blob();
-  return uploadFile(blob, fileName, ownerEmail);
-}
+
