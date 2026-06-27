@@ -279,13 +279,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Level:</span>
-              <span style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-purple)' }}>Lvl {level}</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Academic Rank:</span>
+              <span style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-purple)' }}>Tier {level}</span>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                <span>XP Progress</span>
+                <span>Study Experience</span>
                 <span>{xp} / {maxXp}</span>
               </div>
               <div style={{ height: '8px', background: '#f1f5f9', border: '1.5px solid #0f172a', borderRadius: '4px', overflow: 'hidden' }}>
