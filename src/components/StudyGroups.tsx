@@ -48,6 +48,12 @@ interface StudyGroup {
   roadmap?: Record<string, GroupRoadmap>;
   resources?: Record<string, any>;
   files?: Record<string, any>;
+  requests?: Record<string, {
+    uid: string;
+    email: string;
+    name: string;
+    timestamp: number;
+  }>;
 }
 
 const DocxPreview: React.FC<{ fileName: string }> = ({ fileName }) => {
