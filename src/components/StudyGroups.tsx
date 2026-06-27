@@ -284,6 +284,7 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
           description: val.metadata.description || '',
           createdBy: val.metadata.createdBy || '',
           members: val.members || {},
+          requests: val.requests || {},
           messages: {},
           notes: {},
           tasks: {},
@@ -305,7 +306,8 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
           name: val.metadata.name,
           description: val.metadata.description || '',
           createdBy: val.metadata.createdBy || '',
-          members: val.members || {}
+          members: val.members || {},
+          requests: val.requests || {}
         } : g));
       }
     });
@@ -525,18 +527,73 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
     const currentUid = auth?.currentUser?.uid || 'guest';
     const isCurrentlyMember = !!gp.members[myEmailSlug] || !!gp.members[currentUid];
 
+    if (!isCurrentlyMember) {
+      // 50-member limit check
+      const uniqueMemberCount = Object.keys(gp.members).filter(k => k.includes('_')).length;
+      if (uniqueMemberCount >= 50) {
+        alert("This study group has reached its maximum capacity of 50 members.");
+        return;
+      }
+
+      // Check if user already has a pending request
+      const hasPending = gp.requests && gp.requests[myEmailSlug];
+      if (hasPending) {
+        alert("Your request to join this group is already pending approval.");
+        return;
+      }
+
+      // Submit join request
+      if (isFirebaseConfigured && db) {
+        await set(ref(db, `community_groups/${groupId}/requests/${myEmailSlug}`), {
+          uid: currentUid,
+          email: userEmail,
+          name: userName,
+          timestamp: Date.now()
+        });
+        alert("Your request to join this study group has been submitted to the creator for approval.");
+      }
+      return;
+    }
+
     const sysMsg = {
       id: `sys_join_${Date.now()}`,
       sender: 'System',
       senderEmail: 'system@roomie.io',
-      text: `${userName} has ${isCurrentlyMember ? 'left' : 'joined'} the group.`,
+      text: `${userName} has left the group.`,
       timestamp: Date.now()
     };
 
     if (isFirebaseConfigured && db) {
-      await set(ref(db, `community_groups/${groupId}/members/${myEmailSlug}`), isCurrentlyMember ? null : true);
-      await set(ref(db, `community_groups/${groupId}/members/${currentUid}`), isCurrentlyMember ? null : true);
+      await set(ref(db, `community_groups/${groupId}/members/${myEmailSlug}`), null);
+      await set(ref(db, `community_groups/${groupId}/members/${currentUid}`), null);
       await push(ref(db, `community_groups/${groupId}/messages`), sysMsg);
+    }
+  };
+
+  const handleApproveRequest = async (groupId: string, reqEmailSlug: string) => {
+    const gp = groups.find(g => g.id === groupId);
+    if (!gp || !gp.requests || !gp.requests[reqEmailSlug]) return;
+
+    const request = gp.requests[reqEmailSlug];
+    const sysMsg = {
+      id: `sys_join_${Date.now()}`,
+      sender: 'System',
+      senderEmail: 'system@roomie.io',
+      text: `${request.name} has joined the group.`,
+      timestamp: Date.now()
+    };
+
+    if (isFirebaseConfigured && db) {
+      await set(ref(db, `community_groups/${groupId}/members/${reqEmailSlug}`), true);
+      await set(ref(db, `community_groups/${groupId}/members/${request.uid}`), true);
+      await set(ref(db, `community_groups/${groupId}/requests/${reqEmailSlug}`), null);
+      await push(ref(db, `community_groups/${groupId}/messages`), sysMsg);
+    }
+  };
+
+  const handleDenyRequest = async (groupId: string, reqEmailSlug: string) => {
+    if (isFirebaseConfigured && db) {
+      await set(ref(db, `community_groups/${groupId}/requests/${reqEmailSlug}`), null);
     }
   };
 
@@ -1070,13 +1127,19 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '320px' }}>
               You must join the group &quot;{activeGroup?.name}&quot; to view its chats, tasks, roadmaps, and announcements.
             </p>
-            <button
-              onClick={() => handleToggleJoin(activeGroupId)}
-              className="cyber-btn cyan-fill"
-              style={{ padding: '0.6rem 1.5rem' }}
-            >
-              Join Study Group Now
-            </button>
+            {(() => {
+              const hasPending = activeGroup?.requests && activeGroup.requests[myEmailSlug];
+              return (
+                <button
+                  onClick={() => !hasPending && handleToggleJoin(activeGroupId)}
+                  className={`cyber-btn ${hasPending ? 'gray-fill' : 'cyan-fill'}`}
+                  style={{ padding: '0.6rem 1.5rem', cursor: hasPending ? 'not-allowed' : 'pointer' }}
+                  disabled={!!hasPending}
+                >
+                  {hasPending ? 'Request Pending Approval' : 'Join Study Group Now'}
+                </button>
+              );
+            })()}
           </div>
         ) : (
           // USER IS A MEMBER - RENDER WORKSPACE
@@ -1596,15 +1659,55 @@ export const StudyGroups: React.FC<StudyGroupsProps> = ({
 
               {/* 6. MEMBERS LIST */}
               {subTab === 'members' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '4px', marginBottom: '4px' }}>
-                    Group Members ({activeMembersKeys.length})
-                  </h4>
-                  {activeMembersKeys.map(memberSlug => (
-                    <div key={memberSlug} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', border: '1px solid var(--outline-thick)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{memberSlug.replace(/_/g, '.')}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  
+                  {/* Join Requests section (Creator/Admin only) */}
+                  {(activeGroup?.createdBy === userEmail || isGuest) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-pink)', borderBottom: '2.5px solid #000', paddingBottom: '4px', marginBottom: '4px' }}>
+                        Pending Join Requests ({activeGroup?.requests ? Object.keys(activeGroup.requests).length : 0})
+                      </h4>
+                      {(!activeGroup?.requests || Object.keys(activeGroup.requests).length === 0) ? (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No pending join requests.</span>
+                      ) : (
+                        Object.entries(activeGroup.requests).map(([reqEmailSlug, req]: [string, any]) => (
+                          <div key={reqEmailSlug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '2px solid #000', padding: '0.6rem 0.8rem', borderRadius: '12px', boxShadow: '2px 2px 0px #000' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                              <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{req.name}</strong>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{req.email}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                              <button
+                                onClick={() => handleApproveRequest(activeGroupId!, reqEmailSlug)}
+                                className="cyber-btn cyan-fill"
+                                style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleDenyRequest(activeGroupId!, reqEmailSlug)}
+                                className="cyber-btn pink-fill"
+                                style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', minHeight: 'auto' }}
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
-                  ))}
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', borderBottom: '1px solid var(--outline-medium)', paddingBottom: '4px', marginBottom: '4px' }}>
+                      Group Members ({activeMembersKeys.length})
+                    </h4>
+                    {activeMembersKeys.map(memberSlug => (
+                      <div key={memberSlug} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', border: '1px solid var(--outline-thick)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{memberSlug.replace(/_/g, '.')}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
