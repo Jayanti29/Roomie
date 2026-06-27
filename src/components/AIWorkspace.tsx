@@ -44,10 +44,54 @@ const assistantNames: Record<string, string> = {
   mentor: "Study Mentor"
 };
 
+const suggestedPrompts: Record<string, string[]> = {
+  tutor: [
+    "Explain Object Oriented Programming in Java",
+    "Explain Time Complexity and Big O notation",
+    "How does cell division occur in biology?"
+  ],
+  planner: [
+    "Generate a study plan for BCA Semester 4",
+    "Design a 6-week preparation schedule for GATE exam",
+    "How can I break down a term paper project?"
+  ],
+  coding: [
+    "How do I implement a Binary Search Tree in Python?",
+    "Optimize this bubble sort implementation to O(n log n)",
+    "Explain the difference between SQL and NoSQL"
+  ],
+  research: [
+    "How do I structure the bibliography section of a research paper?",
+    "Give me tips on how to summarize a 20-page research paper",
+    "Explain the components of a literature review"
+  ],
+  coach: [
+    "Mock technical interview: Ask me a basic Linked List question",
+    "How should I answer 'What is your greatest weakness?'",
+    "Give me a behavioral question and critique my answer"
+  ],
+  resume: [
+    "How can I list personal projects on my resume?",
+    "What are action verbs to describe web developer achievements?",
+    "Review checklist for a final year student resume"
+  ],
+  advisor: [
+    "What are the highest demand tech skills in India?",
+    "Which fields can a BSc CS graduate transition into?",
+    "Explain path options for entering the Machine Learning space"
+  ],
+  mentor: [
+    "I'm feeling burnt out, what should I do?",
+    "Give me a 5-step Pomodoro routine to regain focus",
+    "How do I balance a part-time job with full-time college?"
+  ]
+};
+
 export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName }) => {
   const [activeAssistant, setActiveAssistant] = useState('tutor');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState('');
   
   // Input text and searching
   const [chatInput, setChatInput] = useState('');
@@ -135,34 +179,32 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
     setActiveAssistant(assistantType);
   };
 
-  // Send message to AI Proxy
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !activeChatId || isTyping) return;
+  const submitPrompt = async (text: string) => {
+    if (!text.trim() || !activeChatId || isTyping || streamingText) return;
 
     const chat = conversations.find(c => c.id === activeChatId);
     if (!chat) return;
 
     const userMessage: ChatMessage = {
       role: 'user',
-      content: chatInput
+      content: text
     };
 
     const updatedMessages = [...chat.messages, userMessage];
     
-    // Save user message to DB
     if (isFirebaseConfigured && db) {
       await update(ref(db, `users/${userKey}/ai_history/${activeChatId}`), {
         messages: updatedMessages,
         timestamp: Date.now()
       });
+    } else {
+      setConversations(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: updatedMessages, timestamp: Date.now() } : c));
     }
 
     setChatInput('');
     setIsTyping(true);
 
     try {
-      // API request to Vercel Serverless proxy `/api/ai/chat`
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
@@ -180,20 +222,34 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
       const data = await response.json();
       const aiReply = data.choices?.[0]?.message?.content || 'Sorry, I encountered an issue generating a response. Please try again.';
 
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: aiReply
-      };
-
-      const finalMessages = [...updatedMessages, assistantMessage];
+      setIsTyping(false);
+      setStreamingText('');
       
-      // Update with AI reply
-      if (isFirebaseConfigured && db) {
-        await update(ref(db, `users/${userKey}/ai_history/${activeChatId}`), {
-          messages: finalMessages,
-          timestamp: Date.now()
-        });
-      }
+      let currentText = '';
+      const interval = setInterval(() => {
+        if (currentText.length < aiReply.length) {
+          currentText += aiReply.charAt(currentText.length);
+          setStreamingText(currentText);
+        } else {
+          clearInterval(interval);
+          setStreamingText('');
+          
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: aiReply
+          };
+          const finalMessages = [...updatedMessages, assistantMessage];
+          
+          if (isFirebaseConfigured && db) {
+            update(ref(db, `users/${userKey}/ai_history/${activeChatId}`), {
+              messages: finalMessages,
+              timestamp: Date.now()
+            }).catch(console.error);
+          } else {
+            setConversations(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: finalMessages, timestamp: Date.now() } : c));
+          }
+        }
+      }, 5);
     } catch (err) {
       console.error(err);
       const errMessage: ChatMessage = {
@@ -205,10 +261,20 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
           messages: [...updatedMessages, errMessage],
           timestamp: Date.now()
         });
+      } else {
+        setConversations(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...updatedMessages, errMessage], timestamp: Date.now() } : c));
       }
-    } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    submitPrompt(chatInput);
+  };
+
+  const handleSendPrompt = (promptText: string) => {
+    submitPrompt(promptText);
   };
 
   // Rename Conversation
@@ -499,6 +565,26 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                   </div>
                 );
               })}
+              {streamingText && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'flex-start', maxWidth: '85%', textAlign: 'left' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, alignSelf: 'flex-start', marginBottom: '2px' }}>
+                    {assistantNames[activeChat.assistantType]}
+                  </span>
+                  <div style={{
+                    background: '#fff',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--outline-thick)',
+                    borderRadius: '12px 12px 12px 2px',
+                    padding: '0.6rem 0.8rem',
+                    boxShadow: 'var(--shadow-flat-sm)',
+                    fontSize: '0.82rem',
+                    fontWeight: 500,
+                    lineHeight: '1.4'
+                  }}>
+                    {renderMessageContent(streamingText)}
+                  </div>
+                </div>
+              )}
               {isTyping && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'flex-start', maxWidth: '85%', textAlign: 'left' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>AI is typing...</span>
@@ -510,6 +596,36 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
               <div ref={chatEndRef} />
             </div>
 
+            {/* Suggested Prompts */}
+            {activeChat && activeChat.messages.filter(m => m.role !== 'system').length <= 1 && !isTyping && !streamingText && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.2rem 0.25rem' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Suggested Prompts:</span>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {(suggestedPrompts[activeChat.assistantType] || []).map((promptText, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSendPrompt(promptText)}
+                      className="cyber-btn"
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.7rem',
+                        borderRadius: '20px',
+                        background: '#ffffff',
+                        border: '1.5px solid var(--outline-thick)',
+                        color: 'var(--text-secondary)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {promptText}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+ 
             {/* Input Form */}
             <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.4rem' }}>
               <input
@@ -519,12 +635,12 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                 placeholder={`Ask ${assistantNames[activeChat?.assistantType || '']} anything...`}
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                disabled={isTyping}
+                disabled={isTyping || !!streamingText}
                 required
               />
               <button
                 type="submit"
-                disabled={isTyping}
+                disabled={isTyping || !!streamingText}
                 className="cyber-btn pink-fill"
                 style={{ padding: '0.6rem 1.2rem', minHeight: '42px' }}
               >
