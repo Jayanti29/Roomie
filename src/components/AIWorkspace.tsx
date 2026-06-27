@@ -565,7 +565,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({ userEmail, userName })
                   </div>
                 );
               })}
-              {streamingText && (
+              {streamingText && activeChat && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'flex-start', maxWidth: '85%', textAlign: 'left' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, alignSelf: 'flex-start', marginBottom: '2px' }}>
                     {assistantNames[activeChat.assistantType]}
