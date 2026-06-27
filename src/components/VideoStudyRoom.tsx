@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { generateQuestionsForTopic } from '../utils/quizHelper';
-import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadPdf, uploadFile } from '../firebase';
+import { db, isFirebaseConfigured, ref, onValue, set, update, push, remove, onChildAdded, onChildChanged, onChildRemoved, get, uploadFile } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
 import { Hand, Volume2 } from 'lucide-react';
+
 
 const downloadPdfContent = async (idOrUrl: string, fileName: string) => {
   if (!idOrUrl) return;
@@ -222,7 +223,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
   const [roomNotes, setRoomNotes] = useState<RoomNote[]>([]);
   const [rnTitle, setRnTitle] = useState('');
   const [rnContent, setRnContent] = useState('');
-  const [rnPdf, setRnPdf] = useState<{ name: string; size: string; dataUrl: string } | null>(null);
+  const [rnPdf, setRnPdf] = useState<File | null>(null);
   const [rnPdfError, setRnPdfError] = useState('');
   const rnFileInputRef = useRef<HTMLInputElement>(null);
   // Video feed status
@@ -459,6 +460,114 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
 
 
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  
+  const [selectedAudioInput, setSelectedAudioInput] = useState<string>('');
+  const [selectedVideoInput, setSelectedVideoInput] = useState<string>('');
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>('');
+
+  const loadDevices = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      const audioIns = devices.filter(d => d.kind === 'audioinput');
+      const videoIns = devices.filter(d => d.kind === 'videoinput');
+      const audioOuts = devices.filter(d => d.kind === 'audiooutput');
+      
+      setAudioInputs(audioIns);
+      setVideoInputs(videoIns);
+      setAudioOutputs(audioOuts);
+      
+      if (audioIns.length && !selectedAudioInput) setSelectedAudioInput(audioIns[0].deviceId);
+      if (videoIns.length && !selectedVideoInput) setSelectedVideoInput(videoIns[0].deviceId);
+      if (audioOuts.length && !selectedAudioOutput) setSelectedAudioOutput(audioOuts[0].deviceId);
+    } catch (e) {
+      console.warn('[WebRTC] Failed to list media devices:', e);
+    }
+  }, [selectedAudioInput, selectedVideoInput, selectedAudioOutput]);
+
+  const changeDevices = async (audioId: string, videoId: string) => {
+    setSelectedAudioInput(audioId);
+    setSelectedVideoInput(videoId);
+    
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(t => t.stop());
+    }
+    
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          deviceId: audioId ? { exact: audioId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      };
+      
+      if (cameraOnRef.current) {
+        constraints.video = {
+          deviceId: videoId ? { exact: videoId } : undefined,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        };
+      } else {
+        constraints.video = false;
+      }
+      
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
+        const senders = pc.getSenders();
+        
+        const audioSender = senders.find(s => s.track?.kind === 'audio');
+        const audioTrack = newStream.getAudioTracks()[0];
+        if (audioSender && audioTrack) {
+          audioSender.replaceTrack(audioTrack);
+        }
+        
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        const videoTrack = newStream.getVideoTracks()[0];
+        if (videoSender && videoTrack) {
+          videoSender.replaceTrack(videoTrack);
+        }
+      });
+      
+      localStreamRef.current = newStream;
+      setCameraStream(newStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+      }
+    } catch (err) {
+      console.error('[WebRTC] Failed to change media devices:', err);
+    }
+  };
+
+  const changeAudioOutput = async (sinkId: string) => {
+    setSelectedAudioOutput(sinkId);
+    const mediaElements = document.querySelectorAll('video, audio');
+    for (const el of Array.from(mediaElements)) {
+      if ((el as any).setSinkId) {
+        try {
+          await (el as any).setSinkId(sinkId);
+        } catch (e) {
+          console.warn('[WebRTC] Failed to set sinkId on element:', e);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (activeRoom) {
+      navigator.mediaDevices?.addEventListener('devicechange', loadDevices);
+      return () => {
+        navigator.mediaDevices?.removeEventListener('devicechange', loadDevices);
+      };
+    }
+  }, [activeRoom, loadDevices]);
+
   // Manage webcam stream lifecycle via useEffect to avoid ref race conditions
   useEffect(() => {
     let activeStream: MediaStream | null = null;
@@ -473,17 +582,37 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
 
         let stream: MediaStream;
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: cameraOnRef.current ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false, 
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          });
+          const constraints: MediaStreamConstraints = {
+            audio: {
+              deviceId: selectedAudioInput ? { exact: selectedAudioInput } : undefined,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          };
+          if (cameraOnRef.current) {
+            constraints.video = {
+              deviceId: selectedVideoInput ? { exact: selectedVideoInput } : undefined,
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            };
+          } else {
+            constraints.video = false;
+          }
+
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
           console.log(`[WebRTC] getUserMedia SUCCESS: audioTracks=${stream.getAudioTracks().length}, videoTracks=${stream.getVideoTracks().length}`);
           stream.getTracks().forEach(t => console.log(`[WebRTC]   track: ${t.kind} id=${t.id} readyState=${t.readyState} enabled=${t.enabled}`));
         } catch (mediaErr: any) {
           console.warn('[WebRTC] Camera/mic denied, trying audio-only:', mediaErr.name, mediaErr.message);
           try {
-            // Fall back to audio only if camera denied
-            stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            stream = await navigator.mediaDevices.getUserMedia({ 
+              audio: { 
+                deviceId: selectedAudioInput ? { exact: selectedAudioInput } : undefined,
+                echoCancellation: true, 
+                noiseSuppression: true 
+              } 
+            });
             console.log(`[WebRTC] getUserMedia audio-only fallback SUCCESS: audioTracks=${stream.getAudioTracks().length}`);
           } catch (audioErr) {
             throw audioErr;
@@ -495,7 +624,6 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
           return;
         }
 
-        // Apply initial states using REFS (not stale state closures)
         stream.getAudioTracks().forEach(track => { track.enabled = micOnRef.current; });
         stream.getVideoTracks().forEach(track => { track.enabled = cameraOnRef.current; });
 
@@ -503,19 +631,17 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
         localStreamRef.current = stream;
         setCameraStream(stream);
         
-        // Assign to local video preview
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
 
-        // Signal to any already-existing peer connections that local tracks are now available
-        // This handles the race where a peer joined before getUserMedia resolved
+        loadDevices();
+
         window.dispatchEvent(new CustomEvent('local-stream-ready'));
       } catch (err: any) {
         if (isCancelled) return;
         console.error('[WebRTC] getUserMedia FAILED:', err.name, err.message);
         setCameraError(true);
-        // Even without camera, signal ready so receivers-only mode works
         window.dispatchEvent(new CustomEvent('local-stream-ready'));
       }
     };
@@ -994,6 +1120,14 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     setParticipants([]);
     setRemoteStreams({});
   };
+
+  useEffect(() => {
+    return () => {
+      if (activeRoom) {
+        handleLeaveRoom();
+      }
+    };
+  }, [activeRoom]);
 
 
   const handleCreateRoom = (e: React.FormEvent) => {
@@ -1845,18 +1979,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setRnPdf({
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        dataUrl: reader.result as string
-      });
-    };
-    reader.onerror = () => {
-      setRnPdfError('Failed to read PDF file.');
-    };
-    reader.readAsDataURL(file);
+    setRnPdf(file);
   };
 
   const handleShareRoomNote = async (e: React.FormEvent) => {
@@ -1870,7 +1993,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
     let pdfUrl = '';
     if (rnPdf) {
       try {
-        pdfUrl = await uploadPdf(rnPdf.name, rnPdf.dataUrl, userEmail);
+        pdfUrl = await uploadFile(rnPdf, rnPdf.name, userEmail);
       } catch (err) {
         console.error("PDF upload failed:", err);
         alert("Failed to upload PDF attachment.");
@@ -1885,7 +2008,7 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
       author: roomNickname,
       pdfAttachment: rnPdf ? {
         name: rnPdf.name,
-        size: rnPdf.size,
+        size: rnPdf.size > 1024 * 1024 ? (rnPdf.size / (1024 * 1024)).toFixed(1) + ' MB' : (rnPdf.size / 1024).toFixed(1) + ' KB',
         url: pdfUrl
       } : undefined
     };
@@ -3263,6 +3386,53 @@ export const VideoStudyRoom: React.FC<VideoStudyRoomProps> = ({ userName, userEm
                   </div>
                 );
               })()}
+
+              {/* Device Selectors */}
+              <div style={{ display: 'flex', gap: '0.75rem', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.75rem 1.0rem', boxShadow: '3px 3px 0px #000', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', flex: 1, minWidth: '150px', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>AUDIO INPUT (MIC)</label>
+                  <select 
+                    value={selectedAudioInput} 
+                    onChange={(e) => changeDevices(e.target.value, selectedVideoInput)}
+                    className="cyber-input"
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', height: 'auto', borderRadius: '8px', width: '100%' }}
+                  >
+                    {audioInputs.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 5)}`}</option>
+                    ))}
+                    {audioInputs.length === 0 && <option value="">Default Microphone</option>}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flex: 1, minWidth: '150px', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>VIDEO INPUT (CAMERA)</label>
+                  <select 
+                    value={selectedVideoInput} 
+                    onChange={(e) => changeDevices(selectedAudioInput, e.target.value)}
+                    className="cyber-input"
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', height: 'auto', borderRadius: '8px', width: '100%' }}
+                  >
+                    {videoInputs.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 5)}`}</option>
+                    ))}
+                    {videoInputs.length === 0 && <option value="">Default Camera</option>}
+                  </select>
+                </div>
+                {audioOutputs.length > 0 && (
+                  <div style={{ display: 'flex', flex: 1, minWidth: '150px', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)' }}>AUDIO OUTPUT (SPEAKER)</label>
+                    <select 
+                      value={selectedAudioOutput} 
+                      onChange={(e) => changeAudioOutput(e.target.value)}
+                      className="cyber-input"
+                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', height: 'auto', borderRadius: '8px', width: '100%' }}
+                    >
+                      {audioOutputs.map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 5)}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
 
               {/* Video Streams Controls Toolbar */}
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', background: '#fff', border: '3px solid #000', borderRadius: '16px', padding: '0.5rem', boxShadow: '3px 3px 0px #000', position: 'relative', flexWrap: 'wrap' }}>
