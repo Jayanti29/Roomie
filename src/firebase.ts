@@ -626,7 +626,14 @@ export async function uploadFile(file: File | Blob, fileName: string, ownerEmail
       contentDisposition: `attachment; filename="${fileName}"`,
       contentType: file.type || 'application/octet-stream'
     };
-    await uploadBytes(storageRefInstance, file, metadata);
+    
+    const uploadPromise = uploadBytes(storageRefInstance, file, metadata);
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Upload request timed out after 15 seconds.')), 15000)
+    );
+    
+    await Promise.race([uploadPromise, timeoutPromise]);
+    
     const downloadUrl = await getDownloadURL(storageRefInstance);
     console.log('[UPLOAD SUCCESS (Firebase Storage)]');
     return downloadUrl;
