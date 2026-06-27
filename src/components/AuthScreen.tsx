@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { authService, databaseService } from '../firebase';
-import { Onboarding } from './Onboarding';
+import { authService } from '../firebase';
 
 interface AuthScreenProps {
-  onLoginSuccess: (
+  onLoginSuccess?: (
     email: string, 
     name: string,
     course?: string,
@@ -26,7 +25,7 @@ interface AuthScreenProps {
   ) => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess: _onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
