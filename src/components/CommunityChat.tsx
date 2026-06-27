@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { db, isFirebaseConfigured, ref, push, onChildAdded, get, set, onValue, uploadFile, auth } from '../firebase';
+import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, get, set, onValue, uploadFile, auth } from '../firebase';
 import { downloadFileHelper } from '../utils/downloadHelper';
 import { Paperclip, FileText, Mic, X } from 'lucide-react';
 
@@ -23,6 +23,7 @@ interface ChatMessage {
     course: string;
     pdfAttachment?: any;
   };
+  readBy?: Record<string, boolean>;
 }
 
 interface Channel {
@@ -79,6 +80,34 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   // Preview / Download Modal State
   const [previewAttachment, setPreviewAttachment] = useState<{ name: string; url: string; size?: string } | null>(null);
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+  const myEmailSlug = userEmail.replace(/\./g, '_');
+  const [visibleLimit, setVisibleLimit] = useState(30);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updateTypingStatus = (isTyping: boolean) => {
+    if (!isFirebaseConfigured || !db || !activeChannelId) return;
+    const typingRef = activeCommunityId === 'global'
+      ? ref(db, `community_channels/${activeChannelId}/typing/${myEmailSlug}`)
+      : ref(db, `custom_communities/${activeCommunityId}/channels/${activeChannelId}/typing/${myEmailSlug}`);
+
+    if (isTyping) {
+      set(typingRef, userName).catch(console.error);
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        set(typingRef, null).catch(console.error);
+      }, 3000);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      set(typingRef, null).catch(console.error);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(e.target.value);
+    updateTypingStatus(e.target.value.trim().length > 0);
+  };
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -183,13 +212,14 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   // Subscribe to messages in the active channel
   useEffect(() => {
     setMessages([]); // Clear old messages
+    setVisibleLimit(30); // Reset pagination limit on channel switch
     if (!isFirebaseConfigured || !db || !activeChannelId) return;
 
     const msgsRef = activeCommunityId === 'global'
       ? ref(db, `community_channels/${activeChannelId}/messages`)
       : ref(db, `custom_communities/${activeCommunityId}/channels/${activeChannelId}/messages`);
     
-    const unsub = onChildAdded(msgsRef, (snap) => {
+    const unsubAdded = onChildAdded(msgsRef, (snap) => {
       const val = snap.val();
       if (val) {
         setMessages((prev: ChatMessage[]) => {
@@ -199,8 +229,18 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
       }
     });
 
+    const unsubChanged = onChildChanged(msgsRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setMessages((prev: ChatMessage[]) => 
+          prev.map((m: ChatMessage) => m.id === val.id ? val : m)
+        );
+      }
+    });
+
     return () => {
-      unsub();
+      unsubAdded();
+      unsubChanged();
     };
   }, [activeCommunityId, activeChannelId]);
 
@@ -231,6 +271,40 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Read Receipts Sync
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !activeChannelId || messages.length === 0) return;
+    
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.senderEmail !== userEmail) {
+      const alreadyRead = lastMsg.readBy && lastMsg.readBy[myEmailSlug];
+      if (!alreadyRead) {
+        const msgRef = activeCommunityId === 'global'
+          ? ref(db, `community_channels/${activeChannelId}/messages/${lastMsg.id}/readBy/${myEmailSlug}`)
+          : ref(db, `custom_communities/${activeCommunityId}/channels/${activeChannelId}/messages/${lastMsg.id}/readBy/${myEmailSlug}`);
+        
+        set(msgRef, true).catch(console.error);
+      }
+    }
+  }, [messages, activeChannelId, activeCommunityId, userEmail, myEmailSlug]);
+
+  // Listen to typing status
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !activeChannelId) return;
+
+    const typingRef = activeCommunityId === 'global'
+      ? ref(db, `community_channels/${activeChannelId}/typing`)
+      : ref(db, `custom_communities/${activeCommunityId}/channels/${activeChannelId}/typing`);
+
+    const unsub = onValue(typingRef, (snap) => {
+      setTypingUsers(snap.val() || {});
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [activeCommunityId, activeChannelId]);
 
   const isImageFile = (name: string) => {
     const ext = name.toLowerCase().split('.').pop();
@@ -451,6 +525,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
       setInputText('');
       setAttachedFile(null);
       setAttachedNote(null);
+      updateTypingStatus(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -679,12 +754,22 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
           border: '1px solid var(--outline-medium)',
           borderRadius: 'var(--border-radius-md)'
         }}>
+          {messages.length > visibleLimit && (
+            <button 
+              type="button"
+              onClick={() => setVisibleLimit(prev => prev + 30)}
+              className="cyber-btn"
+              style={{ margin: '0.5rem auto', padding: '0.35rem 0.8rem', display: 'block', fontSize: '0.7rem', minHeight: 'auto', background: '#fff' }}
+            >
+              LOAD PREVIOUS MESSAGES ({messages.length - visibleLimit} REMAINING)
+            </button>
+          )}
           {messages.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>
               No messages here yet. Say hello!
             </div>
           ) : (
-            messages.map((msg: ChatMessage) => {
+            messages.slice(-visibleLimit).map((msg: ChatMessage) => {
               const isMe = msg.senderEmail === userEmail;
               const isSystem = msg.sender === 'System';
 
@@ -805,10 +890,26 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                         )}
                       </div>
                     )}
+                    {/* Read Receipts indicator */}
+                    {isMe && msg.readBy && Object.keys(msg.readBy).length > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '2px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.62rem', color: '#0f766e', fontWeight: 800 }}>
+                          ✓✓ Read by {Object.keys(msg.readBy).map(k => k.replace(/_/g, '.')).join(', ')}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })
+          )}
+          {/* Typing Indicator */}
+          {Object.keys(typingUsers).filter(k => k !== myEmailSlug).length > 0 && (
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', alignSelf: 'flex-start', padding: '0.25rem 0.6rem', background: '#fff', borderRadius: '8px', border: '1px solid var(--outline-thick)', boxShadow: 'var(--shadow-flat-sm)' }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                {Object.values(typingUsers).filter((_, i) => Object.keys(typingUsers)[i] !== myEmailSlug).join(', ')} is typing...
+              </span>
+            </div>
           )}
           <div ref={chatEndRef} />
         </div>
@@ -910,7 +1011,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                      style={{ flex: 1, minHeight: '38px' }}
                      placeholder={activeChannelId === 'chan_announcements' ? "Post official announcement..." : `Message #${currentChannel?.name || 'channel'}...`}
                      value={inputText}
-                     onChange={(e) => setInputText(e.target.value)}
+                     onChange={handleInputChange}
                      disabled={isUploading}
                    />
                    <button
