@@ -35,8 +35,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [onboardingUser, setOnboardingUser] = useState<{ email: string; name: string } | null>(null);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -50,7 +48,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
     try {
       if (isRegistering) {
-        const user = await authService.signUp(
+        await authService.signUp(
           email, 
           password, 
           name || email.split('@')[0],
@@ -59,87 +57,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           'State University',
           'San Francisco, CA'
         );
-        if (email.includes('testuser') || window.location.search.includes('debug=true')) {
-          onLoginSuccess(
-            user.email,
-            user.name,
-            'Computer Science',
-            'Bachelor of Science',
-            'State University',
-            'San Francisco, CA',
-            false,
-            'California',
-            'San Francisco',
-            'State University',
-            'Computer Science',
-            '1st Semester',
-            'Software Engineer',
-            ['Coding'],
-            null,
-            '',
-            ''
-          );
-        } else {
-          setOnboardingUser({ email: user.email, name: user.name });
-        }
       } else {
-        const user = await authService.signIn(email, password);
-        let course = 'Computer Science';
-        let degree = 'Bachelor of Science';
-        let college = 'State University';
-        let location = 'San Francisco, CA';
-        let stateVal = '';
-        let cityVal = '';
-        let uniVal = '';
-        let specVal = '';
-        let semVal = '1st Semester';
-        let careerGoalVal = '';
-        let interestsVal: string[] = [];
-        let profilePhotoVal: string | null = null;
-        let phoneVal = '';
-        let bioVal = '';
-
-        try {
-          const data = await databaseService.getUserData(user.email);
-          if (data) {
-            course = data.course || data.specialization || course;
-            degree = data.degree || degree;
-            college = data.college || college;
-            location = data.location || data.city || location;
-            stateVal = data.state || '';
-            cityVal = data.city || '';
-            uniVal = data.university || '';
-            specVal = data.specialization || '';
-            semVal = data.semester || '1st Semester';
-            careerGoalVal = data.careerGoal || '';
-            interestsVal = data.interests || [];
-            profilePhotoVal = data.profilePhoto || null;
-            phoneVal = data.phone || '';
-            bioVal = data.bio || '';
-          }
-        } catch (e) {
-          console.warn("Could not load user details on login, using defaults:", e);
-        }
-
-        onLoginSuccess(
-          user.email, 
-          user.name, 
-          course, 
-          degree, 
-          college, 
-          location,
-          false,
-          stateVal,
-          cityVal,
-          uniVal,
-          specVal,
-          semVal,
-          careerGoalVal,
-          interestsVal,
-          profilePhotoVal,
-          phoneVal,
-          bioVal
-        );
+        await authService.signIn(email, password);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed. Please check your credentials.');
@@ -152,35 +71,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     setErrorMessage('');
     setLoading(true);
     try {
-      const res = await authService.signInAnonymously();
-      const guestUid = res.uid;
-      const guestEmail = `guest_${guestUid}@roomie.io`;
-      const guestName = `Guest_${guestUid.substring(0, 5)}`;
-      if (guestEmail.includes('testuser') || window.location.search.includes('debug=true')) {
-        onLoginSuccess(
-          guestEmail,
-          guestName,
-          'Computer Science',
-          'Bachelor of Science',
-          'State University',
-          'San Francisco, CA',
-          true,
-          'California',
-          'San Francisco',
-          'State University',
-          'Computer Science',
-          '1st Semester',
-          'Software Engineer',
-          ['Coding'],
-          null,
-          '',
-          '',
-          true,
-          Date.now()
-        );
-      } else {
-        setOnboardingUser({ email: guestEmail, name: guestName });
-      }
+      await authService.signInAnonymously();
     } catch (err: any) {
       setErrorMessage(err.message || 'Guest login failed.');
     } finally {
@@ -188,41 +79,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleOnboardingComplete = (profileData: any) => {
-    if (!onboardingUser) return;
-    onLoginSuccess(
-      onboardingUser.email,
-      profileData.name,
-      profileData.specialization,
-      profileData.degree,
-      profileData.college,
-      `${profileData.city}, ${profileData.state}`,
-      onboardingUser.email.includes('guest_'),
-      profileData.state,
-      profileData.city,
-      profileData.university,
-      profileData.specialization,
-      profileData.semester,
-      profileData.careerGoal,
-      profileData.interests,
-      profileData.profilePhoto,
-      '', 
-      '',
-      true,
-      Date.now()
-    );
-    setOnboardingUser(null);
-  };
-
-  if (onboardingUser) {
-    return (
-      <Onboarding
-        userEmail={onboardingUser.email}
-        defaultName={onboardingUser.name}
-        onComplete={handleOnboardingComplete}
-      />
-    );
-  }
 
   return (
     <div style={{
