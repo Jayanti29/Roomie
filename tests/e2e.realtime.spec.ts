@@ -79,10 +79,10 @@ async function measureLatency(page: Page): Promise<number | null> {
     window.dispatchEvent(new CustomEvent('debug-latency-test'));
   });
   // Listen for a console log from performanceLogger
-  const msg = await Promise.race([
-    page.waitForEvent('console'),
-    new Promise<ConsoleMessage>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
-  ]).catch(() => null);
+  const msg = await page.waitForEvent('console', {
+    predicate: (m) => m.text().includes('RTDB latency:'),
+    timeout: 5000
+  }).catch(() => null);
   const delta = msg ? Number(msg.text().match(/RTDB latency: (\d+)/)?.[1]) : null;
   return delta;
 }
