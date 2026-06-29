@@ -1235,29 +1235,24 @@ export default function App() {
     if (loggedIn && user && db) {
       const currentUid = auth?.currentUser?.uid;
       const userKey = user.email.replace(/\./g, '_');
-      const payload = {
-        email: user.email,
-        name: updatedProfile.name,
-        level,
-        xp,
-        maxXp,
-        studyPoints,
-        stats,
-        achievements,
-        profile: updatedProfile,
-        course: updatedProfile.specialization,
-        degree: updatedProfile.degree,
-        college: updatedProfile.college,
-        location: `${updatedProfile.city}, ${updatedProfile.state}`,
-        profilePhoto: updatedProfile.profilePhoto || profilePhoto
-      };
       try {
         const updates: any = {};
-        if (currentUid) {
-          updates[`users/${currentUid}`] = payload;
-        } else {
-          updates[`users/${userKey}`] = payload;
-        }
+        const baseKey = currentUid ? `users/${currentUid}` : `users/${userKey}`;
+        updates[`${baseKey}/profile`] = updatedProfile;
+        updates[`${baseKey}/email`] = user.email;
+        updates[`${baseKey}/name`] = updatedProfile.name;
+        updates[`${baseKey}/level`] = level;
+        updates[`${baseKey}/xp`] = xp;
+        updates[`${baseKey}/maxXp`] = maxXp;
+        updates[`${baseKey}/studyPoints`] = studyPoints;
+        updates[`${baseKey}/stats`] = stats;
+        updates[`${baseKey}/achievements`] = achievements;
+        updates[`${baseKey}/course`] = updatedProfile.specialization;
+        updates[`${baseKey}/degree`] = updatedProfile.degree;
+        updates[`${baseKey}/college`] = updatedProfile.college;
+        updates[`${baseKey}/location`] = `${updatedProfile.city}, ${updatedProfile.state}`;
+        updates[`${baseKey}/profilePhoto`] = updatedProfile.profilePhoto || profilePhoto;
+
         await update(ref(db), updates);
       } catch (err) {
         console.error('Failed to save profile updates:', err);
