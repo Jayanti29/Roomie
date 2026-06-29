@@ -46,7 +46,6 @@ import {
   Smile,
   Heart
 } from 'lucide-react';
-import { AdminPanel } from './components/AdminPanel';
 
 
 interface ToastItem {
