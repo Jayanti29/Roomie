@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { generateAiReply } from './api/_shared/aiService'
@@ -41,6 +42,13 @@ function setValue(obj: any, path: string, value: any) {
 
 function updateValue(obj: any, path: string, value: any) {
   if (value == null) return;
+  if (!path || path === '/') {
+    // Treat each key in value as a subpath!
+    for (const key in value) {
+      setValue(obj, key, value[key]);
+    }
+    return;
+  }
   const parts = path.split('/').filter(Boolean);
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
