@@ -21,7 +21,7 @@ interface GoalsProps {
 
 const CATEGORIES = ['Study', 'Flat Upgrade', 'Social', 'Fitness', 'Other'];
 
-export const Goals: React.FC<GoalsProps> = ({ userEmail, userName, onRewardXp }) => {
+export const Goals: React.FC<GoalsProps> = ({ userEmail: _userEmail, userName: _userName, onRewardXp }) => {
   const [goals, setGoals] = useState<GoalItem[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('Study');
