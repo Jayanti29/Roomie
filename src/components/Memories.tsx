@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Image as ImageIcon, Heart, Plus, Trash2, Calendar, Smile, ShieldAlert } from 'lucide-react';
+import { Camera, Image as ImageIcon, Plus, Trash2, Calendar, Smile, ShieldAlert } from 'lucide-react';
 import { db, isFirebaseConfigured, ref, push, onValue, remove } from '../firebase';
 
 interface JournalEntry {
