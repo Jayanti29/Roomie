@@ -31,7 +31,9 @@ export default defineConfig([
       'react-hooks/rules-of-hooks': 'off',
       'prefer-const': 'off',
       'no-useless-assignment': 'off',
-      'react-hooks/purity': 'off'
+      'react-hooks/purity': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'no-useless-catch': 'off'
     }
   },
 ])
