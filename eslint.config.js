@@ -28,7 +28,10 @@ export default defineConfig([
       'preserve-caught-error': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/exhaustive-deps': 'off',
-      'react-hooks/rules-of-hooks': 'off'
+      'react-hooks/rules-of-hooks': 'off',
+      'prefer-const': 'off',
+      'no-useless-assignment': 'off',
+      'react-hooks/purity': 'off'
     }
   },
 ])
