@@ -18,6 +18,13 @@ const Friends = lazy(() => import('./components/Friends').then(m => ({ default: 
 const FocusClock = lazy(() => import('./components/FocusClock').then(m => ({ default: m.FocusClock })));
 const LearningRoadmaps = lazy(() => import('./components/LearningRoadmaps').then(m => ({ default: m.LearningRoadmaps })));
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const AIRoommate = lazy(() => import('./components/AIRoommate').then(m => ({ default: m.AIRoommate })));
+const Memories = lazy(() => import('./components/Memories').then(m => ({ default: m.Memories })));
+const Goals = lazy(() => import('./components/Goals').then(m => ({ default: m.Goals })));
+const StudyCompanion = lazy(() => import('./components/StudyCompanion').then(m => ({ default: m.StudyCompanion })));
+const MoodTracker = lazy(() => import('./components/MoodTracker').then(m => ({ default: m.MoodTracker })));
+const Deadlines = lazy(() => import('./components/Deadlines').then(m => ({ default: m.Deadlines })));
+
 import {
   LayoutDashboard,
   Users,
@@ -34,7 +41,10 @@ import {
   GraduationCap,
   LogOut,
   User,
-  ShieldAlert
+  ShieldAlert,
+  Sparkles,
+  Smile,
+  Heart
 } from 'lucide-react';
 import { AdminPanel } from './components/AdminPanel';
 
@@ -88,7 +98,7 @@ interface FocusSession {
   completedAt: string;
 }
 
-type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock' | 'learning_roadmaps' | 'admin_panel';
+type Tab = 'dashboard' | 'shared_notes' | 'community_chat' | 'study_groups' | 'study_rooms' | 'friends' | 'ai_workspace' | 'planner' | 'leaderboard' | 'profile' | 'settings' | 'account' | 'quiz_station' | 'focus_clock' | 'learning_roadmaps' | 'admin_panel' | 'ai_roommate' | 'memories' | 'goals' | 'study_companion' | 'mood_tracker' | 'deadlines';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -1455,6 +1465,12 @@ export default function App() {
               { id: 'shared_notes' as const, label: 'Shared Notes', icon: <BookOpen size={18} /> },
               { id: 'learning_roadmaps' as const, label: 'Learning Roadmaps', icon: <Map size={18} /> },
               { id: 'ai_workspace' as const, label: 'AI Workspace', icon: <Bot size={18} /> },
+              { id: 'ai_roommate' as const, label: 'AI Roommate', icon: <Sparkles size={18} /> },
+              { id: 'memories' as const, label: 'Memories', icon: <Smile size={18} /> },
+              { id: 'goals' as const, label: 'Goals', icon: <Trophy size={18} /> },
+              { id: 'study_companion' as const, label: 'Study AI', icon: <BookOpen size={18} /> },
+              { id: 'mood_tracker' as const, label: 'Vibe Check', icon: <Heart size={18} /> },
+              { id: 'deadlines' as const, label: 'Deadlines', icon: <Calendar size={18} /> },
               { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
               { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
               { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
@@ -1548,6 +1564,12 @@ export default function App() {
                 { id: 'shared_notes' as const, label: 'Shared Notes', icon: <BookOpen size={18} /> },
                 { id: 'learning_roadmaps' as const, label: 'Learning Roadmaps', icon: <Map size={18} /> },
                 { id: 'ai_workspace' as const, label: 'AI Workspace', icon: <Bot size={18} /> },
+                { id: 'ai_roommate' as const, label: 'AI Roommate', icon: <Sparkles size={18} /> },
+                { id: 'memories' as const, label: 'Memories', icon: <Smile size={18} /> },
+                { id: 'goals' as const, label: 'Goals', icon: <Trophy size={18} /> },
+                { id: 'study_companion' as const, label: 'Study AI', icon: <BookOpen size={18} /> },
+                { id: 'mood_tracker' as const, label: 'Vibe Check', icon: <Heart size={18} /> },
+                { id: 'deadlines' as const, label: 'Deadlines', icon: <Calendar size={18} /> },
                 { id: 'focus_clock' as const, label: 'Focus Clock', icon: <Timer size={18} /> },
                 { id: 'planner' as const, label: 'Planner', icon: <Calendar size={18} /> },
                 { id: 'leaderboard' as const, label: 'Leaderboard', icon: <Trophy size={18} /> },
@@ -1972,6 +1994,59 @@ export default function App() {
             <AIWorkspace
               userEmail={user.email}
               userName={profile.name || user.name}
+            />
+          )}
+
+          {/* AI Roommate Tab */}
+          {activeMainTab === 'ai_roommate' && (
+            <AIRoommate
+              userEmail={user.email}
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
+            />
+          )}
+
+          {/* Memories Tab */}
+          {activeMainTab === 'memories' && (
+            <Memories
+              userEmail={user.email}
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
+            />
+          )}
+
+          {/* Goals Tab */}
+          {activeMainTab === 'goals' && (
+            <Goals
+              userEmail={user.email}
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
+            />
+          )}
+
+          {/* Study Companion Tab */}
+          {activeMainTab === 'study_companion' && (
+            <StudyCompanion
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
+            />
+          )}
+
+          {/* Mood Tracker Tab */}
+          {activeMainTab === 'mood_tracker' && (
+            <MoodTracker
+              userEmail={user.email}
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
+            />
+          )}
+
+          {/* Deadlines Tab */}
+          {activeMainTab === 'deadlines' && (
+            <Deadlines
+              userEmail={user.email}
+              userName={profile.name || user.name || ''}
+              onRewardXp={handleRewardXp}
             />
           )}
 
