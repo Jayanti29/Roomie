@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, AlertTriangle, Plus, Trash2, Users, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Users, CheckCircle, ShieldAlert } from 'lucide-react';
 import { db, isFirebaseConfigured, ref, push, onValue, set, remove } from '../firebase';
 
 interface DeadlineItem {
@@ -17,7 +17,7 @@ interface DeadlinesProps {
   onRewardXp?: (amount: number, reason: string) => void;
 }
 
-export const Deadlines: React.FC<DeadlinesProps> = ({ userEmail, userName, onRewardXp }) => {
+export const Deadlines: React.FC<DeadlinesProps> = ({ userEmail, userName: _userName, onRewardXp }) => {
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newCourseCode, setNewCourseCode] = useState('');
