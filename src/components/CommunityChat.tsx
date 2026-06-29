@@ -3,6 +3,33 @@ import { db, isFirebaseConfigured, ref, push, onChildAdded, onChildChanged, get,
 import { downloadFileHelper } from '../utils/downloadHelper';
 import { Paperclip, FileText, Mic, X } from 'lucide-react';
 
+const VoiceAudio: React.FC<{ url: string }> = ({ url }) => {
+  const [resolvedUrl, setResolvedUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (url && url.startsWith('mock-file-url:')) {
+      const mockId = url.split(':')[1];
+      if (isFirebaseConfigured && db) {
+        get(ref(db, 'pdf_contents/' + mockId)).then(snap => {
+          if (snap.exists()) {
+            setResolvedUrl(snap.val());
+          }
+        }).catch(err => {
+          console.error('Failed to load mock audio content:', err);
+        });
+      }
+    } else {
+      setResolvedUrl(url);
+    }
+  }, [url]);
+
+  if (!resolvedUrl) {
+    return <span style={{ fontSize: '0.7rem', opacity: 0.8, color: 'inherit' }}>Loading audio...</span>;
+  }
+
+  return <audio src={resolvedUrl} controls style={{ height: '32px', width: '200px' }} />;
+};
+
 interface ChatMessage {
   id: string;
   sender: string;
@@ -877,7 +904,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
                         {msg.attachment.isVoice ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%' }} onClick={e => e.stopPropagation()}>
                             <Mic size={14} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
-                            <audio src={msg.attachment.url} controls style={{ height: '32px', width: '200px' }} />
+                            <VoiceAudio url={msg.attachment.url} />
                           </div>
                         ) : (
                           <>
