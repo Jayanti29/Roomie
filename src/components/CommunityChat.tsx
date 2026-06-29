@@ -169,6 +169,7 @@ export const CommunityChat: React.FC<CommunityChatProps> = ({
     if (!isFirebaseConfigured || !db) return;
 
     if (activeCommunityId === 'global') {
+      setActiveChannelId('chan_general');
       const channelsRef = ref(db, 'community_channels');
       
       // Ensure default channels exist
