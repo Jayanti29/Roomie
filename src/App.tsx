@@ -1,21 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AuthScreen } from './components/AuthScreen';
-import { Dashboard } from './components/Dashboard';
-import { SharedNotes } from './components/SharedNotes';
-import { CommunityChat } from './components/CommunityChat';
-import { StudyGroups } from './components/StudyGroups';
-import { VideoStudyRoom } from './components/VideoStudyRoom';
-import { AIWorkspace } from './components/AIWorkspace';
-import { Planner } from './components/Planner';
-import { ProfilePage } from './components/ProfilePage';
-import { Leaderboard } from './components/Leaderboard';
-import { QuizGenerator } from './components/QuizGenerator';
-import { Onboarding } from './components/Onboarding';
-import { Friends } from './components/Friends';
-import { FocusClock } from './components/FocusClock';
-import { LearningRoadmaps } from './components/LearningRoadmaps';
 import type { Roadmap } from './components/LearningRoadmaps';
 import { databaseService, authService, auth, db, isFirebaseConfigured, ref, update, set, useMockDb, onValue, get } from './firebase';
+
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const SharedNotes = lazy(() => import('./components/SharedNotes').then(m => ({ default: m.SharedNotes })));
+const CommunityChat = lazy(() => import('./components/CommunityChat').then(m => ({ default: m.CommunityChat })));
+const StudyGroups = lazy(() => import('./components/StudyGroups').then(m => ({ default: m.StudyGroups })));
+const VideoStudyRoom = lazy(() => import('./components/VideoStudyRoom').then(m => ({ default: m.VideoStudyRoom })));
+const AIWorkspace = lazy(() => import('./components/AIWorkspace').then(m => ({ default: m.AIWorkspace })));
+const Planner = lazy(() => import('./components/Planner').then(m => ({ default: m.Planner })));
+const ProfilePage = lazy(() => import('./components/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const Leaderboard = lazy(() => import('./components/Leaderboard').then(m => ({ default: m.Leaderboard })));
+const QuizGenerator = lazy(() => import('./components/QuizGenerator').then(m => ({ default: m.QuizGenerator })));
+const Onboarding = lazy(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })));
+const Friends = lazy(() => import('./components/Friends').then(m => ({ default: m.Friends })));
+const FocusClock = lazy(() => import('./components/FocusClock').then(m => ({ default: m.FocusClock })));
+const LearningRoadmaps = lazy(() => import('./components/LearningRoadmaps').then(m => ({ default: m.LearningRoadmaps })));
+const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 import {
   LayoutDashboard,
   Users,
@@ -1381,18 +1383,20 @@ export default function App() {
 
   if (!isBypassed && !profile.onboardingCompleted) {
     return (
-      <Onboarding
-        userEmail={user.email}
-        defaultName={profile.name || user.name || ''}
-        onComplete={(profileData) => {
-          const updatedProfile = {
-            ...profile,
-            ...profileData,
-            onboardingCompleted: true
-          };
-          handleUpdateProfile(updatedProfile);
-        }}
-      />
+      <Suspense fallback={<div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#fdfbf7', fontWeight: 800 }}>Loading Onboarding...</div>}>
+        <Onboarding
+          userEmail={user.email}
+          defaultName={profile.name || user.name || ''}
+          onComplete={(profileData) => {
+            const updatedProfile = {
+              ...profile,
+              ...profileData,
+              onboardingCompleted: true
+            };
+            handleUpdateProfile(updatedProfile);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -1871,9 +1875,9 @@ export default function App() {
 
         {/* Tab routing contents */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          
-          {/* Dashboard Tab */}
-          {activeMainTab === 'dashboard' && (
+          <Suspense fallback={<div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>Loading section...</div>}>
+            {/* Dashboard Tab */}
+            {activeMainTab === 'dashboard' && (
             <Dashboard
               level={level}
               xp={xp}
@@ -2125,7 +2129,7 @@ export default function App() {
           {activeMainTab === 'quiz_station' && (
             <QuizGenerator onRewardXp={handleRewardXp} />
           )}
-
+          </Suspense>
         </div>
 
       </div>
