@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Send, Layers, HelpCircle, FileText, Plus, Sparkles, RefreshCw, Eye } from 'lucide-react';
+import { BookOpen, Send, Layers, HelpCircle, FileText, Plus, Sparkles, Eye } from 'lucide-react';
 
 interface Flashcard {
   id: string;
