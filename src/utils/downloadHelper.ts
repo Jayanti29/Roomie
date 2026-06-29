@@ -74,14 +74,38 @@ export const downloadFileHelper = async (url: string, fileName: string) => {
   }
 };
 
-const triggerDownload = (dataUrl: string, fileName: string) => {
+const triggerDownload = (urlOrData: string, fileName: string) => {
+  let finalUrl = urlOrData;
+  let isBlob = false;
+  if (urlOrData.startsWith('data:')) {
+    try {
+      const parts = urlOrData.split(',');
+      const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+      const bstr = atob(parts[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      finalUrl = URL.createObjectURL(blob);
+      isBlob = true;
+    } catch (e) {
+      console.warn('Failed to convert data URL to blob, falling back to direct URL:', e);
+    }
+  }
+
   const link = document.createElement('a');
-  link.href = dataUrl;
+  link.href = finalUrl;
   link.download = fileName;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  if (isBlob) {
+    setTimeout(() => URL.revokeObjectURL(finalUrl), 5000);
+  }
 };
 
